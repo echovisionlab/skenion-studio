@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.3.0...skenion-studio-v0.4.0) (2026-06-15)
+
+
+### Features
+
+* **studio:** load graphs into runtime sessions ([36ae337](https://github.com/echovisionlab/skenion-studio/commit/36ae337c2e3c3a44f0cbf0c3b6b290f4087794c8))
+
 ## [0.3.0](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.2.0...skenion-studio-v0.3.0) (2026-06-15)
 
 
