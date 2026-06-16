@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.4.0...skenion-studio-v0.5.0) (2026-06-16)
+
+
+### Features
+
+* **studio:** sync runtime sessions with graph patches ([4118b6f](https://github.com/echovisionlab/skenion-studio/commit/4118b6f8340abb586afe86f1bae264280d67b00b))
+
 ## [0.4.0](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.3.0...skenion-studio-v0.4.0) (2026-06-15)
 
 
