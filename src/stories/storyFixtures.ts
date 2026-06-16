@@ -29,6 +29,21 @@ export const valueOutputPort: NodePortView = {
   }
 };
 
+export const valueInputPort: NodePortView = {
+  id: "amount",
+  label: "amount",
+  direction: "input",
+  typeLabel: "value<f32>",
+  color: "#495057",
+  metadata: {
+    rate: "control",
+    maxConnections: 1,
+    mergePolicy: "forbid",
+    triggerMode: "latched",
+    required: true
+  }
+};
+
 export const renderFrameOutputPort: NodePortView = {
   id: "out",
   label: "out",
@@ -54,6 +69,19 @@ export const renderFrameInputPort: NodePortView = {
     mergePolicy: "forbid",
     triggerMode: "passive",
     required: true
+  }
+};
+
+export const gpuTextureOutputPort: NodePortView = {
+  id: "texture",
+  label: "texture",
+  direction: "output",
+  typeLabel: "resource<gpu.texture2d>",
+  color: "#7048e8",
+  metadata: {
+    rate: "frame",
+    fanOutPolicy: "reference",
+    triggerMode: "passive"
   }
 };
 
@@ -101,6 +129,68 @@ export const targetCard: NodeCardView = {
   accentColor: "#d6336c",
   inputs: [renderFrameInputPort],
   outputs: []
+};
+
+export const valueTransformCard: NodeCardView = {
+  id: "scale_1",
+  label: "Scale Value",
+  kind: "core.scale-f32",
+  kindVersion: "0.2.0",
+  typeBadgeLabel: "value<f32>",
+  accentColor: "#495057",
+  inputs: [valueInputPort],
+  outputs: [valueOutputPort]
+};
+
+export const longLabelCard: NodeCardView = {
+  id: "shader_with_long_label_1",
+  label: "Fullscreen Shader With A Long Artist Facing Label",
+  kind: "render.fullscreen-shader.with-very-long-kind-name",
+  kindVersion: "0.2.0",
+  typeBadgeLabel: "render.frame",
+  accentColor: "#d6336c",
+  inputs: [
+    {
+      ...valueInputPort,
+      id: "artist_controlled_uniform_gain_input",
+      label: "artist_controlled_uniform_gain_input"
+    }
+  ],
+  outputs: [
+    {
+      ...renderFrameOutputPort,
+      id: "render_frame_output_with_long_name",
+      label: "render_frame_output_with_long_name"
+    }
+  ]
+};
+
+export const feedbackPortCard: NodeCardView = {
+  id: "feedback_1",
+  label: "Previous Frame",
+  kind: "render.previous-frame-feedback",
+  kindVersion: "0.2.0",
+  typeBadgeLabel: "feedback",
+  accentColor: "#d6336c",
+  inputs: [
+    {
+      ...renderFrameInputPort,
+      id: "current",
+      label: "current"
+    }
+  ],
+  outputs: [
+    {
+      ...renderFrameOutputPort,
+      id: "previous",
+      label: "previous",
+      metadata: {
+        ...renderFrameOutputPort.metadata,
+        rate: "frame",
+        fanOutPolicy: "broadcast"
+      }
+    }
+  ]
 };
 
 export const multiPortCard: NodeCardView = {
@@ -277,6 +367,22 @@ export const runtimeTelemetry: RuntimeTelemetrySnapshot = {
     uptimeMs: 54000
   },
   diagnostics: []
+};
+
+export const runtimeTelemetryWithRenderError: RuntimeTelemetrySnapshot = {
+  ...runtimeTelemetry,
+  ok: false,
+  render: {
+    ...runtimeTelemetry.render,
+    active: false,
+    lastError: "WGSL compile error: expected expression at line 24"
+  },
+  diagnostics: [
+    {
+      severity: "error",
+      message: "WGSL compile error: expected expression at line 24"
+    }
+  ]
 };
 
 const patchEvent: GraphPatchEventV01 = {

@@ -8,7 +8,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build",
     "build-storybook": "storybook build",
-    "ci": "pnpm run lint && pnpm run coverage && pnpm run build && pnpm run build-storybook",
+    "ci": "pnpm run lint && pnpm run coverage && pnpm run build && pnpm run ci:storybook",
+    "ci:storybook": "storybook build",
     "coverage": "vitest run --coverage",
     "dev": "vite --host 127.0.0.1",
     "lint": "eslint .",

@@ -4,8 +4,10 @@ import { NodePortHandle } from "./NodePortHandle";
 import { NodePortRow } from "./NodePortRow";
 import {
   eventInputPort,
+  gpuTextureOutputPort,
   renderFrameInputPort,
   renderFrameOutputPort,
+  valueInputPort,
   valueOutputPort
 } from "../../stories/storyFixtures";
 
@@ -27,17 +29,45 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Input: Story = {
+export const RequiredInput: Story = {
   args: {
     port: renderFrameInputPort,
     side: "input"
   }
 };
 
-export const Output: Story = {
+export const ValueNumber: Story = {
+  args: {
+    port: valueOutputPort,
+    side: "output"
+  }
+};
+
+export const EventBang: Story = {
+  args: {
+    port: eventInputPort,
+    side: "input"
+  }
+};
+
+export const RenderFrameOutput: Story = {
   args: {
     port: renderFrameOutputPort,
     side: "output"
+  }
+};
+
+export const GpuTextureResource: Story = {
+  args: {
+    port: gpuTextureOutputPort,
+    side: "output"
+  }
+};
+
+export const FanInAllowed: Story = {
+  args: {
+    port: eventInputPort,
+    side: "input"
   }
 };
 
@@ -50,6 +80,7 @@ export const CompatibleAndIncompatible: Story = {
     <Stack gap="sm">
       <NodePortRow compatible port={renderFrameInputPort} side="input" />
       <NodePortRow incompatible port={eventInputPort} side="input" />
+      <NodePortRow incompatible port={valueInputPort} side="input" />
       <NodePortRow compatible port={valueOutputPort} side="output" />
     </Stack>
   )
