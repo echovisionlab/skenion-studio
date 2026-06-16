@@ -53,11 +53,52 @@ Storybook is the visual QA surface for component states that are hard to inspect
 - Do not persist node positions, viewport zoom, selections, or panel layout as graph contract state.
 - Do not use Storybook stories to hide missing runtime validation. Stories should show the current prop state only.
 
+## Required Story Checklist
+
+Node and port stories should cover:
+
+- zero-port nodes
+- single-input nodes
+- single-output nodes
+- nodes with both input and output ports
+- nodes with many ports
+- selected node state
+- long labels and long port names
+- v0.2 metadata such as rate, max connections, merge policy, fan-out policy, and trigger mode
+- feedback-looking ports or previous-frame feedback surfaces
+- value number, event bang, render frame, and GPU texture/resource port rows
+- required input ports
+- fan-in allowed and fan-in rejected states
+- compatible and incompatible connection states
+
+Runtime stories should cover:
+
+- disconnected runtime
+- connected runtime
+- loaded session
+- pending patch
+- patch conflict
+- preview running
+- preview stale
+- telemetry render error
+
+Inspector stories should cover:
+
+- valid graph diagnostics
+- invalid graph diagnostics
+- edge inspector metadata
+- clear color controls
+- fullscreen shader controls
+- feedback policy dialog
+
+New Studio UI work should either add the relevant story state in the same PR or explicitly explain why the state is not representable yet.
+
 ## Commands
 
 ```bash
 pnpm run storybook
 pnpm run build-storybook
+pnpm run ci:storybook
 pnpm run ci
 ```
 

@@ -17,7 +17,8 @@ import {
   runtimeInfo,
   runtimePreviewStatus,
   runtimeSession,
-  runtimeTelemetry
+  runtimeTelemetry,
+  runtimeTelemetryWithRenderError
 } from "../../stories/storyFixtures";
 
 const meta = {
@@ -36,6 +37,20 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+export const Disconnected: Story = {
+  render: () => (
+    <RuntimeConnectionPanel
+      busyAction={null}
+      connected={false}
+      onConnect={noop}
+      onRefreshSession={noop}
+      onUrlChange={noop}
+      status="disconnected"
+      url="http://127.0.0.1:3761"
+    />
+  )
+};
 
 export const ConnectionAndSession: Story = {
   render: () => (
@@ -84,6 +99,21 @@ export const PreviewTelemetry: Story = {
   )
 };
 
+export const PatchPending: Story = {
+  render: () => (
+    <RuntimePatchPanel
+      busyAction={null}
+      connected
+      onApplyPendingPatch={noop}
+      onClearPendingPatch={noop}
+      patchBaseRevision="7"
+      patchConflict={null}
+      pendingPatchOps={2}
+      sessionLoaded
+    />
+  )
+};
+
 export const PatchConflict: Story = {
   render: () => (
     <RuntimePatchPanel
@@ -97,6 +127,10 @@ export const PatchConflict: Story = {
       sessionLoaded
     />
   )
+};
+
+export const TelemetryRenderError: Story = {
+  render: () => <RuntimeTelemetryPanel telemetry={runtimeTelemetryWithRenderError} />
 };
 
 export const HistoryControls: Story = {

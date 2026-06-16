@@ -3,9 +3,12 @@ import { Group, Stack } from "@mantine/core";
 import { NodeCard } from "./NodeCard";
 import { NodePortHandle } from "./NodePortHandle";
 import {
+  feedbackPortCard,
+  longLabelCard,
   multiPortCard,
   renderCard,
   targetCard,
+  valueTransformCard,
   zeroPortCard
 } from "../../stories/storyFixtures";
 
@@ -24,6 +27,41 @@ export const ZeroPorts: Story = {
   args: zeroPortCard
 };
 
+export const SingleInput: Story = {
+  args: targetCard
+};
+
+export const SingleOutput: Story = {
+  args: renderCard
+};
+
+export const InputAndOutput: Story = {
+  args: valueTransformCard
+};
+
+export const ManyPorts: Story = {
+  args: multiPortCard
+};
+
+export const SelectedState: Story = {
+  args: {
+    ...renderCard,
+    selected: true
+  }
+};
+
+export const LongLabels: Story = {
+  args: longLabelCard
+};
+
+export const V02Metadata: Story = {
+  args: multiPortCard
+};
+
+export const FeedbackLookingPort: Story = {
+  args: feedbackPortCard
+};
+
 export const RenderOutputPair: Story = {
   args: renderCard,
   render: () => (
@@ -32,10 +70,6 @@ export const RenderOutputPair: Story = {
       <NodeCard {...targetCard} selected />
     </Group>
   )
-};
-
-export const MultiInputOutput: Story = {
-  args: multiPortCard
 };
 
 export const WithVisibleHandleDots: Story = {
