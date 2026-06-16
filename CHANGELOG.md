@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.13.0...skenion-studio-v0.13.1) (2026-06-16)
+
+
+### Bug Fixes
+
+* **studio:** harden node port and edge interaction UX ([3632dba](https://github.com/echovisionlab/skenion-studio/commit/3632dbacd038608242fe1bf77445f895bec63081))
+
 ## [0.13.0](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.12.0...skenion-studio-v0.13.0) (2026-06-16)
 
 
