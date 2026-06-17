@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.2](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.13.1...skenion-studio-v0.13.2) (2026-06-17)
+
+
+### Bug Fixes
+
+* **studio:** enforce strict visual gate artifacts ([0afb02b](https://github.com/echovisionlab/skenion-studio/commit/0afb02b766bcb1c5bc40fdda3408c74a31c5d45f))
+
 ## [0.13.1](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.13.0...skenion-studio-v0.13.1) (2026-06-16)
 
 
