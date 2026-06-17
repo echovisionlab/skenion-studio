@@ -430,6 +430,8 @@ function isRuntimeControlStateResponse(value: unknown): value is RuntimeControlS
     typeof value.ok === "boolean" &&
     isRecord(value.values) &&
     Object.values(value.values).every(isRuntimeControlValue) &&
+    isRecord(value.channels) &&
+    Object.values(value.channels).every(isRuntimeControlValue) &&
     Array.isArray(value.diagnostics) &&
     value.diagnostics.every(isRuntimeDiagnostic)
   );
@@ -466,7 +468,7 @@ function isRuntimeControlEmission(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.nodeId === "string" &&
-    value.portId === "value" &&
+    (value.portId === "value" || value.portId === "in" || value.portId === "bang") &&
     isRuntimeControlValue(value.value)
   );
 }

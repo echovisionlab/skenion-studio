@@ -7,6 +7,8 @@ import {
   portDemoSamplePositions,
   renderSampleGraph,
   sampleGraph,
+  sendReceivePanelSampleGraph,
+  sendReceivePanelSamplePositions,
   shaderMultiUniformSampleGraph,
   shaderMultiUniformSamplePositions,
   shaderUniformSampleGraph,
@@ -51,6 +53,15 @@ export const PortDemoGraph: Story = {
     <GraphCanvasStory
       initialGraph={portDemoSampleGraph}
       initialPositions={portDemoSamplePositions}
+    />
+  )
+};
+
+export const SendReceivePanelGraph: Story = {
+  render: () => (
+    <GraphCanvasStory
+      initialGraph={sendReceivePanelSampleGraph}
+      initialPositions={sendReceivePanelSamplePositions}
     />
   )
 };

@@ -36,6 +36,38 @@ export const Toggle: Story = {
   render: (args) => <NodeHelp {...args} />
 };
 
+export const SendF32: Story = {
+  args: {
+    help: getRequiredHelp("core.send-f32"),
+    helpGraph: getBuiltinNodeHelpGraph("core.send-f32")
+  },
+  render: (args) => <NodeHelp {...args} />
+};
+
+export const ReceiveF32: Story = {
+  args: {
+    help: getRequiredHelp("core.receive-f32"),
+    helpGraph: getBuiltinNodeHelpGraph("core.receive-f32")
+  },
+  render: (args) => <NodeHelp {...args} />
+};
+
+export const SliderF32: Story = {
+  args: {
+    help: getRequiredHelp("ui.slider-f32"),
+    helpGraph: getBuiltinNodeHelpGraph("ui.slider-f32")
+  },
+  render: (args) => <NodeHelp {...args} />
+};
+
+export const UiToggle: Story = {
+  args: {
+    help: getRequiredHelp("ui.toggle"),
+    helpGraph: getBuiltinNodeHelpGraph("ui.toggle")
+  },
+  render: (args) => <NodeHelp {...args} />
+};
+
 export const FullscreenShader: Story = {
   args: {
     help: getRequiredHelp("render.fullscreen-shader"),

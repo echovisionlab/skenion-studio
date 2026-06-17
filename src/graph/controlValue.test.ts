@@ -28,6 +28,13 @@ describe("runtime control value helpers", () => {
       type: "bool",
       value: true
     });
+    expect(runtimeControlValueForNode(valueNode("ui.slider-f32", 0.75))).toEqual({
+      type: "f32",
+      value: 0.75
+    });
+    expect(runtimeControlValueForNode(valueNode("ui.button", undefined))).toEqual({
+      type: "bang"
+    });
     expect(runtimeControlValueForNode(valueNode("core.message", "perform"))).toEqual({
       type: "string",
       value: "perform"

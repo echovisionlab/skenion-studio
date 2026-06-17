@@ -2,11 +2,31 @@ import type { GraphNodeV01 } from "@skenion/contracts";
 import type { GraphPatch } from "./skenionGraph";
 import { BOOL_VALUE_NODE_KIND, defaultBoolValueParams } from "./boolValue";
 import { COMMENT_NODE_KIND, defaultCommentParams } from "./commentNode";
+import {
+  RECEIVE_BOOL_NODE_KIND,
+  RECEIVE_F32_NODE_KIND,
+  RECEIVE_I32_NODE_KIND,
+  RECEIVE_RGBA_NODE_KIND,
+  SEND_BOOL_NODE_KIND,
+  SEND_F32_NODE_KIND,
+  SEND_I32_NODE_KIND,
+  SEND_RGBA_NODE_KIND,
+  defaultReceiveParams,
+  defaultSendParams
+} from "./controlRouting";
 import { COLOR_RGBA_NODE_KIND, defaultColorRgbaParams } from "./colorRgba";
 import { FLOAT_VALUE_NODE_KIND, defaultFloatValueParams } from "./floatValue";
 import { FULLSCREEN_SHADER_NODE_KIND, defaultFullscreenShaderParams } from "./fullscreenShader";
 import { INT_VALUE_NODE_KIND, defaultIntValueParams } from "./intValue";
 import { MESSAGE_NODE_KIND, defaultMessageParams } from "./messageNode";
+import {
+  UI_BUTTON_NODE_KIND,
+  UI_SLIDER_F32_NODE_KIND,
+  UI_TOGGLE_NODE_KIND,
+  defaultUiButtonParams,
+  defaultUiSliderF32Params,
+  defaultUiToggleParams
+} from "./panelControls";
 import { STRING_VALUE_NODE_KIND, defaultStringValueParams } from "./stringValue";
 import { TOGGLE_NODE_KIND, defaultToggleParams } from "./toggleValue";
 
@@ -50,6 +70,31 @@ export function defaultParamsForNodeKind(kind: string): Record<string, unknown> 
   }
   if (kind === MESSAGE_NODE_KIND) {
     return defaultMessageParams();
+  }
+  if (
+    kind === SEND_F32_NODE_KIND ||
+    kind === SEND_I32_NODE_KIND ||
+    kind === SEND_BOOL_NODE_KIND ||
+    kind === SEND_RGBA_NODE_KIND
+  ) {
+    return defaultSendParams();
+  }
+  if (
+    kind === RECEIVE_F32_NODE_KIND ||
+    kind === RECEIVE_I32_NODE_KIND ||
+    kind === RECEIVE_BOOL_NODE_KIND ||
+    kind === RECEIVE_RGBA_NODE_KIND
+  ) {
+    return defaultReceiveParams(kind);
+  }
+  if (kind === UI_BUTTON_NODE_KIND) {
+    return defaultUiButtonParams();
+  }
+  if (kind === UI_SLIDER_F32_NODE_KIND) {
+    return defaultUiSliderF32Params();
+  }
+  if (kind === UI_TOGGLE_NODE_KIND) {
+    return defaultUiToggleParams();
   }
 
   return {};

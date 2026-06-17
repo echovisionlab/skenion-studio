@@ -5,7 +5,12 @@ import { COLOR_RGBA_NODE_KIND } from "../graph/colorRgba";
 import { FULLSCREEN_SHADER_NODE_KIND, defaultFullscreenShaderParams } from "../graph/fullscreenShader";
 import { createGraphNodeFromDefinition } from "../graph/skenionGraph";
 import { nodeRegistry } from "./registry";
-import { renderSampleGraph, shaderMultiUniformSampleGraph, shaderUniformSampleGraph } from "./sampleGraph";
+import {
+  renderSampleGraph,
+  sendReceivePanelSampleGraph,
+  shaderMultiUniformSampleGraph,
+  shaderUniformSampleGraph
+} from "./sampleGraph";
 
 describe("node registry", () => {
   it("uses the contracts builtin node ids as the registry source", () => {
@@ -79,6 +84,10 @@ describe("node registry", () => {
       "value"
     ]);
     expect(findStudioDefinition("core.comment")?.ports).toEqual([]);
+    expect(findStudioDefinition("core.send-f32")?.ports.map((port) => port.id)).toEqual(["in"]);
+    expect(findStudioDefinition("core.receive-f32")?.ports.map((port) => port.id)).toEqual(["bang", "value"]);
+    expect(findStudioDefinition("ui.slider-f32")?.ports.map((port) => port.id)).toEqual(["value"]);
+    expect(findStudioDefinition("ui.toggle")?.ports.map((port) => port.id)).toEqual(["value"]);
   });
 
   it("creates fullscreen shader nodes with Studio default wgsl params", () => {
@@ -114,9 +123,14 @@ describe("node registry", () => {
     expect(secondUniformPort?.type.dataKind).toBe("number.f32");
     expect(colorPort?.type.dataKind).toBe("color.rgba");
     expect(colorUniformPort?.type.dataKind).toBe("color.rgba");
-    expect(findDataKinds([renderSampleGraph, shaderUniformSampleGraph, shaderMultiUniformSampleGraph])).not.toContain(
-      "f32"
-    );
+    expect(
+      findDataKinds([
+        renderSampleGraph,
+        shaderUniformSampleGraph,
+        shaderMultiUniformSampleGraph,
+        sendReceivePanelSampleGraph
+      ])
+    ).not.toContain("f32");
   });
 });
 

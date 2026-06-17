@@ -9,6 +9,7 @@ interface StudioToolbarProps {
   onExport: () => void;
   onImport: (file: File | null) => void;
   onLoadRenderSample: () => void;
+  onLoadSendReceivePanelSample: () => void;
   onLoadShaderMultiUniformSample: () => void;
   onLoadShaderUniformSample: () => void;
   onLoadPortDemoSample: () => void;
@@ -23,6 +24,7 @@ export function StudioToolbar({
   onImport,
   onLoadPortDemoSample,
   onLoadRenderSample,
+  onLoadSendReceivePanelSample,
   onLoadShaderMultiUniformSample,
   onLoadShaderUniformSample,
   onReset
@@ -97,6 +99,17 @@ export function StudioToolbar({
             variant="subtle"
           >
             <Palette size={18} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Load send/receive panel sample">
+          <ActionIcon
+            aria-label="Load send/receive panel sample"
+            onClick={onLoadSendReceivePanelSample}
+            radius="sm"
+            size="lg"
+            variant="subtle"
+          >
+            <Cable size={18} />
           </ActionIcon>
         </Tooltip>
         <Tooltip label="Load port demo sample">

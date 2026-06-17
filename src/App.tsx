@@ -19,6 +19,8 @@ import {
   portDemoSamplePositions,
   renderSampleGraph,
   sampleGraph,
+  sendReceivePanelSampleGraph,
+  sendReceivePanelSamplePositions,
   shaderMultiUniformSampleGraph,
   shaderMultiUniformSamplePositions,
   shaderUniformSampleGraph,
@@ -279,6 +281,18 @@ export default function App() {
     setGraph(portDemoSampleGraph);
     setPositions(portDemoSamplePositions);
     setSelectedNodeId(portDemoSampleGraph.nodes[0]?.id ?? null);
+    setActiveHelpNodeId(null);
+    setSelectedEdgeId(null);
+    clearPendingPatch();
+    setImportError(null);
+    setConnectionCheck(null);
+    setRuntimeResult(null);
+  }
+
+  function loadSendReceivePanelSample() {
+    setGraph(sendReceivePanelSampleGraph);
+    setPositions(sendReceivePanelSamplePositions);
+    setSelectedNodeId(sendReceivePanelSampleGraph.nodes[0]?.id ?? null);
     setActiveHelpNodeId(null);
     setSelectedEdgeId(null);
     clearPendingPatch();
@@ -739,6 +753,7 @@ export default function App() {
           onImport={importGraph}
           onLoadPortDemoSample={loadPortDemoSample}
           onLoadRenderSample={loadRenderSample}
+          onLoadSendReceivePanelSample={loadSendReceivePanelSample}
           onLoadShaderMultiUniformSample={loadShaderMultiUniformSample}
           onLoadShaderUniformSample={loadShaderUniformSample}
           onReset={resetSample}

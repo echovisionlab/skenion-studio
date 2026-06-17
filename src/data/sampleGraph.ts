@@ -39,6 +39,15 @@ fn fs_main() -> @location(0) vec4<f32> {
   return vec4<f32>(mix(base, skenion.tint.rgb, 0.5), skenion.tint.a);
 }`;
 
+export const SEND_RECEIVE_PANEL_SHADER_SOURCE = `// @skenion.uniform speed number.f32 default=0.75 min=0 max=2 step=0.01
+// @skenion.uniform enabled boolean default=true
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+  let pulse = 0.5 + 0.5 * sin(skenion.time * skenion.speed);
+  let active = vec4<f32>(pulse, skenion.speed / 2.0, 1.0 - pulse, 1.0);
+  return select(vec4<f32>(0.04, 0.04, 0.04, 1.0), active, sk_bool(skenion.enabled));
+}`;
+
 export const sampleGraph: GraphDocumentV01 = {
   schema: "skenion.graph",
   schemaVersion: "0.1.0",
@@ -235,6 +244,88 @@ export const shaderMultiUniformSamplePositions: ViewPositions = {
   color_1: { x: 64, y: 460 },
   shader_1: { x: 440, y: 278 },
   output_1: { x: 780, y: 318 }
+};
+
+export const sendReceivePanelSampleGraph: GraphDocumentV01 = {
+  schema: "skenion.graph",
+  schemaVersion: "0.1.0",
+  id: "studio-send-receive-panel-sample",
+  revision: "1",
+  nodes: [
+    node("ui.slider-f32", "slider_speed", "Speed", { value: 0.75, min: 0, max: 2, step: 0.01 }),
+    node("core.send-f32", "send_speed", "Send Speed", { name: "speed" }),
+    node("core.receive-f32", "receive_speed", "Receive Speed", { name: "speed", default: 0.75 }),
+    node("ui.toggle", "toggle_enabled", "Enabled", { value: true }),
+    node("core.send-bool", "send_enabled", "Send Enabled", { name: "enabled" }),
+    node("core.receive-bool", "receive_enabled", "Receive Enabled", { name: "enabled", default: true }),
+    node("render.fullscreen-shader", "shader_1", "Fullscreen Shader", {
+      source: SEND_RECEIVE_PANEL_SHADER_SOURCE
+    }),
+    node("render.output", "output_1", "Preview Output")
+  ],
+  edges: [
+    {
+      from: {
+        node: "slider_speed",
+        port: "value"
+      },
+      to: {
+        node: "send_speed",
+        port: "in"
+      }
+    },
+    {
+      from: {
+        node: "receive_speed",
+        port: "value"
+      },
+      to: {
+        node: "shader_1",
+        port: "speed"
+      }
+    },
+    {
+      from: {
+        node: "toggle_enabled",
+        port: "value"
+      },
+      to: {
+        node: "send_enabled",
+        port: "in"
+      }
+    },
+    {
+      from: {
+        node: "receive_enabled",
+        port: "value"
+      },
+      to: {
+        node: "shader_1",
+        port: "enabled"
+      }
+    },
+    {
+      from: {
+        node: "shader_1",
+        port: "out"
+      },
+      to: {
+        node: "output_1",
+        port: "in"
+      }
+    }
+  ]
+};
+
+export const sendReceivePanelSamplePositions: ViewPositions = {
+  slider_speed: { x: 64, y: 64 },
+  send_speed: { x: 364, y: 64 },
+  receive_speed: { x: 364, y: 260 },
+  toggle_enabled: { x: 64, y: 408 },
+  send_enabled: { x: 364, y: 408 },
+  receive_enabled: { x: 364, y: 604 },
+  shader_1: { x: 704, y: 260 },
+  output_1: { x: 1044, y: 320 }
 };
 
 export const portDemoSampleGraph: GraphDocumentV01 = {
