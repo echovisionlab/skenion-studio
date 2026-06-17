@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.19.0...skenion-studio-v0.20.0) (2026-06-17)
+
+
+### Features
+
+* **studio:** surface live preview control state ([#48](https://github.com/echovisionlab/skenion-studio/issues/48)) ([b24ad3b](https://github.com/echovisionlab/skenion-studio/commit/b24ad3b2e85f361733ea5249531c2151023005d1))
+
 ## [0.19.0](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.18.0...skenion-studio-v0.19.0) (2026-06-17)
 
 
