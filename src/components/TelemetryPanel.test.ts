@@ -33,13 +33,26 @@ describe("TelemetryPanel", () => {
       telemetry({
         render: {
           renderer: "fullscreen-shader",
-          lastError: "shader validation failed"
+          lastError: "shader validation failed",
+          diagnostics: [
+            {
+              severity: "error",
+              phase: "wgsl-compile",
+              code: "wgsl-validation",
+              message: "expected expression",
+              line: 24,
+              column: 13,
+              source: "generated"
+            }
+          ]
         }
       })
     );
 
     expect(html).toContain("fullscreen-shader");
     expect(html).toContain("shader validation failed");
+    expect(html).toContain("wgsl-compile");
+    expect(html).toContain("expected expression");
   });
 
   it("renders unavailable state", () => {
@@ -92,6 +105,8 @@ function telemetry(
       lastFrameMs: 16.7,
       lastError: null,
       sourceNodeId: "clear_1",
+      diagnostics: [],
+      generatedSourceAvailable: false,
       ...overrides.render
     },
     process: {

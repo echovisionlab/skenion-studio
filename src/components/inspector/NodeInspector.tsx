@@ -2,8 +2,8 @@ import { Button, Divider, Group, Stack, Text } from "@mantine/core";
 import { BookOpen, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { getBuiltinNodeHelp } from "@skenion/contracts";
-import type { GraphNodeV01 } from "@skenion/contracts";
-import type { RuntimeControlEventRequest } from "../../runtime/types";
+import type { GraphNodeV01, ShaderDiagnosticV01 } from "@skenion/contracts";
+import type { RuntimeControlEventRequest, RuntimeGeneratedShaderResponse } from "../../runtime/types";
 import { BooleanValueControls } from "./BooleanValueControls";
 import { ClearColorControls } from "./ClearColorControls";
 import { CommentControls } from "./CommentControls";
@@ -64,13 +64,21 @@ import {
 export function NodeInspector({
   node,
   onRemoveNode,
+  onLoadGeneratedShader,
   onSendRuntimeControl,
   onSetNodeParam,
   onSyncShaderInputs,
+  generatedShader,
+  generatedShaderBusy,
   runtimeControlBusy,
-  runtimeControlEnabled
+  runtimeControlEnabled,
+  runtimeShaderDiagnostics
 }: {
+  generatedShader?: RuntimeGeneratedShaderResponse | null;
+  generatedShaderBusy?: boolean;
   node: GraphNodeV01;
+  runtimeShaderDiagnostics?: ShaderDiagnosticV01[];
+  onLoadGeneratedShader?: () => void;
   onRemoveNode: (node: GraphNodeV01) => void;
   onSendRuntimeControl: (request: RuntimeControlEventRequest) => void;
   onSetNodeParam: (nodeId: string, key: string, value: unknown) => void;
@@ -250,12 +258,16 @@ export function NodeInspector({
           <Divider />
           <FullscreenShaderControls
             analysis={shaderAnalysis!}
+            generatedShader={generatedShader}
+            generatedShaderBusy={generatedShaderBusy}
             interfaceSynced={shaderInterfaceSynced}
             language={shaderLanguage ?? "unsupported"}
             onAnalyze={() => undefined}
+            onLoadGeneratedShader={onLoadGeneratedShader}
             onResetSource={() => onSetNodeParam(node.id, "source", DEFAULT_FULLSCREEN_SHADER_SOURCE)}
             onSourceChange={(source) => onSetNodeParam(node.id, "source", source)}
             onSyncInputs={() => onSyncShaderInputs(node.id, shaderSource)}
+            runtimeDiagnostics={runtimeShaderDiagnostics}
             source={shaderSource}
           />
         </>

@@ -3,7 +3,9 @@ import type {
   GraphPatchEventV01,
   GraphPatchHistoryV01,
   GraphPatchV01,
-  NodeDefinitionManifestV01
+  GeneratedShaderSourceMapV01,
+  NodeDefinitionManifestV01,
+  ShaderDiagnosticV01
 } from "@skenion/contracts";
 
 export type RuntimeConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
@@ -239,6 +241,17 @@ export interface RuntimeTelemetryRender {
   lastFrameMs: number | null;
   lastError: string | null;
   sourceNodeId: string | null;
+  diagnostics: ShaderDiagnosticV01[];
+  generatedSourceAvailable: boolean;
+}
+
+export interface RuntimeGeneratedShaderResponse {
+  ok: boolean;
+  nodeId: string | null;
+  language: "wgsl" | null;
+  source: string | null;
+  sourceMap: GeneratedShaderSourceMapV01 | null;
+  diagnostics: ShaderDiagnosticV01[];
 }
 
 export interface RuntimeTelemetryProcess {

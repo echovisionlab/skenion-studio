@@ -9,6 +9,7 @@ import type {
   RuntimeControlEventResponse,
   RuntimeControlReadResponse,
   RuntimeControlStateResponse,
+  RuntimeGeneratedShaderResponse,
   RuntimePatchResponse,
   RuntimePreviewStatus,
   RuntimeProjectPayload,
@@ -367,7 +368,9 @@ describe("runtime client", () => {
               approxFps: null,
               lastFrameMs: null,
               lastError: null,
-              sourceNodeId: null
+              sourceNodeId: null,
+              diagnostics: [],
+              generatedSourceAvailable: false
             }
           })
         )
@@ -387,6 +390,81 @@ describe("runtime client", () => {
         active: false,
         backend: null
       }
+    });
+  });
+
+  it("fetches generated shader source responses", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(generatedShaderResponse()));
+    const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
+
+    await expect(client.getGeneratedShader()).resolves.toMatchObject({
+      ok: true,
+      nodeId: "shader_1",
+      sourceMap: {
+        userSourceStartLine: 32
+      }
+    });
+    expect(fetchMock).toHaveBeenCalledWith("http://runtime.local/v0/session/render/generated-shader", { method: "GET" });
+
+    const diagnosticsClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(generatedShaderResponse({
+          ok: false,
+          source: null,
+          sourceMap: null,
+          diagnostics: [
+            {
+              severity: "error",
+              phase: "interface-analysis",
+              code: "unsupported-uniform-type",
+              message: "unsupported uniform type: vec3",
+              source: "user"
+            },
+            {
+              severity: "warning",
+              phase: "wgsl-compile",
+              code: "wgsl-validation",
+              message: "generated line maps to user source",
+              line: 12,
+              column: 4,
+              endLine: 12,
+              endColumn: 18,
+              uniformId: "speed",
+              source: "generated"
+            }
+          ]
+        }))
+      ) as typeof fetch
+    });
+    await expect(diagnosticsClient.getGeneratedShader()).resolves.toMatchObject({
+      ok: false,
+      diagnostics: [
+        { code: "unsupported-uniform-type" },
+        { line: 12, uniformId: "speed" }
+      ]
+    });
+
+    const emptyClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          generatedShaderResponse({
+            ok: false,
+            nodeId: null,
+            language: null,
+            source: null,
+            sourceMap: null
+          })
+        )
+      ) as typeof fetch
+    });
+    await expect(emptyClient.getGeneratedShader()).resolves.toMatchObject({
+      ok: false,
+      nodeId: null,
+      language: null,
+      source: null,
+      sourceMap: null
     });
   });
 
@@ -852,6 +930,71 @@ describe("runtime client", () => {
     await expect(invalidDiagnosticsClient.getTelemetry()).rejects.toThrow("unsupported response shape");
   });
 
+  it("rejects unsupported generated shader response shapes", async () => {
+    const nonObjectClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () => jsonResponse(null)) as typeof fetch
+    });
+    await expect(nonObjectClient.getGeneratedShader()).rejects.toThrow("unsupported response shape");
+
+    const invalidFieldsClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({
+          ...generatedShaderResponse(),
+          ok: "yes",
+          nodeId: 1,
+          language: "glsl",
+          source: 1,
+          diagnostics: "none"
+        })
+      ) as typeof fetch
+    });
+    await expect(invalidFieldsClient.getGeneratedShader()).rejects.toThrow("unsupported response shape");
+
+    const invalidDiagnosticClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({
+          ...generatedShaderResponse(),
+          diagnostics: [{ severity: "error", phase: "unknown", code: "x", message: "bad", source: "generated" }]
+        })
+      ) as typeof fetch
+    });
+    await expect(invalidDiagnosticClient.getGeneratedShader()).rejects.toThrow("unsupported response shape");
+
+    const invalidSourceMapClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({
+          ...generatedShaderResponse(),
+          sourceMap: { userSourceStartLine: 0, generatedLineOffset: 31 }
+        })
+      ) as typeof fetch
+    });
+    await expect(invalidSourceMapClient.getGeneratedShader()).rejects.toThrow("unsupported response shape");
+
+    const invalidLocationClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({
+          ...generatedShaderResponse(),
+          diagnostics: [
+            {
+              severity: "error",
+              phase: "wgsl-compile",
+              code: "wgsl-validation",
+              message: "bad location",
+              line: 0,
+              source: "generated"
+            }
+          ]
+        })
+      ) as typeof fetch
+    });
+    await expect(invalidLocationClient.getGeneratedShader()).rejects.toThrow("unsupported response shape");
+  });
+
   it("rejects non-object runtime session responses", async () => {
     const client = createRuntimeClient({
       baseUrl: "http://runtime.local",
@@ -991,11 +1134,30 @@ function telemetryResponse(overrides: Partial<RuntimeTelemetrySnapshot> = {}): R
       approxFps: 59.8,
       lastFrameMs: 16.7,
       lastError: null,
-      sourceNodeId: "clear_1"
+      sourceNodeId: "clear_1",
+      diagnostics: [],
+      generatedSourceAvailable: false
     },
     process: {
       runtimeVersion: "0.11.0",
       uptimeMs: 1000
+    },
+    diagnostics: [],
+    ...overrides
+  };
+}
+
+function generatedShaderResponse(
+  overrides: Partial<RuntimeGeneratedShaderResponse> = {}
+): RuntimeGeneratedShaderResponse {
+  return {
+    ok: true,
+    nodeId: "shader_1",
+    language: "wgsl",
+    source: "struct SkenionFrame {}\nfn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }",
+    sourceMap: {
+      userSourceStartLine: 32,
+      generatedLineOffset: 31
     },
     diagnostics: [],
     ...overrides

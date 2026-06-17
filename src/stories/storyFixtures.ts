@@ -435,7 +435,9 @@ export const runtimeTelemetry: RuntimeTelemetrySnapshot = {
     approxFps: 59.8,
     lastFrameMs: 16.6,
     lastError: null,
-    sourceNodeId: "shader_1"
+    sourceNodeId: "shader_1",
+    diagnostics: [],
+    generatedSourceAvailable: true
   },
   process: {
     runtimeVersion: "0.14.0",
@@ -450,7 +452,19 @@ export const runtimeTelemetryWithRenderError: RuntimeTelemetrySnapshot = {
   render: {
     ...runtimeTelemetry.render,
     active: false,
-    lastError: "WGSL compile error: expected expression at line 24"
+    lastError: "WGSL compile error: expected expression at line 24",
+    diagnostics: [
+      {
+        severity: "error",
+        phase: "wgsl-compile",
+        code: "wgsl-validation",
+        message: "expected expression at line 24",
+        line: 24,
+        column: 13,
+        source: "generated"
+      }
+    ],
+    generatedSourceAvailable: true
   },
   diagnostics: [
     {

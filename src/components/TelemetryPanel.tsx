@@ -63,7 +63,8 @@ export function TelemetryPanel({ telemetry }: TelemetryPanelProps) {
                   framesRendered: telemetry.render.framesRendered,
                   approxFps: formatFps(telemetry.render.approxFps),
                   lastFrameMs: formatFrameMs(telemetry.render.lastFrameMs),
-                  sourceNodeId: telemetry.render.sourceNodeId
+                  sourceNodeId: telemetry.render.sourceNodeId,
+                  generatedSourceAvailable: telemetry.render.generatedSourceAvailable
                 }
               : null,
             process: telemetry
@@ -81,6 +82,18 @@ export function TelemetryPanel({ telemetry }: TelemetryPanelProps) {
       {renderError && telemetry?.render.lastError ? (
         <Alert color="red" icon={<Activity size={16} />} radius="sm" variant="light">
           {telemetry.render.lastError}
+        </Alert>
+      ) : null}
+
+      {telemetry?.render.diagnostics.length ? (
+        <Alert color={renderError ? "red" : "yellow"} icon={<Activity size={16} />} radius="sm" variant="light">
+          <Stack gap={4}>
+            {telemetry.render.diagnostics.slice(0, 5).map((diagnostic, index) => (
+              <Text key={`${diagnostic.phase}:${diagnostic.code}:${index}`} size="xs">
+                <Code>{diagnostic.phase}</Code> {diagnostic.code}: {diagnostic.message}
+              </Text>
+            ))}
+          </Stack>
         </Alert>
       ) : null}
     </Stack>

@@ -13,6 +13,7 @@ import type {
   RuntimeControlStateResponse,
   RuntimeHealth,
   RuntimeInfo,
+  RuntimeGeneratedShaderResponse,
   RuntimePatchResponse,
   RuntimePreviewStartRequest,
   RuntimePreviewStatus,
@@ -26,6 +27,17 @@ export const DEFAULT_RUNTIME_URL =
   import.meta.env.VITE_SKENION_RUNTIME_URL?.trim() || "http://127.0.0.1:3761";
 
 type FetchLike = typeof fetch;
+
+const SHADER_DIAGNOSTIC_SEVERITIES = new Set(["error", "warning", "info"]);
+const SHADER_DIAGNOSTIC_PHASES = new Set([
+  "interface-analysis",
+  "source-sync",
+  "wgsl-generation",
+  "wgsl-compile",
+  "render-pipeline",
+  "render-frame"
+]);
+const SHADER_DIAGNOSTIC_SOURCES = new Set(["user", "generated", "runtime"]);
 
 export interface RuntimeClient {
   getHealth: () => Promise<RuntimeHealth>;
@@ -49,6 +61,7 @@ export interface RuntimeClient {
   startPreview: (options?: Partial<RuntimePreviewStartRequest>) => Promise<RuntimePreviewStatus>;
   stopPreview: () => Promise<RuntimePreviewStatus>;
   restartPreview: () => Promise<RuntimePreviewStatus>;
+  getGeneratedShader: () => Promise<RuntimeGeneratedShaderResponse>;
   getTelemetry: () => Promise<RuntimeTelemetrySnapshot>;
   clearSession: () => Promise<RuntimeSessionResponse>;
 }
@@ -176,6 +189,14 @@ export function createRuntimeClient(options: RuntimeClientOptions = {}): Runtime
         "/v0/session/preview/restart",
         { method: "POST" },
         isRuntimePreviewStatus
+      ),
+    getGeneratedShader: () =>
+      requestJson<RuntimeGeneratedShaderResponse>(
+        fetchImpl,
+        baseUrl,
+        "/v0/session/render/generated-shader",
+        { method: "GET" },
+        isRuntimeGeneratedShaderResponse
       ),
     getTelemetry: () =>
       requestJson<RuntimeTelemetrySnapshot>(
@@ -550,7 +571,35 @@ function isRuntimeTelemetryRender(value: unknown): boolean {
     (typeof value.approxFps === "number" || value.approxFps === null) &&
     (typeof value.lastFrameMs === "number" || value.lastFrameMs === null) &&
     (typeof value.lastError === "string" || value.lastError === null) &&
-    (typeof value.sourceNodeId === "string" || value.sourceNodeId === null)
+    (typeof value.sourceNodeId === "string" || value.sourceNodeId === null) &&
+    Array.isArray(value.diagnostics) &&
+    value.diagnostics.every(isShaderDiagnostic) &&
+    typeof value.generatedSourceAvailable === "boolean"
+  );
+}
+
+function isRuntimeGeneratedShaderResponse(value: unknown): value is RuntimeGeneratedShaderResponse {
+  return (
+    isRecord(value) &&
+    typeof value.ok === "boolean" &&
+    (typeof value.nodeId === "string" || value.nodeId === null) &&
+    (value.language === "wgsl" || value.language === null) &&
+    (typeof value.source === "string" || value.source === null) &&
+    (value.sourceMap === null || isGeneratedShaderSourceMap(value.sourceMap)) &&
+    Array.isArray(value.diagnostics) &&
+    value.diagnostics.every(isShaderDiagnostic)
+  );
+}
+
+function isGeneratedShaderSourceMap(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.userSourceStartLine === "number" &&
+    Number.isInteger(value.userSourceStartLine) &&
+    value.userSourceStartLine >= 1 &&
+    typeof value.generatedLineOffset === "number" &&
+    Number.isInteger(value.generatedLineOffset) &&
+    value.generatedLineOffset >= 0
   );
 }
 
@@ -572,6 +621,29 @@ function isRuntimeDiagnostic(value: unknown): boolean {
     typeof value.message === "string" &&
     (value.severity === "error" || value.severity === "warning" || value.severity === "info")
   );
+}
+
+function isShaderDiagnostic(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.severity === "string" &&
+    SHADER_DIAGNOSTIC_SEVERITIES.has(value.severity) &&
+    typeof value.phase === "string" &&
+    SHADER_DIAGNOSTIC_PHASES.has(value.phase) &&
+    typeof value.code === "string" &&
+    typeof value.message === "string" &&
+    typeof value.source === "string" &&
+    SHADER_DIAGNOSTIC_SOURCES.has(value.source) &&
+    optionalPositiveInteger(value.line) &&
+    optionalPositiveInteger(value.column) &&
+    optionalPositiveInteger(value.endLine) &&
+    optionalPositiveInteger(value.endColumn) &&
+    (typeof value.uniformId === "string" || value.uniformId === undefined)
+  );
+}
+
+function optionalPositiveInteger(value: unknown): boolean {
+  return value === undefined || (typeof value === "number" && Number.isInteger(value) && value >= 1);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

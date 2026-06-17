@@ -73,8 +73,10 @@ export function analyzeFullscreenShaderInterface(
       diagnostics: [
         {
           severity: "error",
+          phase: "interface-analysis",
           code: "unsupported-language",
-          message: `unsupported shader language: ${language}`
+          message: `unsupported shader language: ${language}`,
+          source: "user"
         }
       ]
     };
