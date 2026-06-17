@@ -12,7 +12,9 @@ import { FloatValueControls } from "./FloatValueControls";
 import { FullscreenShaderControls } from "./FullscreenShaderControls";
 import { IntegerValueControls } from "./IntegerValueControls";
 import { NodeHelp } from "./NodeHelp";
+import { PanelControlInspector } from "./PanelControlInspector";
 import { PortTable } from "./PortTable";
+import { RoutingNodeControls } from "./RoutingNodeControls";
 import { RuntimeControlValueControls } from "./RuntimeControlValueControls";
 import { StringValueControls } from "./StringValueControls";
 import {
@@ -60,6 +62,11 @@ import {
   isToggleNode,
   readToggleParam
 } from "../../graph/toggleValue";
+import {
+  isUiButtonNode,
+  isUiSliderF32Node,
+  isUiToggleNode
+} from "../../graph/panelControls";
 
 export function NodeInspector({
   node,
@@ -98,7 +105,8 @@ export function NodeInspector({
   const stringValue = isStringValueNode(node) ? readStringValueParam(node) : null;
   const toggleValue = isToggleNode(node) ? readToggleParam(node) : null;
   const messageValue = isMessageNode(node) ? readMessageValueParam(node) : null;
-  const runtimeControlValue = runtimeControlValueForNode(node);
+  const isPanelControl = isUiButtonNode(node) || isUiSliderF32Node(node) || isUiToggleNode(node);
+  const runtimeControlValue = isPanelControl ? null : runtimeControlValueForNode(node);
   const runtimeControlPorts = runtimeControlPortsForNode(node);
   const shaderSource = isFullscreenShaderNode(node) ? readShaderSourceParam(node) : null;
   const shaderLanguage = isFullscreenShaderNode(node) ? readShaderLanguageParam(node) : null;
@@ -154,6 +162,21 @@ export function NodeInspector({
       ) : null}
 
       <PortTable node={node} />
+
+      <RoutingNodeControls node={node} onSetNodeParam={onSetNodeParam} />
+
+      {isPanelControl ? (
+        <>
+          <Divider />
+          <PanelControlInspector
+            busy={runtimeControlBusy}
+            enabled={runtimeControlEnabled}
+            node={node}
+            onSend={onSendRuntimeControl}
+            onSetNodeParam={onSetNodeParam}
+          />
+        </>
+      ) : null}
 
       {clearColor ? (
         <>

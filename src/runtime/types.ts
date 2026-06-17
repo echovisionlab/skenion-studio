@@ -159,13 +159,13 @@ export type RuntimeControlValue =
 
 export interface RuntimeControlEventRequest {
   nodeId: string;
-  portId: "in" | "set" | "bang";
+  portId: "in" | "set" | "bang" | "value";
   value: RuntimeControlValue;
 }
 
 export interface RuntimeControlEmission {
   nodeId: string;
-  portId: "value";
+  portId: "in" | "bang" | "value";
   value: RuntimeControlValue;
 }
 
@@ -178,6 +178,7 @@ export interface RuntimeControlEventResponse {
 export interface RuntimeControlStateResponse {
   ok: boolean;
   values: Record<string, RuntimeControlValue>;
+  channels: Record<string, RuntimeControlValue>;
   diagnostics: RuntimeDiagnostic[];
 }
 

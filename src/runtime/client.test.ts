@@ -1071,6 +1071,7 @@ function controlStateResponse(overrides: Partial<RuntimeControlStateResponse> = 
     values: {
       value_1: { type: "f32", value: 1.25 }
     },
+    channels: {},
     diagnostics: [],
     ...overrides
   };

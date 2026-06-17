@@ -41,6 +41,27 @@ describe("clear color graph helpers", () => {
     expect(defaultParamsForNodeKind("core.comment")).toEqual({
       text: ""
     });
+    expect(defaultParamsForNodeKind("core.send-f32")).toEqual({
+      name: "channel"
+    });
+    expect(defaultParamsForNodeKind("core.receive-bool")).toEqual({
+      name: "channel",
+      default: false
+    });
+    expect(defaultParamsForNodeKind("ui.slider-f32")).toEqual({
+      label: "Value",
+      value: 0,
+      min: 0,
+      max: 1,
+      step: 0.01
+    });
+    expect(defaultParamsForNodeKind("ui.toggle")).toEqual({
+      label: "Enabled",
+      value: false
+    });
+    expect(defaultParamsForNodeKind("ui.button")).toEqual({
+      label: "Bang"
+    });
   });
 
   it("reads and clamps clear color params", () => {
