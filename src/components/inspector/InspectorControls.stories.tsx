@@ -155,6 +155,57 @@ export const FullscreenShaderControl: Story = {
   )
 };
 
+export const FullscreenShaderDiagnostics: Story = {
+  render: () => (
+    <FullscreenShaderControls
+      analysis={analyzeFullscreenShaderInterface(
+        "// @skenion.uniform bad vec3\n@fragment\nfn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }"
+      )}
+      generatedShader={{
+        ok: false,
+        nodeId: "shader_1",
+        language: "wgsl",
+        source: "struct SkenionFrame {\n  resolution: vec2<f32>,\n}\n\n@fragment\nfn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(skenion.missingField, 0.0, 0.0, 1.0); }",
+        sourceMap: {
+          userSourceStartLine: 5,
+          generatedLineOffset: 4
+        },
+        diagnostics: [
+          {
+            severity: "error",
+            phase: "wgsl-compile",
+            code: "wgsl-validation",
+            message: "unknown field missingField on SkenionFrame",
+            line: 6,
+            column: 42,
+            source: "generated"
+          }
+        ]
+      }}
+      initialGeneratedVisible
+      interfaceSynced={false}
+      language="wgsl"
+      onAnalyze={noop}
+      onLoadGeneratedShader={noop}
+      onResetSource={noop}
+      onSourceChange={noop}
+      onSyncInputs={noop}
+      runtimeDiagnostics={[
+        {
+          severity: "error",
+          phase: "render-pipeline",
+          code: "fullscreen-shader-initialization-failed",
+          message: "failed to initialize fullscreen shader renderer",
+          source: "runtime"
+        }
+      ]}
+      source={
+        "// @skenion.uniform bad vec3\n@fragment\nfn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }"
+      }
+    />
+  )
+};
+
 export const ValidationPanel: Story = {
   render: () => (
     <Stack gap="sm">

@@ -59,6 +59,7 @@ import type {
   RuntimeApiResponse,
   RuntimeConnectionStatus,
   RuntimeControlEventRequest,
+  RuntimeGeneratedShaderResponse,
   RuntimeInfo,
   RuntimeResultKind,
   RuntimePatchResponse,
@@ -85,6 +86,7 @@ export default function App() {
   const [runtimeHistory, setRuntimeHistory] = useState<GraphPatchHistoryV01 | null>(null);
   const [runtimePreviewStatus, setRuntimePreviewStatus] = useState<RuntimePreviewStatus | null>(null);
   const [runtimeTelemetry, setRuntimeTelemetry] = useState<RuntimeTelemetrySnapshot | null>(null);
+  const [generatedShader, setGeneratedShader] = useState<RuntimeGeneratedShaderResponse | null>(null);
   const [lastLoadedGraphFingerprint, setLastLoadedGraphFingerprint] = useState<string | null>(null);
   const [pendingPatchOps, setPendingPatchOps] = useState<GraphPatchOperationV01[]>([]);
   const [pendingPatchBaseRevision, setPendingPatchBaseRevision] = useState<string | null>(null);
@@ -110,6 +112,12 @@ export default function App() {
     () => findEdgeInspectorModel(graph, selectedEdgeId),
     [graph, selectedEdgeId]
   );
+  const selectedRuntimeShaderDiagnostics = useMemo(() => {
+    if (selectedNode?.kind !== "render.fullscreen-shader") {
+      return [];
+    }
+    return runtimeTelemetry?.render.diagnostics ?? [];
+  }, [runtimeTelemetry, selectedNode?.id, selectedNode?.kind]);
 
   function addNode(definitionId: string) {
     const definition = nodeRegistry.find((candidate) => candidate.id === definitionId);
@@ -285,6 +293,9 @@ export default function App() {
     recordGraphPatches([patch]);
     setConnectionCheck(null);
     setRuntimeResult(null);
+    if (key === "source") {
+      setGeneratedShader(null);
+    }
   }
 
   function syncShaderInputs(nodeId: string, source: string) {
@@ -301,6 +312,7 @@ export default function App() {
     recordGraphPatches([patch]);
     setConnectionCheck(null);
     setRuntimeResult(null);
+    setGeneratedShader(null);
   }
 
   async function connectRuntime() {
@@ -323,6 +335,7 @@ export default function App() {
       setRuntimeHistory(history);
       setRuntimePreviewStatus(previewStatus);
       setRuntimeTelemetry(telemetry);
+      setGeneratedShader(null);
       setRuntimeStatus("connected");
     } catch (error) {
       setRuntimeInfo(null);
@@ -330,6 +343,7 @@ export default function App() {
       setRuntimeHistory(null);
       setRuntimePreviewStatus(null);
       setRuntimeTelemetry(null);
+      setGeneratedShader(null);
       setLastLoadedGraphFingerprint(null);
       clearPendingPatch();
       setRuntimeStatus("error");
@@ -388,6 +402,9 @@ export default function App() {
       if (kind === "clearSession" && response.ok) {
         setLastLoadedGraphFingerprint(null);
         clearPendingPatch();
+      }
+      if (kind === "loadSession" || kind === "clearSession") {
+        setGeneratedShader(null);
       }
       if ((kind === "session" || kind === "loadSession" || kind === "clearSession") && runtimeSupportsHistory(runtimeInfo)) {
         await refreshRuntimeHistory(client);
@@ -474,6 +491,25 @@ export default function App() {
     const telemetry = await client.getTelemetry();
     setRuntimeTelemetry(telemetry);
     return telemetry;
+  }
+
+  async function loadGeneratedShader() {
+    if (runtimeStatus !== "connected" || !runtimeSupportsGeneratedShader(runtimeInfo)) {
+      return;
+    }
+
+    setRuntimeBusyAction("generatedShader");
+    setRuntimeError(null);
+    try {
+      const response = await createRuntimeClient({ baseUrl: runtimeUrl }).getGeneratedShader();
+      setGeneratedShader(response);
+      setRuntimeStatus("connected");
+    } catch (error) {
+      setRuntimeStatus("error");
+      setRuntimeError(error instanceof Error ? error.message : "Runtime generated shader request failed.");
+    } finally {
+      setRuntimeBusyAction(null);
+    }
   }
 
   async function refreshRuntimeHistoryFromPanel() {
@@ -606,6 +642,10 @@ export default function App() {
 
   function runtimeSupportsControl(info: RuntimeInfo | null): boolean {
     return info?.capabilities.includes("session.control.event") ?? false;
+  }
+
+  function runtimeSupportsGeneratedShader(info: RuntimeInfo | null): boolean {
+    return info?.capabilities.includes("session.render.generatedShader") ?? false;
   }
 
   useEffect(() => {
@@ -757,6 +797,7 @@ export default function App() {
                 setRuntimeHistory(null);
                 setRuntimePreviewStatus(null);
                 setRuntimeTelemetry(null);
+                setGeneratedShader(null);
                 setLastLoadedGraphFingerprint(null);
                 clearPendingPatch();
                 setRuntimeError(null);
@@ -806,9 +847,12 @@ export default function App() {
             />
             <InspectorPanel
               connectionCheck={connectionCheck}
+              generatedShader={generatedShader}
+              generatedShaderBusy={runtimeBusyAction === "generatedShader"}
               graph={graph}
               edge={selectedEdge}
               node={selectedNode}
+              onLoadGeneratedShader={runtimeSupportsGeneratedShader(runtimeInfo) ? loadGeneratedShader : undefined}
               onRemoveNode={removeNode}
               onSendRuntimeControl={(request) => {
                 void sendRuntimeControlEvent(request);
@@ -821,6 +865,7 @@ export default function App() {
                 Boolean(runtimeSession?.loaded) &&
                 runtimeSupportsControl(runtimeInfo)
               }
+              runtimeShaderDiagnostics={selectedRuntimeShaderDiagnostics}
               semanticDiagnostics={semanticDiagnostics}
               validation={validation}
             />

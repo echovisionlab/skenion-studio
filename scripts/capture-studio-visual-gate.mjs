@@ -41,6 +41,11 @@ const captures = [
     waitFor: ".canvas-node"
   },
   {
+    name: "shader-diagnostics-panel",
+    id: "inspector-panels--fullscreen-shader-diagnostics",
+    waitFor: ".mantine-Alert-root"
+  },
+  {
     name: "invalid-connection",
     id: "graph-reactflowcanvas--invalid-connection-diagnostic",
     waitFor: ".storybook-diagnostic-card.is-error"

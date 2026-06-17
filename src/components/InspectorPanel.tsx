@@ -1,6 +1,6 @@
 import { Divider, Stack, Text } from "@mantine/core";
 import { useState } from "react";
-import type { GraphDocumentV01, GraphNodeV01, ValidationResult } from "@skenion/contracts";
+import type { GraphDocumentV01, GraphNodeV01, ShaderDiagnosticV01, ValidationResult } from "@skenion/contracts";
 import { ConnectionDiagnosticsPanel } from "./inspector/ConnectionDiagnosticsPanel";
 import { EdgeInspector } from "./inspector/EdgeInspector";
 import { FeedbackPolicyDialog } from "./inspector/FeedbackPolicyDialog";
@@ -12,7 +12,7 @@ import type {
   GraphSemanticDiagnostic
 } from "../graph/portSemantics";
 import type { ConnectionCheck } from "../graph/skenionGraph";
-import type { RuntimeControlEventRequest } from "../runtime/types";
+import type { RuntimeControlEventRequest, RuntimeGeneratedShaderResponse } from "../runtime/types";
 
 interface InspectorPanelProps {
   connectionCheck: ConnectionCheck | null;
@@ -21,6 +21,10 @@ interface InspectorPanelProps {
   node: GraphNodeV01 | null;
   semanticDiagnostics: GraphSemanticDiagnostic[];
   validation: ValidationResult<GraphDocumentV01>;
+  generatedShader: RuntimeGeneratedShaderResponse | null;
+  generatedShaderBusy: boolean;
+  runtimeShaderDiagnostics: ShaderDiagnosticV01[];
+  onLoadGeneratedShader?: () => void;
   onRemoveNode: (node: GraphNodeV01) => void;
   onSendRuntimeControl: (request: RuntimeControlEventRequest) => void;
   onSetNodeParam: (nodeId: string, key: string, value: unknown) => void;
@@ -33,13 +37,17 @@ export function InspectorPanel({
   connectionCheck,
   edge,
   graph,
+  generatedShader,
+  generatedShaderBusy,
   node,
+  onLoadGeneratedShader,
   onRemoveNode,
   onSendRuntimeControl,
   onSetNodeParam,
   onSyncShaderInputs,
   runtimeControlBusy,
   runtimeControlEnabled,
+  runtimeShaderDiagnostics,
   semanticDiagnostics,
   validation
 }: InspectorPanelProps) {
@@ -68,13 +76,17 @@ export function InspectorPanel({
           />
         ) : node ? (
           <NodeInspector
+            generatedShader={generatedShader}
+            generatedShaderBusy={generatedShaderBusy}
             node={node}
+            onLoadGeneratedShader={onLoadGeneratedShader}
             onRemoveNode={onRemoveNode}
             onSendRuntimeControl={onSendRuntimeControl}
             onSetNodeParam={onSetNodeParam}
             onSyncShaderInputs={onSyncShaderInputs}
             runtimeControlBusy={runtimeControlBusy}
             runtimeControlEnabled={runtimeControlEnabled}
+            runtimeShaderDiagnostics={runtimeShaderDiagnostics}
           />
         ) : (
           <Text c="dimmed" size="sm">

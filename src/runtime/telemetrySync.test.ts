@@ -39,6 +39,19 @@ describe("runtime telemetry sync", () => {
     expect(hasTelemetryRenderError(null)).toBe(false);
     expect(hasTelemetryRenderError(telemetry())).toBe(false);
     expect(hasTelemetryRenderError(telemetry({ render: { lastError: "surface lost" } }))).toBe(true);
+    expect(hasTelemetryRenderError(telemetry({
+      render: {
+        diagnostics: [
+          {
+            severity: "error",
+            phase: "wgsl-compile",
+            code: "wgsl-validation",
+            message: "shader validation failed",
+            source: "generated"
+          }
+        ]
+      }
+    }))).toBe(true);
   });
 });
 
@@ -78,6 +91,8 @@ function telemetry(
       lastFrameMs: 16.7,
       lastError: null,
       sourceNodeId: "clear_1",
+      diagnostics: [],
+      generatedSourceAvailable: false,
       ...overrides.render
     },
     process: {
