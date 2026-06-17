@@ -78,7 +78,8 @@ export function RuntimeSessionPanel({
             {
               graphId: session.graphId,
               graphRevision: session.graphRevision,
-              sessionRevision: session.sessionRevision
+              sessionRevision: session.sessionRevision,
+              controlRevision: session.controlRevision
             },
             null,
             2

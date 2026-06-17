@@ -70,7 +70,8 @@ function telemetry(
       loaded: true,
       graphId: "clear-color-render",
       graphRevision: "1",
-      sessionRevision: 1
+      sessionRevision: 1,
+      controlRevision: 1
     },
     preview: {
       state: "running",
@@ -80,6 +81,10 @@ function telemetry(
       graphRevision: "1",
       sessionRevision: 1,
       previewSessionRevision: 1,
+      controlRevision: 1,
+      previewControlRevision: 1,
+      controlLive: true,
+      lastControlUpdateAt: "unix-ms:1",
       ...overrides.preview
     },
     render: {
@@ -93,6 +98,10 @@ function telemetry(
       sourceNodeId: "clear_1",
       diagnostics: [],
       generatedSourceAvailable: false,
+      controlRevision: 1,
+      previewControlRevision: 1,
+      controlLive: true,
+      lastControlUpdateAt: "unix-ms:1",
       ...overrides.render
     },
     process: {

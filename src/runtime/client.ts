@@ -391,6 +391,7 @@ function isRuntimeSessionResponse(value: unknown): value is RuntimeSessionRespon
     (typeof value.graphId === "string" || value.graphId === null) &&
     (typeof value.graphRevision === "string" || value.graphRevision === null) &&
     typeof value.sessionRevision === "number" &&
+    typeof value.controlRevision === "number" &&
     Array.isArray(value.diagnostics) &&
     value.diagnostics.every(isRuntimeDiagnostic) &&
     (value.plan === null || isRecord(value.plan)) &&
@@ -417,6 +418,8 @@ function isRuntimeControlEventResponse(value: unknown): value is RuntimeControlE
   return (
     isRecord(value) &&
     typeof value.ok === "boolean" &&
+    typeof value.changed === "boolean" &&
+    (typeof value.controlRevision === "number" || value.controlRevision === null) &&
     Array.isArray(value.emitted) &&
     value.emitted.every(isRuntimeControlEmission) &&
     Array.isArray(value.diagnostics) &&
@@ -428,6 +431,7 @@ function isRuntimeControlStateResponse(value: unknown): value is RuntimeControlS
   return (
     isRecord(value) &&
     typeof value.ok === "boolean" &&
+    typeof value.controlRevision === "number" &&
     isRecord(value.values) &&
     Object.values(value.values).every(isRuntimeControlValue) &&
     isRecord(value.channels) &&
@@ -514,6 +518,10 @@ function isRuntimePreviewStatus(value: unknown): value is RuntimePreviewStatus {
     (typeof value.graphRevision === "string" || value.graphRevision === null) &&
     (typeof value.sessionRevision === "number" || value.sessionRevision === null) &&
     (typeof value.previewSessionRevision === "number" || value.previewSessionRevision === null) &&
+    (typeof value.controlRevision === "number" || value.controlRevision === null) &&
+    (typeof value.previewControlRevision === "number" || value.previewControlRevision === null) &&
+    typeof value.controlLive === "boolean" &&
+    (typeof value.lastControlUpdateAt === "string" || value.lastControlUpdateAt === null) &&
     typeof value.stale === "boolean" &&
     (typeof value.startedAt === "string" || value.startedAt === null) &&
     (typeof value.exitedAt === "string" || value.exitedAt === null) &&
@@ -546,7 +554,8 @@ function isRuntimeTelemetrySession(value: unknown): boolean {
     typeof value.loaded === "boolean" &&
     (typeof value.graphId === "string" || value.graphId === null) &&
     (typeof value.graphRevision === "string" || value.graphRevision === null) &&
-    typeof value.sessionRevision === "number"
+    typeof value.sessionRevision === "number" &&
+    typeof value.controlRevision === "number"
   );
 }
 
@@ -559,7 +568,11 @@ function isRuntimeTelemetryPreview(value: unknown): boolean {
     (typeof value.graphId === "string" || value.graphId === null) &&
     (typeof value.graphRevision === "string" || value.graphRevision === null) &&
     (typeof value.sessionRevision === "number" || value.sessionRevision === null) &&
-    (typeof value.previewSessionRevision === "number" || value.previewSessionRevision === null)
+    (typeof value.previewSessionRevision === "number" || value.previewSessionRevision === null) &&
+    (typeof value.controlRevision === "number" || value.controlRevision === null) &&
+    (typeof value.previewControlRevision === "number" || value.previewControlRevision === null) &&
+    typeof value.controlLive === "boolean" &&
+    (typeof value.lastControlUpdateAt === "string" || value.lastControlUpdateAt === null)
   );
 }
 
@@ -576,7 +589,11 @@ function isRuntimeTelemetryRender(value: unknown): boolean {
     (typeof value.sourceNodeId === "string" || value.sourceNodeId === null) &&
     Array.isArray(value.diagnostics) &&
     value.diagnostics.every(isShaderDiagnostic) &&
-    typeof value.generatedSourceAvailable === "boolean"
+    typeof value.generatedSourceAvailable === "boolean" &&
+    (typeof value.controlRevision === "number" || value.controlRevision === null) &&
+    (typeof value.previewControlRevision === "number" || value.previewControlRevision === null) &&
+    typeof value.controlLive === "boolean" &&
+    (typeof value.lastControlUpdateAt === "string" || value.lastControlUpdateAt === null)
   );
 }
 

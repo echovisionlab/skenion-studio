@@ -47,6 +47,11 @@ export function RuntimePreviewPanel({
               stale
             </Badge>
           ) : null}
+          {previewStatus ? (
+            <Badge color={previewStatus.controlLive ? "teal" : "yellow"} radius="sm" variant="light">
+              {previewStatus.controlLive ? "control live" : "control pending"}
+            </Badge>
+          ) : null}
         </Group>
       </Group>
 
@@ -56,7 +61,11 @@ export function RuntimePreviewPanel({
             pid: previewStatus?.pid ?? null,
             graphRevision: previewStatus?.graphRevision ?? null,
             sessionRevision: previewStatus?.sessionRevision ?? null,
-            previewSessionRevision: previewStatus?.previewSessionRevision ?? null
+            previewSessionRevision: previewStatus?.previewSessionRevision ?? null,
+            controlRevision: previewStatus?.controlRevision ?? null,
+            previewControlRevision: previewStatus?.previewControlRevision ?? null,
+            controlLive: previewStatus?.controlLive ?? false,
+            lastControlUpdateAt: previewStatus?.lastControlUpdateAt ?? null
           },
           null,
           2
