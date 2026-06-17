@@ -15,9 +15,9 @@ describe("nodeCardView", () => {
       selected: true,
       typeBadgeLabel: "render.frame"
     });
-    expect(shaderCard.inputs).toHaveLength(3);
+    expect(shaderCard.inputs).toHaveLength(4);
     expect(shaderCard.inputs[0]).toMatchObject({
-      id: "u_value",
+      id: "speed",
       direction: "input",
       typeLabel: "value.f32",
       metadata: {
@@ -27,12 +27,17 @@ describe("nodeCardView", () => {
       }
     });
     expect(shaderCard.inputs[1]).toMatchObject({
-      id: "u_value2",
+      id: "enabled",
       direction: "input",
-      typeLabel: "value.f32"
+      typeLabel: "value.boolean"
     });
     expect(shaderCard.inputs[2]).toMatchObject({
-      id: "u_color",
+      id: "iterations",
+      direction: "input",
+      typeLabel: "value.number.i32"
+    });
+    expect(shaderCard.inputs[3]).toMatchObject({
+      id: "tint",
       direction: "input",
       typeLabel: "value.color.rgba"
     });

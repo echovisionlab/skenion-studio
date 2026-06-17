@@ -38,6 +38,8 @@ import {
 } from "../../graph/floatValue";
 import {
   DEFAULT_FULLSCREEN_SHADER_SOURCE,
+  analyzeFullscreenShaderInterface,
+  fullscreenShaderPortsAreSynced,
   isFullscreenShaderNode,
   readShaderLanguageParam,
   readShaderSourceParam
@@ -64,6 +66,7 @@ export function NodeInspector({
   onRemoveNode,
   onSendRuntimeControl,
   onSetNodeParam,
+  onSyncShaderInputs,
   runtimeControlBusy,
   runtimeControlEnabled
 }: {
@@ -71,6 +74,7 @@ export function NodeInspector({
   onRemoveNode: (node: GraphNodeV01) => void;
   onSendRuntimeControl: (request: RuntimeControlEventRequest) => void;
   onSetNodeParam: (nodeId: string, key: string, value: unknown) => void;
+  onSyncShaderInputs: (nodeId: string, source: string) => void;
   runtimeControlBusy: boolean;
   runtimeControlEnabled: boolean;
 }) {
@@ -88,6 +92,12 @@ export function NodeInspector({
   const runtimeControlPorts = runtimeControlPortsForNode(node);
   const shaderSource = isFullscreenShaderNode(node) ? readShaderSourceParam(node) : null;
   const shaderLanguage = isFullscreenShaderNode(node) ? readShaderLanguageParam(node) : null;
+  const shaderAnalysis = shaderSource !== null
+    ? analyzeFullscreenShaderInterface(shaderSource, shaderLanguage ?? "unsupported")
+    : null;
+  const shaderInterfaceSynced = shaderSource !== null
+    ? fullscreenShaderPortsAreSynced(node.ports, shaderSource, shaderLanguage ?? "unsupported")
+    : false;
   const help = getBuiltinNodeHelp(node.kind);
 
   return (
@@ -239,9 +249,13 @@ export function NodeInspector({
         <>
           <Divider />
           <FullscreenShaderControls
+            analysis={shaderAnalysis!}
+            interfaceSynced={shaderInterfaceSynced}
             language={shaderLanguage ?? "unsupported"}
+            onAnalyze={() => undefined}
             onResetSource={() => onSetNodeParam(node.id, "source", DEFAULT_FULLSCREEN_SHADER_SOURCE)}
             onSourceChange={(source) => onSetNodeParam(node.id, "source", source)}
+            onSyncInputs={() => onSyncShaderInputs(node.id, shaderSource)}
             source={shaderSource}
           />
         </>

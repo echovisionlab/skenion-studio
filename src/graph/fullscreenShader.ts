@@ -1,44 +1,30 @@
-import type { GraphNodeV01 } from "@skenion/contracts";
+import {
+  analyzeShaderInterfaceV01,
+  shaderInterfaceToPortsV01
+} from "@skenion/contracts";
+import type {
+  GraphNodeV01,
+  PortV01,
+  ShaderInterfaceAnalysisV01
+} from "@skenion/contracts";
 import type { GraphPatch } from "./skenionGraph";
 
 export const FULLSCREEN_SHADER_NODE_KIND = "render.fullscreen-shader";
 export const FULLSCREEN_SHADER_LANGUAGE = "wgsl";
 
-export const DEFAULT_FULLSCREEN_SHADER_SOURCE = `struct SkenionFrame {
-  resolution: vec2<f32>,
-  time: f32,
-  frame: u32,
-  u_value: f32,
-  u_value2: f32,
-  _pad0: vec2<f32>,
-  u_color: vec4<f32>,
-}
-
-@group(0) @binding(0)
-var<uniform> skenion: SkenionFrame;
-
-struct VertexOut {
-  @builtin(position) position: vec4<f32>,
-}
-
-@vertex
-fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOut {
-  var positions = array<vec2<f32>, 3>(
-    vec2<f32>(-1.0, -3.0),
-    vec2<f32>(-1.0,  1.0),
-    vec2<f32>( 3.0,  1.0)
-  );
-
-  var out: VertexOut;
-  out.position = vec4<f32>(positions[vertex_index], 0.0, 1.0);
-  return out;
-}
-
+export const DEFAULT_FULLSCREEN_SHADER_SOURCE = `// @skenion.uniform speed number.f32 default=0.5 min=0 max=2 step=0.01 label="Speed"
+// @skenion.uniform enabled boolean default=true label="Enabled"
+// @skenion.uniform iterations number.i32 default=8 min=1 max=32 step=1 label="Iterations"
+// @skenion.uniform tint color.rgba default=[1,0.2,0.1,1] label="Tint"
 @fragment
 fn fs_main() -> @location(0) vec4<f32> {
-  let pulse = 0.5 + 0.5 * sin(skenion.time);
-  let base = vec3<f32>(skenion.u_value, skenion.u_value2, 1.0 - skenion.u_value);
-  return vec4<f32>(mix(base, skenion.u_color.rgb, pulse * 0.35), skenion.u_color.a);
+  let uv = skenion.resolution / max(skenion.resolution.y, 1.0);
+  var pulse = 0.5;
+  if (sk_bool(skenion.enabled)) {
+    pulse = 0.5 + 0.5 * sin((uv.x + skenion.time * skenion.speed) * f32(skenion.iterations));
+  }
+  let base = vec3<f32>(0.08 + skenion.speed * 0.35, 0.16 + pulse * 0.45, 0.8 - skenion.speed * 0.2);
+  return vec4<f32>(mix(base, skenion.tint.rgb, 0.45), skenion.tint.a);
 }`;
 
 export function isFullscreenShaderNode(node: GraphNodeV01 | null): node is GraphNodeV01 {
@@ -69,4 +55,85 @@ export function setShaderSourceParamPatch(nodeId: string, source: string): Graph
     key: "source",
     value: source
   };
+}
+
+export function analyzeFullscreenShaderInterface(
+  source: string,
+  language: string = FULLSCREEN_SHADER_LANGUAGE
+): ShaderInterfaceAnalysisV01 {
+  if (language !== FULLSCREEN_SHADER_LANGUAGE) {
+    return {
+      ok: false,
+      shaderInterface: {
+        schema: "skenion.shader.interface",
+        schemaVersion: "0.1.0",
+        language: FULLSCREEN_SHADER_LANGUAGE,
+        uniforms: []
+      },
+      diagnostics: [
+        {
+          severity: "error",
+          code: "unsupported-language",
+          message: `unsupported shader language: ${language}`
+        }
+      ]
+    };
+  }
+
+  return analyzeShaderInterfaceV01(source, { language: FULLSCREEN_SHADER_LANGUAGE });
+}
+
+export function portsForFullscreenShaderSource(
+  source: string,
+  language: string = FULLSCREEN_SHADER_LANGUAGE
+): PortV01[] {
+  const analysis = analyzeFullscreenShaderInterface(source, language);
+  return analysis.ok ? shaderInterfaceToPortsV01(analysis.shaderInterface) : fullscreenShaderOutputOnlyPorts();
+}
+
+export function createReplaceShaderInterfacePatch(
+  nodeId: string,
+  source: string,
+  language: string = FULLSCREEN_SHADER_LANGUAGE
+): GraphPatch | null {
+  const analysis = analyzeFullscreenShaderInterface(source, language);
+  if (!analysis.ok) {
+    return null;
+  }
+
+  return {
+    type: "replaceNodeInterface",
+    nodeId,
+    ports: shaderInterfaceToPortsV01(analysis.shaderInterface),
+    edgePolicy: "removeInvalidEdges"
+  };
+}
+
+export function fullscreenShaderPortsAreSynced(
+  currentPorts: PortV01[],
+  source: string,
+  language: string = FULLSCREEN_SHADER_LANGUAGE
+): boolean {
+  const analysis = analyzeFullscreenShaderInterface(source, language);
+  if (!analysis.ok) {
+    return false;
+  }
+
+  return JSON.stringify(currentPorts) === JSON.stringify(shaderInterfaceToPortsV01(analysis.shaderInterface));
+}
+
+function fullscreenShaderOutputOnlyPorts(): PortV01[] {
+  return [
+    {
+      id: "out",
+      direction: "output",
+      label: "Out",
+      type: {
+        flow: "resource",
+        dataKind: "gpu.texture2d",
+        format: "rgba8unorm",
+        colorSpace: "srgb"
+      }
+    }
+  ];
 }

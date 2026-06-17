@@ -290,7 +290,7 @@ describe("skenion graph helpers", () => {
           type: "addEdge",
           edge: {
             from: { node: "bang_1", port: "bang" },
-            to: { node: "shader_1", port: "u_value" }
+            to: { node: "shader_1", port: "speed" }
           }
         }
       ).message
@@ -300,7 +300,7 @@ describe("skenion graph helpers", () => {
         type: "addEdge",
         edge: {
           from: { node: "output_1", port: "in" },
-          to: { node: "shader_1", port: "u_value" }
+          to: { node: "shader_1", port: "speed" }
         }
       })
     ).toEqual({

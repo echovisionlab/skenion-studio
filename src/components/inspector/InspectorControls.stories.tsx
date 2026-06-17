@@ -15,7 +15,11 @@ import { IntegerValueControls } from "./IntegerValueControls";
 import { NodeInspector } from "./NodeInspector";
 import { RuntimeControlValueControls } from "./RuntimeControlValueControls";
 import { StringValueControls } from "./StringValueControls";
-import { DEFAULT_FULLSCREEN_SHADER_SOURCE } from "../../graph/fullscreenShader";
+import {
+  DEFAULT_FULLSCREEN_SHADER_SOURCE,
+  analyzeFullscreenShaderInterface,
+  portsForFullscreenShaderSource
+} from "../../graph/fullscreenShader";
 import { createGraphNodeFromDefinition } from "../../graph/skenionGraph";
 import { nodeRegistry } from "../../data/registry";
 import { renderSampleGraph } from "../../data/sampleGraph";
@@ -53,6 +57,7 @@ export const NodeControls: Story = {
         onRemoveNode={noop}
         onSendRuntimeControl={noop}
         onSetNodeParam={noop}
+        onSyncShaderInputs={noop}
         runtimeControlBusy={false}
         runtimeControlEnabled
       />
@@ -123,6 +128,7 @@ export const MessageNodeInspector: Story = {
           onRemoveNode={noop}
           onSendRuntimeControl={noop}
           onSetNodeParam={noop}
+          onSyncShaderInputs={noop}
           runtimeControlBusy={false}
           runtimeControlEnabled
         />
@@ -134,9 +140,16 @@ export const MessageNodeInspector: Story = {
 export const FullscreenShaderControl: Story = {
   render: () => (
     <FullscreenShaderControls
+      analysis={analyzeFullscreenShaderInterface(DEFAULT_FULLSCREEN_SHADER_SOURCE)}
+      interfaceSynced={
+        JSON.stringify(renderSampleGraph.nodes[0]!.ports) ===
+        JSON.stringify(portsForFullscreenShaderSource(DEFAULT_FULLSCREEN_SHADER_SOURCE))
+      }
       language="wgsl"
+      onAnalyze={noop}
       onResetSource={noop}
       onSourceChange={noop}
+      onSyncInputs={noop}
       source={DEFAULT_FULLSCREEN_SHADER_SOURCE}
     />
   )

@@ -9,6 +9,10 @@ import {
   isFullscreenShaderNode,
   readShaderLanguageParam,
   readShaderSourceParam,
+  analyzeFullscreenShaderInterface,
+  createReplaceShaderInterfacePatch,
+  fullscreenShaderPortsAreSynced,
+  portsForFullscreenShaderSource,
   setShaderSourceParamPatch
 } from "./fullscreenShader";
 
@@ -20,10 +24,11 @@ describe("fullscreen shader graph helpers", () => {
     expect(isFullscreenShaderNode({ ...shaderNode(params.source), kind: "render.clear-color" })).toBe(false);
     expect(isFullscreenShaderNode(null)).toBe(false);
     expect(params.language).toBe(FULLSCREEN_SHADER_LANGUAGE);
-    expect(params.source).toContain("u_value");
-    expect(params.source).toContain("u_value2");
-    expect(params.source).toContain("u_color");
-    expect(params.source).toContain("fn vs_main");
+    expect(params.source).toContain("speed");
+    expect(params.source).toContain("enabled");
+    expect(params.source).toContain("iterations");
+    expect(params.source).toContain("tint");
+    expect(params.source).not.toContain("fn vs_main");
     expect(params.source).toContain("fn fs_main");
   });
 
@@ -57,6 +62,39 @@ describe("fullscreen shader graph helpers", () => {
       key: "source",
       value: "next source"
     });
+  });
+
+  it("analyzes shader annotations and creates replace interface patches", () => {
+    const analysis = analyzeFullscreenShaderInterface(DEFAULT_FULLSCREEN_SHADER_SOURCE);
+    const ports = portsForFullscreenShaderSource(DEFAULT_FULLSCREEN_SHADER_SOURCE);
+    const patch = createReplaceShaderInterfacePatch("shader_1", DEFAULT_FULLSCREEN_SHADER_SOURCE);
+
+    expect(analysis.ok).toBe(true);
+    expect(analysis.shaderInterface.uniforms.map((uniform) => [uniform.id, uniform.type.dataKind])).toEqual([
+      ["speed", "number.f32"],
+      ["enabled", "boolean"],
+      ["iterations", "number.i32"],
+      ["tint", "color.rgba"]
+    ]);
+    expect(ports.map((port) => port.id)).toEqual(["speed", "enabled", "iterations", "tint", "out"]);
+    expect(patch).toMatchObject({
+      type: "replaceNodeInterface",
+      nodeId: "shader_1",
+      edgePolicy: "removeInvalidEdges"
+    });
+    expect(fullscreenShaderPortsAreSynced(ports, DEFAULT_FULLSCREEN_SHADER_SOURCE)).toBe(true);
+    expect(fullscreenShaderPortsAreSynced(ports.slice(1), DEFAULT_FULLSCREEN_SHADER_SOURCE)).toBe(false);
+  });
+
+  it("falls back to output-only ports when shader analysis fails", () => {
+    const source = "// @skenion.uniform out number.f32\n@fragment\nfn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }";
+    const analysis = analyzeFullscreenShaderInterface(source);
+
+    expect(analysis.ok).toBe(false);
+    expect(analyzeFullscreenShaderInterface(source, "glsl").diagnostics[0]?.code).toBe("unsupported-language");
+    expect(portsForFullscreenShaderSource(source).map((port) => port.id)).toEqual(["out"]);
+    expect(createReplaceShaderInterfacePatch("shader_1", source)).toBeNull();
+    expect(fullscreenShaderPortsAreSynced(portsForFullscreenShaderSource(source), source)).toBe(false);
   });
 
   function shaderNode(source: unknown): GraphNodeV01 {

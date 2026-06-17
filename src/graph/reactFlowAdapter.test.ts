@@ -54,7 +54,7 @@ describe("React Flow adapter", () => {
     const viewModel = toReactFlowViewModel(renderSampleGraph, {});
 
     expect(viewModel.nodes.map((node) => node.id)).toEqual(["shader_1", "output_1"]);
-    expect(viewModel.nodes[0].data.card.inputs).toHaveLength(3);
+    expect(viewModel.nodes[0].data.card.inputs).toHaveLength(4);
     expect(viewModel.nodes[0].data.card.outputs).toHaveLength(1);
     expect(viewModel.nodes[1].data.card.inputs).toHaveLength(1);
     expect(viewModel.edges[0]).toMatchObject({
@@ -95,7 +95,7 @@ describe("React Flow adapter", () => {
       edge.target,
       edge.targetHandle
     ])).toEqual([
-      ["value_1", "value", "shader_1", "u_value"],
+      ["value_1", "value", "shader_1", "speed"],
       ["shader_1", "out", "output_1", "in"]
     ]);
     expect(shaderMultiUniformViewModel.edges.map((edge) => [
@@ -104,9 +104,9 @@ describe("React Flow adapter", () => {
       edge.target,
       edge.targetHandle
     ])).toEqual([
-      ["value_1", "value", "shader_1", "u_value"],
-      ["value_2", "value", "shader_1", "u_value2"],
-      ["color_1", "value", "shader_1", "u_color"],
+      ["value_1", "value", "shader_1", "speed"],
+      ["value_2", "value", "shader_1", "phase"],
+      ["color_1", "value", "shader_1", "tint"],
       ["shader_1", "out", "output_1", "in"]
     ]);
     expect(portDemoViewModel.edges.map((edge) => edge.type)).toEqual([
