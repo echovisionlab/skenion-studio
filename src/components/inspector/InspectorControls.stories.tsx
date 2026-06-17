@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Stack } from "@mantine/core";
 import { BooleanValueControls } from "./BooleanValueControls";
 import { ClearColorControls } from "./ClearColorControls";
+import { CommentControls } from "./CommentControls";
 import { ColorRgbaControls } from "./ColorRgbaControls";
 import { ConnectionDiagnosticsPanel } from "./ConnectionDiagnosticsPanel";
 import { EdgeInspector } from "./EdgeInspector";
@@ -13,7 +14,10 @@ import { InspectorShell } from "./InspectorShell";
 import { IntegerValueControls } from "./IntegerValueControls";
 import { NodeInspector } from "./NodeInspector";
 import { RuntimeControlValueControls } from "./RuntimeControlValueControls";
+import { StringValueControls } from "./StringValueControls";
 import { DEFAULT_FULLSCREEN_SHADER_SOURCE } from "../../graph/fullscreenShader";
+import { createGraphNodeFromDefinition } from "../../graph/skenionGraph";
+import { nodeRegistry } from "../../data/registry";
 import { renderSampleGraph } from "../../data/sampleGraph";
 import {
   edgeInspectorModel,
@@ -76,6 +80,14 @@ export const BooleanValueControl: Story = {
   render: () => <BooleanValueControls value onChange={noop} />
 };
 
+export const StringValueControl: Story = {
+  render: () => <StringValueControls value="ready" onChange={noop} />
+};
+
+export const CommentControl: Story = {
+  render: () => <CommentControls text="Bang fans out to local control nodes." onChange={noop} />
+};
+
 export const RuntimeControlValueControl: Story = {
   render: () => (
     <RuntimeControlValueControls
@@ -86,6 +98,37 @@ export const RuntimeControlValueControl: Story = {
       value={{ type: "f32", value: 1.25 }}
     />
   )
+};
+
+export const RuntimeControlMessageOnly: Story = {
+  render: () => (
+    <RuntimeControlValueControls
+      availablePorts={{ bang: true, in: false, set: false }}
+      busy={false}
+      enabled
+      nodeId="message_1"
+      onSend={noop}
+      value={{ type: "string", value: "perform" }}
+    />
+  )
+};
+
+export const MessageNodeInspector: Story = {
+  render: () => {
+    const definition = nodeRegistry.find((candidate) => candidate.id === "core.message");
+    return (
+      <InspectorShell edgeCount={1} nodeCount={2}>
+        <NodeInspector
+          node={createGraphNodeFromDefinition(definition!, [])}
+          onRemoveNode={noop}
+          onSendRuntimeControl={noop}
+          onSetNodeParam={noop}
+          runtimeControlBusy={false}
+          runtimeControlEnabled
+        />
+      </InspectorShell>
+    );
+  }
 };
 
 export const FullscreenShaderControl: Story = {

@@ -64,6 +64,23 @@ describe("node registry", () => {
       "bang",
       "value"
     ]);
+    expect(findStudioDefinition("core.string")?.ports.map((port) => port.id)).toEqual([
+      "in",
+      "set",
+      "bang",
+      "value"
+    ]);
+    expect(findStudioDefinition("core.toggle")?.ports.map((port) => port.id)).toEqual([
+      "in",
+      "set",
+      "bang",
+      "value"
+    ]);
+    expect(findStudioDefinition("core.message")?.ports.map((port) => port.id)).toEqual([
+      "bang",
+      "value"
+    ]);
+    expect(findStudioDefinition("core.comment")?.ports).toEqual([]);
   });
 
   it("creates fullscreen shader nodes with Studio default wgsl params", () => {

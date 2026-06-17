@@ -8,6 +8,8 @@ import type {
   RuntimeApiResponse,
   RuntimeControlEventRequest,
   RuntimeControlEventResponse,
+  RuntimeControlReadRequest,
+  RuntimeControlReadResponse,
   RuntimeControlStateResponse,
   RuntimeHealth,
   RuntimeInfo,
@@ -42,6 +44,7 @@ export interface RuntimeClient {
   redoSessionPatch: () => Promise<RuntimePatchResponse>;
   sendControlEvent: (request: RuntimeControlEventRequest) => Promise<RuntimeControlEventResponse>;
   getControlState: () => Promise<RuntimeControlStateResponse>;
+  readControl: (request: RuntimeControlReadRequest) => Promise<RuntimeControlReadResponse>;
   getPreviewStatus: () => Promise<RuntimePreviewStatus>;
   startPreview: (options?: Partial<RuntimePreviewStartRequest>) => Promise<RuntimePreviewStatus>;
   stopPreview: () => Promise<RuntimePreviewStatus>;
@@ -131,6 +134,20 @@ export function createRuntimeClient(options: RuntimeClientOptions = {}): Runtime
         "/v0/session/control/state",
         { method: "GET" },
         isRuntimeControlStateResponse
+      ),
+    readControl: (request) =>
+      requestJson<RuntimeControlReadResponse>(
+        fetchImpl,
+        baseUrl,
+        "/v0/session/control/read",
+        {
+          body: JSON.stringify(request),
+          headers: {
+            "content-type": "application/json"
+          },
+          method: "POST"
+        },
+        isRuntimeControlReadResponse
       ),
     getPreviewStatus: () =>
       requestJson<RuntimePreviewStatus>(
@@ -397,6 +414,33 @@ function isRuntimeControlStateResponse(value: unknown): value is RuntimeControlS
   );
 }
 
+function isRuntimeControlReadResponse(value: unknown): value is RuntimeControlReadResponse {
+  return (
+    isRecord(value) &&
+    typeof value.ok === "boolean" &&
+    isRuntimeControlReadRequest(value.address) &&
+    (value.value === null || isRuntimeControlReadValue(value.value)) &&
+    Array.isArray(value.diagnostics) &&
+    value.diagnostics.every(isRuntimeDiagnostic)
+  );
+}
+
+function isRuntimeControlReadRequest(value: unknown): value is RuntimeControlReadRequest {
+  return (
+    isRecord(value) &&
+    typeof value.nodeId === "string" &&
+    (value.target === "param" || value.target === "port" || value.target === "state") &&
+    typeof value.id === "string"
+  );
+}
+
+function isRuntimeControlReadValue(value: unknown): boolean {
+  return (
+    isRuntimeControlValue(value) ||
+    (isRecord(value) && value.type === "json" && "value" in value)
+  );
+}
+
 function isRuntimeControlEmission(value: unknown): boolean {
   return (
     isRecord(value) &&
@@ -422,6 +466,9 @@ function isRuntimeControlValue(value: unknown): value is RuntimeControlEventRequ
   }
   if (value.type === "bool") {
     return typeof value.value === "boolean";
+  }
+  if (value.type === "string") {
+    return typeof value.value === "string";
   }
   if (value.type === "rgba") {
     return (

@@ -4,6 +4,9 @@ import { isBoolValueNode, readBoolValueParam } from "./boolValue";
 import { isColorRgbaNode, readColorRgbaParam } from "./colorRgba";
 import { isFloatValueNode, readFloatValueParam } from "./floatValue";
 import { isIntValueNode, readIntValueParam } from "./intValue";
+import { isMessageNode, readMessageValueParam } from "./messageNode";
+import { isStringValueNode, readStringValueParam } from "./stringValue";
+import { isToggleNode, readToggleParam } from "./toggleValue";
 
 export function runtimeControlValueForNode(node: GraphNodeV01): RuntimeControlValue | null {
   if (isFloatValueNode(node)) {
@@ -24,10 +27,28 @@ export function runtimeControlValueForNode(node: GraphNodeV01): RuntimeControlVa
       value: readBoolValueParam(node)
     };
   }
+  if (isToggleNode(node)) {
+    return {
+      type: "bool",
+      value: readToggleParam(node)
+    };
+  }
   if (isColorRgbaNode(node)) {
     return {
       type: "rgba",
       value: readColorRgbaParam(node)
+    };
+  }
+  if (isStringValueNode(node)) {
+    return {
+      type: "string",
+      value: readStringValueParam(node)
+    };
+  }
+  if (isMessageNode(node)) {
+    return {
+      type: "string",
+      value: readMessageValueParam(node)
     };
   }
 

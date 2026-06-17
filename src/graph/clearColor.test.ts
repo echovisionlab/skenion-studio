@@ -29,6 +29,18 @@ describe("clear color graph helpers", () => {
     expect(defaultParamsForNodeKind("core.value-bool")).toEqual({
       value: false
     });
+    expect(defaultParamsForNodeKind("core.string")).toEqual({
+      value: ""
+    });
+    expect(defaultParamsForNodeKind("core.toggle")).toEqual({
+      value: false
+    });
+    expect(defaultParamsForNodeKind("core.message")).toEqual({
+      value: ""
+    });
+    expect(defaultParamsForNodeKind("core.comment")).toEqual({
+      text: ""
+    });
   });
 
   it("reads and clamps clear color params", () => {

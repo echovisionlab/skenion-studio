@@ -1,15 +1,16 @@
 import { Stack, Switch, Text } from "@mantine/core";
 
 export interface BooleanValueControlsProps {
+  title?: string;
   value: boolean;
   onChange: (value: boolean) => void;
 }
 
-export function BooleanValueControls({ onChange, value }: BooleanValueControlsProps) {
+export function BooleanValueControls({ onChange, title = "Boolean Graph Param", value }: BooleanValueControlsProps) {
   return (
     <Stack gap="xs">
       <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-        Boolean Graph Param
+        {title}
       </Text>
       <Switch
         checked={value}
