@@ -4,7 +4,7 @@ import { Button } from "@mantine/core";
 import { RuntimeControlValueControls } from "./RuntimeControlValueControls";
 
 describe("RuntimeControlValueControls", () => {
-  it("emits set, in, and bang runtime control requests", () => {
+  it("emits set, in, and bang runtime control requests without graph patch callbacks", () => {
     const requests: unknown[] = [];
     const element = RuntimeControlValueControls({
       busy: false,

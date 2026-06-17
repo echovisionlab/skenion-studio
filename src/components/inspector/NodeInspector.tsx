@@ -2,7 +2,7 @@ import { Button, Divider, Group, Stack, Text } from "@mantine/core";
 import { BookOpen, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { getBuiltinNodeHelp } from "@skenion/contracts";
-import type { BuiltinNodeHelpV01, GraphNodeV01 } from "@skenion/contracts";
+import type { GraphNodeV01 } from "@skenion/contracts";
 import type { RuntimeControlEventRequest } from "../../runtime/types";
 import { BooleanValueControls } from "./BooleanValueControls";
 import { ClearColorControls } from "./ClearColorControls";
@@ -11,6 +11,7 @@ import { ColorRgbaControls } from "./ColorRgbaControls";
 import { FloatValueControls } from "./FloatValueControls";
 import { FullscreenShaderControls } from "./FullscreenShaderControls";
 import { IntegerValueControls } from "./IntegerValueControls";
+import { NodeHelp } from "./NodeHelp";
 import { PortTable } from "./PortTable";
 import { RuntimeControlValueControls } from "./RuntimeControlValueControls";
 import { StringValueControls } from "./StringValueControls";
@@ -259,48 +260,4 @@ function runtimeControlPortsForNode(node: GraphNodeV01) {
 
 function hasInputPort(node: GraphNodeV01, portId: string): boolean {
   return node.ports.some((port) => port.id === portId && port.direction === "input");
-}
-
-function NodeHelp({ help }: { help: BuiltinNodeHelpV01 }) {
-  return (
-    <Stack
-      gap={6}
-      p="xs"
-      style={{
-        border: "1px solid var(--mantine-color-default-border)",
-        borderRadius: 6
-      }}
-    >
-      <Text fw={800} size="sm">
-        {help.summary}
-      </Text>
-      <Text c="dimmed" size="xs">
-        {help.description}
-      </Text>
-      {help.ports?.length ? (
-        <Stack gap={3}>
-          <Text fw={700} size="xs">
-            Ports
-          </Text>
-          {help.ports.map((port) => (
-            <Text c="dimmed" key={port.id} size="xs">
-              {port.id}: {port.description}
-            </Text>
-          ))}
-        </Stack>
-      ) : null}
-      {help.params?.length ? (
-        <Stack gap={3}>
-          <Text fw={700} size="xs">
-            Params
-          </Text>
-          {help.params.map((param) => (
-            <Text c="dimmed" key={param.id} size="xs">
-              {param.id}: {param.description}
-            </Text>
-          ))}
-        </Stack>
-      ) : null}
-    </Stack>
-  );
 }
