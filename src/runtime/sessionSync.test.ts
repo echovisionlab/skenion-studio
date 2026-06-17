@@ -13,6 +13,7 @@ const loadedSession = {
   graphId: "graph",
   graphRevision: "1",
   sessionRevision: 1,
+  controlRevision: 0,
   diagnostics: [],
   plan: null,
   report: null

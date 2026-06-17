@@ -31,6 +31,11 @@ export function TelemetryPanel({ telemetry }: TelemetryPanelProps) {
               {telemetry.preview.stale ? "stale" : telemetry.preview.state}
             </Badge>
           ) : null}
+          {telemetry ? (
+            <Badge color={telemetry.render.controlLive ? "teal" : "yellow"} radius="sm" variant="light">
+              {telemetry.render.controlLive ? "control live" : "control pending"}
+            </Badge>
+          ) : null}
         </Group>
       </Group>
 
@@ -43,7 +48,8 @@ export function TelemetryPanel({ telemetry }: TelemetryPanelProps) {
                   loaded: telemetry.session.loaded,
                   graphId: telemetry.session.graphId,
                   graphRevision: telemetry.session.graphRevision,
-                  sessionRevision: telemetry.session.sessionRevision
+                  sessionRevision: telemetry.session.sessionRevision,
+                  controlRevision: telemetry.session.controlRevision
                 }
               : null,
             preview: telemetry
@@ -52,7 +58,11 @@ export function TelemetryPanel({ telemetry }: TelemetryPanelProps) {
                   stale: telemetry.preview.stale,
                   pid: telemetry.preview.pid,
                   graphRevision: telemetry.preview.graphRevision,
-                  previewSessionRevision: telemetry.preview.previewSessionRevision
+                  previewSessionRevision: telemetry.preview.previewSessionRevision,
+                  controlRevision: telemetry.preview.controlRevision,
+                  previewControlRevision: telemetry.preview.previewControlRevision,
+                  controlLive: telemetry.preview.controlLive,
+                  lastControlUpdateAt: telemetry.preview.lastControlUpdateAt
                 }
               : null,
             render: telemetry
@@ -64,7 +74,11 @@ export function TelemetryPanel({ telemetry }: TelemetryPanelProps) {
                   approxFps: formatFps(telemetry.render.approxFps),
                   lastFrameMs: formatFrameMs(telemetry.render.lastFrameMs),
                   sourceNodeId: telemetry.render.sourceNodeId,
-                  generatedSourceAvailable: telemetry.render.generatedSourceAvailable
+                  generatedSourceAvailable: telemetry.render.generatedSourceAvailable,
+                  controlRevision: telemetry.render.controlRevision,
+                  previewControlRevision: telemetry.render.previewControlRevision,
+                  controlLive: telemetry.render.controlLive,
+                  lastControlUpdateAt: telemetry.render.lastControlUpdateAt
                 }
               : null,
             process: telemetry

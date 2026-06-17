@@ -111,6 +111,7 @@ export interface RuntimeSessionResponse {
   graphId: string | null;
   graphRevision: string | null;
   sessionRevision: number;
+  controlRevision: number;
   diagnostics: RuntimeDiagnostic[];
   plan: RuntimePlan | null;
   report: RuntimeDummyExecutionReport | null;
@@ -137,6 +138,10 @@ export interface RuntimePreviewStatus {
   graphRevision: string | null;
   sessionRevision: number | null;
   previewSessionRevision: number | null;
+  controlRevision: number | null;
+  previewControlRevision: number | null;
+  controlLive: boolean;
+  lastControlUpdateAt: string | null;
   stale: boolean;
   startedAt: string | null;
   exitedAt: string | null;
@@ -171,12 +176,15 @@ export interface RuntimeControlEmission {
 
 export interface RuntimeControlEventResponse {
   ok: boolean;
+  changed: boolean;
+  controlRevision: number | null;
   emitted: RuntimeControlEmission[];
   diagnostics: RuntimeDiagnostic[];
 }
 
 export interface RuntimeControlStateResponse {
   ok: boolean;
+  controlRevision: number;
   values: Record<string, RuntimeControlValue>;
   channels: Record<string, RuntimeControlValue>;
   diagnostics: RuntimeDiagnostic[];
@@ -221,6 +229,7 @@ export interface RuntimeTelemetrySession {
   graphId: string | null;
   graphRevision: string | null;
   sessionRevision: number;
+  controlRevision: number;
 }
 
 export interface RuntimeTelemetryPreview {
@@ -231,6 +240,10 @@ export interface RuntimeTelemetryPreview {
   graphRevision: string | null;
   sessionRevision: number | null;
   previewSessionRevision: number | null;
+  controlRevision: number | null;
+  previewControlRevision: number | null;
+  controlLive: boolean;
+  lastControlUpdateAt: string | null;
 }
 
 export interface RuntimeTelemetryRender {
@@ -244,6 +257,10 @@ export interface RuntimeTelemetryRender {
   sourceNodeId: string | null;
   diagnostics: ShaderDiagnosticV01[];
   generatedSourceAvailable: boolean;
+  controlRevision: number | null;
+  previewControlRevision: number | null;
+  controlLive: boolean;
+  lastControlUpdateAt: string | null;
 }
 
 export interface RuntimeGeneratedShaderResponse {

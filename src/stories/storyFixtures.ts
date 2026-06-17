@@ -386,6 +386,7 @@ export const runtimeSession: RuntimeSessionResponse = {
   graphId: "storybook-graph",
   graphRevision: "7",
   sessionRevision: 12,
+  controlRevision: 4,
   diagnostics: [],
   plan: null,
   report: null
@@ -399,6 +400,10 @@ export const runtimePreviewStatus: RuntimePreviewStatus = {
   graphRevision: "7",
   sessionRevision: 12,
   previewSessionRevision: 11,
+  controlRevision: 4,
+  previewControlRevision: 4,
+  controlLive: true,
+  lastControlUpdateAt: "2026-06-17T00:00:00.500Z",
   stale: true,
   startedAt: "2026-06-17T00:00:00.000Z",
   exitedAt: null,
@@ -416,7 +421,8 @@ export const runtimeTelemetry: RuntimeTelemetrySnapshot = {
     loaded: true,
     graphId: "storybook-graph",
     graphRevision: "7",
-    sessionRevision: 12
+    sessionRevision: 12,
+    controlRevision: 4
   },
   preview: {
     state: "running",
@@ -425,7 +431,11 @@ export const runtimeTelemetry: RuntimeTelemetrySnapshot = {
     graphId: "storybook-graph",
     graphRevision: "7",
     sessionRevision: 12,
-    previewSessionRevision: 11
+    previewSessionRevision: 11,
+    controlRevision: 4,
+    previewControlRevision: 4,
+    controlLive: true,
+    lastControlUpdateAt: "2026-06-17T00:00:00.500Z"
   },
   render: {
     active: true,
@@ -437,7 +447,11 @@ export const runtimeTelemetry: RuntimeTelemetrySnapshot = {
     lastError: null,
     sourceNodeId: "shader_1",
     diagnostics: [],
-    generatedSourceAvailable: true
+    generatedSourceAvailable: true,
+    controlRevision: 4,
+    previewControlRevision: 4,
+    controlLive: true,
+    lastControlUpdateAt: "2026-06-17T00:00:00.500Z"
   },
   process: {
     runtimeVersion: "0.14.0",

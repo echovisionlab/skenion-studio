@@ -219,6 +219,25 @@ describe("runtime client", () => {
         string_1: { type: "string", value: "ready" }
       }
     });
+
+    const nullRevisionClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(controlEventResponse({ changed: false, controlRevision: null, emitted: [] }))
+      ) as typeof fetch
+    });
+
+    await expect(
+      nullRevisionClient.sendControlEvent({
+        nodeId: "value_1",
+        portId: "in",
+        value: { type: "f32", value: 1.25 }
+      })
+    ).resolves.toMatchObject({
+      changed: false,
+      controlRevision: null,
+      emitted: []
+    });
   });
 
   it("accepts runtime control read responses", async () => {
@@ -303,6 +322,10 @@ describe("runtime client", () => {
             graphRevision: null,
             sessionRevision: null,
             previewSessionRevision: null,
+            controlRevision: null,
+            previewControlRevision: null,
+            controlLive: false,
+            lastControlUpdateAt: null,
             stale: false,
             startedAt: null,
             exitedAt: null,
@@ -349,7 +372,8 @@ describe("runtime client", () => {
               loaded: false,
               graphId: null,
               graphRevision: null,
-              sessionRevision: 0
+              sessionRevision: 0,
+              controlRevision: 0
             },
             preview: {
               state: "stopped",
@@ -358,7 +382,11 @@ describe("runtime client", () => {
               graphId: null,
               graphRevision: null,
               sessionRevision: null,
-              previewSessionRevision: null
+              previewSessionRevision: null,
+              controlRevision: null,
+              previewControlRevision: null,
+              controlLive: false,
+              lastControlUpdateAt: null
             },
             render: {
               active: false,
@@ -370,7 +398,11 @@ describe("runtime client", () => {
               lastError: null,
               sourceNodeId: null,
               diagnostics: [],
-              generatedSourceAvailable: false
+              generatedSourceAvailable: false,
+              controlRevision: null,
+              previewControlRevision: null,
+              controlLive: false,
+              lastControlUpdateAt: null
             }
           })
         )
@@ -522,7 +554,8 @@ describe("runtime client", () => {
             loaded: false,
             graphId: null,
             graphRevision: null,
-            sessionRevision: 0
+            sessionRevision: 0,
+            controlRevision: 0
           })
         )
       ) as typeof fetch
@@ -714,6 +747,18 @@ describe("runtime client", () => {
   });
 
   it("rejects unsupported runtime control response shapes", async () => {
+    const invalidEventNullClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () => jsonResponse(null)) as typeof fetch
+    });
+    await expect(
+      invalidEventNullClient.sendControlEvent({
+        nodeId: "value_1",
+        portId: "in",
+        value: { type: "f32", value: 1 }
+      })
+    ).rejects.toThrow("unsupported response shape");
+
     const invalidEventClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
@@ -1012,6 +1057,7 @@ function sessionResponse(overrides: Partial<RuntimeSessionResponse> = {}): Runti
     graphId: "test",
     graphRevision: "1",
     sessionRevision: 1,
+    controlRevision: 0,
     diagnostics: [],
     plan: null,
     report: null,
@@ -1059,6 +1105,8 @@ function historyResponse(overrides: Partial<GraphPatchHistoryV01> = {}): GraphPa
 function controlEventResponse(overrides: Partial<RuntimeControlEventResponse> = {}): RuntimeControlEventResponse {
   return {
     ok: true,
+    changed: true,
+    controlRevision: 1,
     emitted: [{ nodeId: "value_1", portId: "value", value: { type: "f32", value: 1.25 } }],
     diagnostics: [],
     ...overrides
@@ -1068,6 +1116,7 @@ function controlEventResponse(overrides: Partial<RuntimeControlEventResponse> = 
 function controlStateResponse(overrides: Partial<RuntimeControlStateResponse> = {}): RuntimeControlStateResponse {
   return {
     ok: true,
+    controlRevision: 1,
     values: {
       value_1: { type: "f32", value: 1.25 }
     },
@@ -1096,6 +1145,10 @@ function previewResponse(overrides: Partial<RuntimePreviewStatus> = {}): Runtime
     graphRevision: "1",
     sessionRevision: 1,
     previewSessionRevision: 1,
+    controlRevision: 1,
+    previewControlRevision: 1,
+    controlLive: true,
+    lastControlUpdateAt: "unix-ms:1",
     stale: false,
     startedAt: "unix-ms:1",
     exitedAt: null,
@@ -1116,7 +1169,8 @@ function telemetryResponse(overrides: Partial<RuntimeTelemetrySnapshot> = {}): R
       loaded: true,
       graphId: "test",
       graphRevision: "1",
-      sessionRevision: 1
+      sessionRevision: 1,
+      controlRevision: 1
     },
     preview: {
       state: "running",
@@ -1125,7 +1179,11 @@ function telemetryResponse(overrides: Partial<RuntimeTelemetrySnapshot> = {}): R
       graphId: "test",
       graphRevision: "1",
       sessionRevision: 1,
-      previewSessionRevision: 1
+      previewSessionRevision: 1,
+      controlRevision: 1,
+      previewControlRevision: 1,
+      controlLive: true,
+      lastControlUpdateAt: "unix-ms:1"
     },
     render: {
       active: true,
@@ -1137,7 +1195,11 @@ function telemetryResponse(overrides: Partial<RuntimeTelemetrySnapshot> = {}): R
       lastError: null,
       sourceNodeId: "clear_1",
       diagnostics: [],
-      generatedSourceAvailable: false
+      generatedSourceAvailable: false,
+      controlRevision: 1,
+      previewControlRevision: 1,
+      controlLive: true,
+      lastControlUpdateAt: "unix-ms:1"
     },
     process: {
       runtimeVersion: "0.11.0",
