@@ -11,6 +11,7 @@ import {
 import { GraphCanvas } from "./components/GraphCanvas";
 import { InspectorPanel } from "./components/InspectorPanel";
 import { PalettePanel } from "./components/PalettePanel";
+import { PerformanceShell } from "./components/performance/PerformanceShell";
 import { RuntimePanel } from "./components/RuntimePanel";
 import { StudioToolbar } from "./components/StudioToolbar";
 import { nodeRegistry } from "./data/registry";
@@ -41,6 +42,10 @@ import {
   parseProjectDocument,
   reconcileViewStateWithGraph
 } from "./graph/projectDocument";
+import {
+  studioChromeVisibility,
+  type StudioMode,
+} from "./graph/performanceSurface";
 import {
   analyzeGraphPortSemantics,
   findEdgeInspectorModel
@@ -79,6 +84,7 @@ import type {
 export default function App() {
   const [graph, setGraph] = useState<GraphDocumentV01>(sampleGraph);
   const [viewState, setViewState] = useState(() => createViewStateFromPositions(sampleGraph, {}));
+  const [studioMode, setStudioMode] = useState<StudioMode>("editor");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>("value_1");
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [activeHelpNodeId, setActiveHelpNodeId] = useState<string | null>(null);
@@ -101,6 +107,7 @@ export default function App() {
   const [pendingPatchBaseRevision, setPendingPatchBaseRevision] = useState<string | null>(null);
   const [patchConflict, setPatchConflict] = useState<string | null>(null);
   const validation = useMemo(() => validateGraph(graph), [graph]);
+  const chrome = useMemo(() => studioChromeVisibility(studioMode), [studioMode]);
   const semanticDiagnostics = useMemo(() => analyzeGraphPortSemantics(graph), [graph]);
   const runtimeProject = useMemo(() => createRuntimeProjectPayload(graph, nodeRegistry), [graph]);
   const currentGraphFingerprint = useMemo(
@@ -785,13 +792,14 @@ export default function App() {
   return (
     <AppShell
       header={{ height: 58 }}
-      navbar={{ width: 292, breakpoint: "sm" }}
-      aside={{ width: 356, breakpoint: "md" }}
+      navbar={chrome.showPalette ? { width: 292, breakpoint: "sm" } : undefined}
+      aside={chrome.showInspector ? { width: 356, breakpoint: "md" } : undefined}
       padding={0}
     >
       <AppShell.Header>
         <StudioToolbar
           graph={graph}
+          mode={studioMode}
           summary={graphSummary(graph)}
           validation={validation}
           onExport={exportGraph}
@@ -803,16 +811,19 @@ export default function App() {
           onLoadSendReceivePanelSample={loadSendReceivePanelSample}
           onLoadShaderMultiUniformSample={loadShaderMultiUniformSample}
           onLoadShaderUniformSample={loadShaderUniformSample}
+          onModeChange={setStudioMode}
           onReset={resetSample}
         />
       </AppShell.Header>
 
-      <AppShell.Navbar p="md">
-        <PalettePanel registry={nodeRegistry} onAddNode={addNode} onShowHelp={showNodeHelp} />
-      </AppShell.Navbar>
+      {chrome.showPalette ? (
+        <AppShell.Navbar p="md">
+          <PalettePanel registry={nodeRegistry} onAddNode={addNode} onShowHelp={showNodeHelp} />
+        </AppShell.Navbar>
+      ) : null}
 
       <AppShell.Main>
-        <div className="studio-main">
+        <div className={studioMode === "performance" ? "performance-main" : "studio-main"}>
           {importError ? (
             <Alert
               className="studio-alert"
@@ -827,34 +838,93 @@ export default function App() {
               </Group>
             </Alert>
           ) : null}
-          <GraphCanvas
-            graph={graph}
-            viewState={viewState}
-            onConnectionCheck={setConnectionCheck}
-            onGraphChange={updateGraph}
-            onViewStateChange={setViewState}
-            onSelectedEdgeChange={(edgeId) => {
-              setSelectedEdgeId(edgeId);
-              if (edgeId) {
-                setActiveHelpNodeId(null);
+          {studioMode === "performance" ? (
+            <PerformanceShell
+              busyAction={runtimeBusyAction}
+              controlEnabled={
+                runtimeStatus === "connected" &&
+                Boolean(runtimeSession?.loaded) &&
+                runtimeSupportsControl(runtimeInfo)
               }
-            }}
-            onSelectedNodeChange={(nodeId) => {
-              setSelectedNodeId(nodeId);
-              if (nodeId) {
-                setActiveHelpNodeId(null);
+              error={runtimeError}
+              graph={graph}
+              onConnect={connectRuntime}
+              onLoadSession={() =>
+                runRuntimeSessionAction("loadSession", () =>
+                  createRuntimeClient({ baseUrl: runtimeUrl }).loadSession(runtimeProject)
+                )
               }
-            }}
-            selectedEdgeId={selectedEdgeId}
-            selectedNodeId={selectedNodeId}
-          />
+              onRestartPreview={() =>
+                runRuntimePreviewAction("restartPreview", () =>
+                  createRuntimeClient({ baseUrl: runtimeUrl }).restartPreview()
+                )
+              }
+              onSendRuntimeControl={(request) => {
+                void sendRuntimeControlEvent(request);
+              }}
+              onStartPreview={() =>
+                runRuntimePreviewAction("startPreview", () =>
+                  createRuntimeClient({ baseUrl: runtimeUrl }).startPreview()
+                )
+              }
+              onStopPreview={() =>
+                runRuntimePreviewAction("stopPreview", () =>
+                  createRuntimeClient({ baseUrl: runtimeUrl }).stopPreview()
+                )
+              }
+              onUrlChange={(nextUrl) => {
+                setRuntimeUrl(nextUrl);
+                setRuntimeStatus("disconnected");
+                setRuntimeInfo(null);
+                setRuntimeResult(null);
+                setRuntimeSession(null);
+                setRuntimeHistory(null);
+                setRuntimePreviewStatus(null);
+                setRuntimeTelemetry(null);
+                setGeneratedShader(null);
+                setLastLoadedGraphFingerprint(null);
+                clearPendingPatch();
+                setRuntimeError(null);
+              }}
+              previewStatus={runtimePreviewStatus}
+              runtimeStatus={runtimeStatus}
+              session={runtimeSession}
+              sessionSynced={runtimeSessionSynced}
+              telemetry={runtimeTelemetry}
+              url={runtimeUrl}
+              viewState={viewState}
+            />
+          ) : (
+            <GraphCanvas
+              graph={graph}
+              viewState={viewState}
+              onConnectionCheck={setConnectionCheck}
+              onGraphChange={updateGraph}
+              onViewStateChange={setViewState}
+              onSelectedEdgeChange={(edgeId) => {
+                setSelectedEdgeId(edgeId);
+                if (edgeId) {
+                  setActiveHelpNodeId(null);
+                }
+              }}
+              onSelectedNodeChange={(nodeId) => {
+                setSelectedNodeId(nodeId);
+                if (nodeId) {
+                  setActiveHelpNodeId(null);
+                }
+              }}
+              selectedEdgeId={selectedEdgeId}
+              selectedNodeId={selectedNodeId}
+            />
+          )}
         </div>
       </AppShell.Main>
 
-      <AppShell.Aside p="md">
-        <ScrollArea className="aside-scroll" offsetScrollbars>
-          <Stack gap="md">
-            <RuntimePanel
+      {chrome.showInspector ? (
+        <AppShell.Aside p="md">
+          <ScrollArea className="aside-scroll" offsetScrollbars>
+            <Stack gap="md">
+              <RuntimePanel
               busyAction={runtimeBusyAction}
               error={runtimeError}
               frames={runtimeFrames}
@@ -960,8 +1030,8 @@ export default function App() {
                   createRuntimeClient({ baseUrl: runtimeUrl }).validateSession()
                 )
               }
-            />
-            <InspectorPanel
+              />
+              <InspectorPanel
               connectionCheck={connectionCheck}
               generatedShader={generatedShader}
               generatedShaderBusy={runtimeBusyAction === "generatedShader"}
@@ -986,10 +1056,11 @@ export default function App() {
               runtimeShaderDiagnostics={selectedRuntimeShaderDiagnostics}
               semanticDiagnostics={semanticDiagnostics}
               validation={validation}
-            />
-          </Stack>
-        </ScrollArea>
-      </AppShell.Aside>
+              />
+            </Stack>
+          </ScrollArea>
+        </AppShell.Aside>
+      ) : null}
     </AppShell>
   );
 }

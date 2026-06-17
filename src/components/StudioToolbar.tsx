@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, FileButton, Group, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, FileButton, Group, SegmentedControl, Text, Tooltip } from "@mantine/core";
 import {
   Cable,
   Download,
@@ -12,9 +12,11 @@ import {
   Upload
 } from "lucide-react";
 import type { GraphDocumentV01, ValidationResult } from "@skenion/contracts";
+import type { StudioMode } from "../graph/performanceSurface";
 
 interface StudioToolbarProps {
   graph: GraphDocumentV01;
+  mode: StudioMode;
   summary: string;
   validation: ValidationResult<GraphDocumentV01>;
   onExport: () => void;
@@ -25,12 +27,14 @@ interface StudioToolbarProps {
   onLoadSendReceivePanelSample: () => void;
   onLoadShaderMultiUniformSample: () => void;
   onLoadShaderUniformSample: () => void;
+  onModeChange: (mode: StudioMode) => void;
   onLoadPortDemoSample: () => void;
   onReset: () => void;
 }
 
 export function StudioToolbar({
   graph,
+  mode,
   summary,
   validation,
   onExport,
@@ -42,8 +46,10 @@ export function StudioToolbar({
   onLoadSendReceivePanelSample,
   onLoadShaderMultiUniformSample,
   onLoadShaderUniformSample,
+  onModeChange,
   onReset
 }: StudioToolbarProps) {
+  const showEditorTools = mode === "editor";
   return (
     <Group className="studio-toolbar" justify="space-between" wrap="nowrap">
       <Group gap="sm" wrap="nowrap">
@@ -56,6 +62,9 @@ export function StudioToolbar({
             <Badge color={validation.ok ? "green" : "red"} radius="sm" variant="light">
               {validation.ok ? "valid" : "invalid"}
             </Badge>
+            <Badge color={mode === "performance" ? "teal" : "blue"} radius="sm" variant="light">
+              {mode}
+            </Badge>
           </Group>
           <Text c="dimmed" size="xs">
             {graph.id} · {summary}
@@ -64,6 +73,17 @@ export function StudioToolbar({
       </Group>
 
       <Group gap="xs" wrap="nowrap">
+        <SegmentedControl
+          aria-label="Studio mode"
+          data={[
+            { label: "Editor", value: "editor" },
+            { label: "Performance", value: "performance" }
+          ]}
+          onChange={(nextMode) => onModeChange(nextMode as StudioMode)}
+          radius="sm"
+          size="xs"
+          value={mode}
+        />
         <Tooltip label="Open project (.skenion.json)">
           <FileButton accept=".skenion.json,application/json,.json" onChange={onOpenProject}>
             {(props) => (
@@ -73,85 +93,89 @@ export function StudioToolbar({
             )}
           </FileButton>
         </Tooltip>
-        <Tooltip label="Save project (.skenion.json)">
-          <ActionIcon aria-label="Save project" onClick={onSaveProject} radius="sm" size="lg" variant="subtle">
-            <Save size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Import graph JSON">
-          <FileButton accept="application/json,.json" onChange={onImport}>
-            {(props) => (
-              <ActionIcon aria-label="Import graph JSON" radius="sm" size="lg" variant="subtle" {...props}>
-                <Upload size={18} />
+        {showEditorTools ? (
+          <>
+            <Tooltip label="Save project (.skenion.json)">
+              <ActionIcon aria-label="Save project" onClick={onSaveProject} radius="sm" size="lg" variant="subtle">
+                <Save size={18} />
               </ActionIcon>
-            )}
-          </FileButton>
-        </Tooltip>
-        <Tooltip label="Export graph JSON">
-          <ActionIcon aria-label="Export graph JSON" onClick={onExport} radius="sm" size="lg" variant="subtle">
-            <Download size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Restore sample graph">
-          <ActionIcon aria-label="Restore sample graph" onClick={onReset} radius="sm" size="lg" variant="subtle">
-            <RefreshCcw size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Load render sample">
-          <ActionIcon
-            aria-label="Load render sample"
-            onClick={onLoadRenderSample}
-            radius="sm"
-            size="lg"
-            variant="subtle"
-          >
-            <MonitorPlay size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Load shader uniform sample">
-          <ActionIcon
-            aria-label="Load shader uniform sample"
-            onClick={onLoadShaderUniformSample}
-            radius="sm"
-            size="lg"
-            variant="subtle"
-          >
-            <SlidersHorizontal size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Load multi-uniform shader sample">
-          <ActionIcon
-            aria-label="Load multi-uniform shader sample"
-            onClick={onLoadShaderMultiUniformSample}
-            radius="sm"
-            size="lg"
-            variant="subtle"
-          >
-            <Palette size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Load send/receive panel sample">
-          <ActionIcon
-            aria-label="Load send/receive panel sample"
-            onClick={onLoadSendReceivePanelSample}
-            radius="sm"
-            size="lg"
-            variant="subtle"
-          >
-            <Cable size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Load port demo sample">
-          <ActionIcon
-            aria-label="Load port demo sample"
-            onClick={onLoadPortDemoSample}
-            radius="sm"
-            size="lg"
-            variant="subtle"
-          >
-            <Cable size={18} />
-          </ActionIcon>
-        </Tooltip>
+            </Tooltip>
+            <Tooltip label="Import graph JSON">
+              <FileButton accept="application/json,.json" onChange={onImport}>
+                {(props) => (
+                  <ActionIcon aria-label="Import graph JSON" radius="sm" size="lg" variant="subtle" {...props}>
+                    <Upload size={18} />
+                  </ActionIcon>
+                )}
+              </FileButton>
+            </Tooltip>
+            <Tooltip label="Export graph JSON">
+              <ActionIcon aria-label="Export graph JSON" onClick={onExport} radius="sm" size="lg" variant="subtle">
+                <Download size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Restore sample graph">
+              <ActionIcon aria-label="Restore sample graph" onClick={onReset} radius="sm" size="lg" variant="subtle">
+                <RefreshCcw size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Load render sample">
+              <ActionIcon
+                aria-label="Load render sample"
+                onClick={onLoadRenderSample}
+                radius="sm"
+                size="lg"
+                variant="subtle"
+              >
+                <MonitorPlay size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Load shader uniform sample">
+              <ActionIcon
+                aria-label="Load shader uniform sample"
+                onClick={onLoadShaderUniformSample}
+                radius="sm"
+                size="lg"
+                variant="subtle"
+              >
+                <SlidersHorizontal size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Load multi-uniform shader sample">
+              <ActionIcon
+                aria-label="Load multi-uniform shader sample"
+                onClick={onLoadShaderMultiUniformSample}
+                radius="sm"
+                size="lg"
+                variant="subtle"
+              >
+                <Palette size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Load send/receive panel sample">
+              <ActionIcon
+                aria-label="Load send/receive panel sample"
+                onClick={onLoadSendReceivePanelSample}
+                radius="sm"
+                size="lg"
+                variant="subtle"
+              >
+                <Cable size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Load port demo sample">
+              <ActionIcon
+                aria-label="Load port demo sample"
+                onClick={onLoadPortDemoSample}
+                radius="sm"
+                size="lg"
+                variant="subtle"
+              >
+                <Cable size={18} />
+              </ActionIcon>
+            </Tooltip>
+          </>
+        ) : null}
         <Badge leftSection={<FileJson size={13} />} radius="sm" variant="outline">
           graph v0.1
         </Badge>

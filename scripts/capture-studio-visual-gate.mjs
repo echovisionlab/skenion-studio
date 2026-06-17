@@ -31,6 +31,11 @@ const captures = [
     waitFor: ".react-flow__edge"
   },
   {
+    name: "performance-mode-send-receive",
+    id: "performance-performanceshell--send-receive-panel",
+    waitFor: ".performance-control-card"
+  },
+  {
     name: "nodecard-float-value",
     id: "node-nodecard--value-control-ports",
     waitFor: ".canvas-node"
