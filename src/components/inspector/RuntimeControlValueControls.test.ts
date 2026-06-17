@@ -4,7 +4,7 @@ import { Button } from "@mantine/core";
 import { RuntimeControlValueControls } from "./RuntimeControlValueControls";
 
 describe("RuntimeControlValueControls", () => {
-  it("emits set, in, and bang runtime control requests", () => {
+  it("emits set, in, and bang runtime control requests without graph patch callbacks", () => {
     const requests: unknown[] = [];
     const element = RuntimeControlValueControls({
       busy: false,
@@ -39,6 +39,36 @@ describe("RuntimeControlValueControls", () => {
 
     expect(buttons).toHaveLength(3);
     expect(buttons.every((button) => button.props.disabled === true)).toBe(true);
+  });
+
+  it("renders only available runtime input ports", () => {
+    const requests: unknown[] = [];
+    const element = RuntimeControlValueControls({
+      availablePorts: { bang: true, in: false, set: false },
+      busy: false,
+      enabled: true,
+      nodeId: "message_1",
+      onSend: (request) => requests.push(request),
+      value: { type: "string", value: "perform" }
+    });
+    const buttons = findElementsByType(element, Button);
+
+    expect(buttons).toHaveLength(1);
+    buttons[0]?.props.onClick?.();
+    expect(requests).toEqual([{ nodeId: "message_1", portId: "bang", value: { type: "bang" } }]);
+  });
+
+  it("returns null when no runtime input ports are available", () => {
+    expect(
+      RuntimeControlValueControls({
+        availablePorts: { bang: false, in: false, set: false },
+        busy: false,
+        enabled: true,
+        nodeId: "comment_1",
+        onSend: () => undefined,
+        value: { type: "string", value: "" }
+      })
+    ).toBeNull();
   });
 });
 

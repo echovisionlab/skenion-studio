@@ -151,6 +151,7 @@ export type RuntimeControlValue =
   | { type: "f32"; value: number }
   | { type: "i32"; value: number }
   | { type: "bool"; value: boolean }
+  | { type: "string"; value: string }
   | { type: "rgba"; value: [number, number, number, number] }
   | { type: "bang" };
 
@@ -175,6 +176,28 @@ export interface RuntimeControlEventResponse {
 export interface RuntimeControlStateResponse {
   ok: boolean;
   values: Record<string, RuntimeControlValue>;
+  diagnostics: RuntimeDiagnostic[];
+}
+
+export type RuntimeControlReadTarget = "param" | "port" | "state";
+
+export interface RuntimeControlReadRequest {
+  nodeId: string;
+  target: RuntimeControlReadTarget;
+  id: string;
+}
+
+export type RuntimeControlReadValue =
+  | RuntimeControlValue
+  | {
+      type: "json";
+      value: unknown;
+    };
+
+export interface RuntimeControlReadResponse {
+  ok: boolean;
+  address: RuntimeControlReadRequest;
+  value: RuntimeControlReadValue | null;
   diagnostics: RuntimeDiagnostic[];
 }
 
@@ -248,7 +271,8 @@ export type RuntimeActionResponse =
   | RuntimeApiResponse
   | RuntimePatchResponse
   | RuntimeSessionResponse
-  | RuntimeControlEventResponse;
+  | RuntimeControlEventResponse
+  | RuntimeControlReadResponse;
 
 export interface RuntimeActionResult {
   kind: RuntimeResultKind;

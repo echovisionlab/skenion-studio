@@ -20,6 +20,18 @@ describe("runtime control value helpers", () => {
       type: "rgba",
       value: [0.1, 0.2, 0.3, 1]
     });
+    expect(runtimeControlValueForNode(valueNode("core.string", "ready"))).toEqual({
+      type: "string",
+      value: "ready"
+    });
+    expect(runtimeControlValueForNode(valueNode("core.toggle", true))).toEqual({
+      type: "bool",
+      value: true
+    });
+    expect(runtimeControlValueForNode(valueNode("core.message", "perform"))).toEqual({
+      type: "string",
+      value: "perform"
+    });
   });
 
   it("ignores non value-control nodes", () => {

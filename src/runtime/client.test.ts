@@ -7,6 +7,7 @@ import type {
 import { createRuntimeClient, normalizeRuntimeUrl, RuntimeClientError } from "./client";
 import type {
   RuntimeControlEventResponse,
+  RuntimeControlReadResponse,
   RuntimeControlStateResponse,
   RuntimePatchResponse,
   RuntimePreviewStatus,
@@ -150,6 +151,8 @@ describe("runtime client", () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
       String(_input).endsWith("/v0/session/control/state")
         ? jsonResponse(controlStateResponse())
+        : String(_input).endsWith("/v0/session/control/read")
+        ? jsonResponse(controlReadResponse())
         : jsonResponse(controlEventResponse())
     );
     const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
@@ -160,9 +163,10 @@ describe("runtime client", () => {
       value: { type: "f32", value: 1.25 }
     });
     await client.getControlState();
+    await client.readControl({ nodeId: "value_1", target: "state", id: "value" });
 
     const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(calls[0][0]).toBe("http://runtime.local/v0/session/control/event");
     expect(JSON.parse(String(calls[0][1].body))).toEqual({
       nodeId: "value_1",
@@ -170,6 +174,12 @@ describe("runtime client", () => {
       value: { type: "f32", value: 1.25 }
     });
     expect(calls[1]).toEqual(["http://runtime.local/v0/session/control/state", { method: "GET" }]);
+    expect(calls[2][0]).toBe("http://runtime.local/v0/session/control/read");
+    expect(JSON.parse(String(calls[2][1].body))).toEqual({
+      nodeId: "value_1",
+      target: "state",
+      id: "value"
+    });
   });
 
   it("accepts runtime control event and state responses", async () => {
@@ -183,7 +193,8 @@ describe("runtime client", () => {
                   value_1: { type: "f32", value: 1.25 },
                   value_2: { type: "i32", value: 32 },
                   value_3: { type: "bool", value: true },
-                  color_1: { type: "rgba", value: [0.1, 0.2, 0.3, 1] }
+                  color_1: { type: "rgba", value: [0.1, 0.2, 0.3, 1] },
+                  string_1: { type: "string", value: "ready" }
                 }
               })
             )
@@ -203,8 +214,35 @@ describe("runtime client", () => {
     await expect(client.getControlState()).resolves.toMatchObject({
       values: {
         value_2: { type: "i32", value: 32 },
-        value_3: { type: "bool", value: true }
+        value_3: { type: "bool", value: true },
+        string_1: { type: "string", value: "ready" }
       }
+    });
+  });
+
+  it("accepts runtime control read responses", async () => {
+    const client = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () => jsonResponse(controlReadResponse())) as typeof fetch
+    });
+
+    await expect(client.readControl({ nodeId: "value_1", target: "state", id: "value" })).resolves.toMatchObject({
+      value: { type: "f32", value: 1.25 }
+    });
+
+    const jsonClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          controlReadResponse({
+            value: { type: "json", value: { id: "value", direction: "output" } }
+          })
+        )
+      ) as typeof fetch
+    });
+
+    await expect(jsonClient.readControl({ nodeId: "value_1", target: "port", id: "value" })).resolves.toMatchObject({
+      value: { type: "json", value: { id: "value", direction: "output" } }
     });
   });
 
@@ -658,19 +696,48 @@ describe("runtime client", () => {
     });
     await expect(invalidNullClient.getControlState()).rejects.toThrow("unsupported response shape");
 
-    const invalidUnknownTypeClient = createRuntimeClient({
+    const invalidStringClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         jsonResponse(
           controlStateResponse({
             values: {
-              value_1: { type: "string", value: "hello" }
+              value_1: { type: "string", value: 42 }
             }
           } as unknown as Partial<RuntimeControlStateResponse>)
         )
       ) as typeof fetch
     });
-    await expect(invalidUnknownTypeClient.getControlState()).rejects.toThrow("unsupported response shape");
+    await expect(invalidStringClient.getControlState()).rejects.toThrow("unsupported response shape");
+
+    const invalidReadClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          controlReadResponse({
+            address: { nodeId: "value_1", target: "unknown", id: "value" },
+            value: { type: "f32", value: 1.25 }
+          } as unknown as Partial<RuntimeControlReadResponse>)
+        )
+      ) as typeof fetch
+    });
+    await expect(
+      invalidReadClient.readControl({ nodeId: "value_1", target: "state", id: "value" })
+    ).rejects.toThrow("unsupported response shape");
+
+    const invalidReadValueClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          controlReadResponse({
+            value: { type: "unknown", value: true }
+          } as unknown as Partial<RuntimeControlReadResponse>)
+        )
+      ) as typeof fetch
+    });
+    await expect(
+      invalidReadValueClient.readControl({ nodeId: "value_1", target: "state", id: "value" })
+    ).rejects.toThrow("unsupported response shape");
   });
 
   it("rejects unsupported runtime history response shapes", async () => {
@@ -861,6 +928,16 @@ function controlStateResponse(overrides: Partial<RuntimeControlStateResponse> = 
     values: {
       value_1: { type: "f32", value: 1.25 }
     },
+    diagnostics: [],
+    ...overrides
+  };
+}
+
+function controlReadResponse(overrides: Partial<RuntimeControlReadResponse> = {}): RuntimeControlReadResponse {
+  return {
+    ok: true,
+    address: { nodeId: "value_1", target: "state", id: "value" },
+    value: { type: "f32", value: 1.25 },
     diagnostics: [],
     ...overrides
   };

@@ -1,15 +1,20 @@
 import { Button, Divider, Group, Stack, Text } from "@mantine/core";
-import { Trash2 } from "lucide-react";
+import { BookOpen, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { getBuiltinNodeHelp } from "@skenion/contracts";
 import type { GraphNodeV01 } from "@skenion/contracts";
 import type { RuntimeControlEventRequest } from "../../runtime/types";
 import { BooleanValueControls } from "./BooleanValueControls";
 import { ClearColorControls } from "./ClearColorControls";
+import { CommentControls } from "./CommentControls";
 import { ColorRgbaControls } from "./ColorRgbaControls";
 import { FloatValueControls } from "./FloatValueControls";
 import { FullscreenShaderControls } from "./FullscreenShaderControls";
 import { IntegerValueControls } from "./IntegerValueControls";
+import { NodeHelp } from "./NodeHelp";
 import { PortTable } from "./PortTable";
 import { RuntimeControlValueControls } from "./RuntimeControlValueControls";
+import { StringValueControls } from "./StringValueControls";
 import {
   isBoolValueNode,
   readBoolValueParam
@@ -22,6 +27,10 @@ import {
   isColorRgbaNode,
   readColorRgbaParam
 } from "../../graph/colorRgba";
+import {
+  isCommentNode,
+  readCommentTextParam
+} from "../../graph/commentNode";
 import { runtimeControlValueForNode } from "../../graph/controlValue";
 import {
   isFloatValueNode,
@@ -37,6 +46,18 @@ import {
   isIntValueNode,
   readIntValueParam
 } from "../../graph/intValue";
+import {
+  isMessageNode,
+  readMessageValueParam
+} from "../../graph/messageNode";
+import {
+  isStringValueNode,
+  readStringValueParam
+} from "../../graph/stringValue";
+import {
+  isToggleNode,
+  readToggleParam
+} from "../../graph/toggleValue";
 
 export function NodeInspector({
   node,
@@ -53,14 +74,21 @@ export function NodeInspector({
   runtimeControlBusy: boolean;
   runtimeControlEnabled: boolean;
 }) {
+  const [helpOpen, setHelpOpen] = useState(false);
   const clearColor = isClearColorNode(node) ? readClearColorParam(node) : null;
+  const commentText = isCommentNode(node) ? readCommentTextParam(node) : null;
   const colorRgba = isColorRgbaNode(node) ? readColorRgbaParam(node) : null;
   const floatValue = isFloatValueNode(node) ? readFloatValueParam(node) : null;
   const intValue = isIntValueNode(node) ? readIntValueParam(node) : null;
   const boolValue = isBoolValueNode(node) ? readBoolValueParam(node) : null;
+  const stringValue = isStringValueNode(node) ? readStringValueParam(node) : null;
+  const toggleValue = isToggleNode(node) ? readToggleParam(node) : null;
+  const messageValue = isMessageNode(node) ? readMessageValueParam(node) : null;
   const runtimeControlValue = runtimeControlValueForNode(node);
+  const runtimeControlPorts = runtimeControlPortsForNode(node);
   const shaderSource = isFullscreenShaderNode(node) ? readShaderSourceParam(node) : null;
   const shaderLanguage = isFullscreenShaderNode(node) ? readShaderLanguageParam(node) : null;
+  const help = getBuiltinNodeHelp(node.kind);
 
   return (
     <Stack gap="sm">
@@ -71,17 +99,32 @@ export function NodeInspector({
             {node.kind}@{node.kindVersion}
           </Text>
         </div>
-        <Button
-          color="red"
-          leftSection={<Trash2 size={15} />}
-          onClick={() => onRemoveNode(node)}
-          radius="sm"
-          size="compact-sm"
-          variant="light"
-        >
-          Delete
-        </Button>
+        <Group gap="xs" wrap="nowrap">
+          {help ? (
+            <Button
+              leftSection={<BookOpen size={15} />}
+              onClick={() => setHelpOpen((open) => !open)}
+              radius="sm"
+              size="compact-sm"
+              variant="light"
+            >
+              Help
+            </Button>
+          ) : null}
+          <Button
+            color="red"
+            leftSection={<Trash2 size={15} />}
+            onClick={() => onRemoveNode(node)}
+            radius="sm"
+            size="compact-sm"
+            variant="light"
+          >
+            Delete
+          </Button>
+        </Group>
       </Group>
+
+      {help && helpOpen ? <NodeHelp help={help} /> : null}
 
       <PortTable node={node} />
 
@@ -125,6 +168,49 @@ export function NodeInspector({
         </>
       ) : null}
 
+      {toggleValue !== null ? (
+        <>
+          <Divider />
+          <BooleanValueControls
+            onChange={(value) => onSetNodeParam(node.id, "value", value)}
+            title="Toggle Graph Param"
+            value={toggleValue}
+          />
+        </>
+      ) : null}
+
+      {stringValue !== null ? (
+        <>
+          <Divider />
+          <StringValueControls
+            onChange={(value) => onSetNodeParam(node.id, "value", value)}
+            value={stringValue}
+          />
+        </>
+      ) : null}
+
+      {messageValue !== null ? (
+        <>
+          <Divider />
+          <StringValueControls
+            label="Message"
+            onChange={(value) => onSetNodeParam(node.id, "value", value)}
+            title="Message Graph Param"
+            value={messageValue}
+          />
+        </>
+      ) : null}
+
+      {commentText !== null ? (
+        <>
+          <Divider />
+          <CommentControls
+            onChange={(text) => onSetNodeParam(node.id, "text", text)}
+            text={commentText}
+          />
+        </>
+      ) : null}
+
       {colorRgba ? (
         <>
           <Divider />
@@ -141,6 +227,7 @@ export function NodeInspector({
           <RuntimeControlValueControls
             busy={runtimeControlBusy}
             enabled={runtimeControlEnabled}
+            availablePorts={runtimeControlPorts}
             nodeId={node.id}
             onSend={onSendRuntimeControl}
             value={runtimeControlValue}
@@ -161,4 +248,16 @@ export function NodeInspector({
       ) : null}
     </Stack>
   );
+}
+
+function runtimeControlPortsForNode(node: GraphNodeV01) {
+  return {
+    in: hasInputPort(node, "in"),
+    set: hasInputPort(node, "set"),
+    bang: hasInputPort(node, "bang")
+  };
+}
+
+function hasInputPort(node: GraphNodeV01, portId: string): boolean {
+  return node.ports.some((port) => port.id === portId && port.direction === "input");
 }
