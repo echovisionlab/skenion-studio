@@ -28,6 +28,14 @@ export const ValueF32: Story = {
   render: (args) => <NodeHelp {...args} />
 };
 
+export const Toggle: Story = {
+  args: {
+    help: getRequiredHelp("core.toggle"),
+    helpGraph: getBuiltinNodeHelpGraph("core.toggle")
+  },
+  render: (args) => <NodeHelp {...args} />
+};
+
 export const FullscreenShader: Story = {
   args: {
     help: getRequiredHelp("render.fullscreen-shader"),

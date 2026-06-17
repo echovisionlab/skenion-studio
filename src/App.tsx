@@ -348,10 +348,11 @@ export default function App() {
       revision: "1"
     });
     setPositions({});
-    setSelectedNodeId(nextGraph.nodes[0]?.id ?? null);
+    setSelectedNodeId(null);
     setSelectedEdgeId(null);
     setActiveHelpNodeId(null);
     clearPendingPatch();
+    setLastLoadedGraphFingerprint(null);
     setImportError(null);
     setConnectionCheck(null);
     setRuntimeResult(null);
