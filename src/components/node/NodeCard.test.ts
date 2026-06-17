@@ -13,7 +13,7 @@ describe("NodeCard", () => {
 
     expect(html).toContain("IN");
     expect(html).toContain("OUT");
-    expect(html).toContain("u_value");
+    expect(html).toContain("speed");
     expect(html).toContain("out");
     expect(html).toContain("node-port-dot-input");
     expect(html).toContain("node-port-dot-output");

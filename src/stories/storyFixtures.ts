@@ -68,8 +68,8 @@ export const valueSetPort: NodePortView = {
 
 export const shaderUniformInputPort: NodePortView = {
   ...valueInputPort,
-  id: "u_value",
-  label: "u_value",
+  id: "speed",
+  label: "speed",
   metadata: {
     ...valueInputPort.metadata,
     required: false
@@ -78,14 +78,14 @@ export const shaderUniformInputPort: NodePortView = {
 
 export const shaderUniform2InputPort: NodePortView = {
   ...shaderUniformInputPort,
-  id: "u_value2",
-  label: "u_value2"
+  id: "phase",
+  label: "phase"
 };
 
 export const shaderColorInputPort: NodePortView = {
   ...valueInputPort,
-  id: "u_color",
-  label: "u_color",
+  id: "tint",
+  label: "tint",
   typeLabel: "color.rgba",
   color: "#e64980",
   metadata: {

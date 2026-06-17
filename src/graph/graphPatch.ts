@@ -83,6 +83,13 @@ export function graphPatchFromStudioAction(
         key: patch.key,
         value: clone(patch.value)
       };
+    case "replaceNodeInterface":
+      return {
+        op: "replaceNodeInterface",
+        nodeId: patch.nodeId,
+        ports: clone(patch.ports),
+        edgePolicy: patch.edgePolicy
+      };
   }
 }
 

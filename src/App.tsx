@@ -41,6 +41,7 @@ import {
   createGraphPatch,
   graphPatchFromStudioAction
 } from "./graph/graphPatch";
+import { createReplaceShaderInterfacePatch } from "./graph/fullscreenShader";
 import {
   createRuntimeClient,
   DEFAULT_RUNTIME_URL,
@@ -280,6 +281,22 @@ export default function App() {
 
   function setNodeParam(nodeId: string, key: string, value: unknown) {
     const patch = { type: "setNodeParam", nodeId, key, value } satisfies GraphPatch;
+    setGraph((currentGraph) => applyPatch(currentGraph, patch));
+    recordGraphPatches([patch]);
+    setConnectionCheck(null);
+    setRuntimeResult(null);
+  }
+
+  function syncShaderInputs(nodeId: string, source: string) {
+    const patch = createReplaceShaderInterfacePatch(nodeId, source);
+    if (!patch) {
+      setConnectionCheck({
+        ok: false,
+        message: "Shader interface analysis failed. Fix annotation diagnostics before syncing inputs."
+      });
+      return;
+    }
+
     setGraph((currentGraph) => applyPatch(currentGraph, patch));
     recordGraphPatches([patch]);
     setConnectionCheck(null);
@@ -797,6 +814,7 @@ export default function App() {
                 void sendRuntimeControlEvent(request);
               }}
               onSetNodeParam={setNodeParam}
+              onSyncShaderInputs={syncShaderInputs}
               runtimeControlBusy={runtimeBusyAction === "controlEvent"}
               runtimeControlEnabled={
                 runtimeStatus === "connected" &&

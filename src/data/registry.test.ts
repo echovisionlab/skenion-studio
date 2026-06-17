@@ -31,9 +31,7 @@ describe("node registry", () => {
 
   it("does not expose non-canonical f32 dataKind values", () => {
     expect(findDataKinds(nodeRegistry)).not.toContain("f32");
-    expect(
-      findStudioDefinition(FULLSCREEN_SHADER_NODE_KIND)?.ports.find((port) => port.id === "u_value")?.type
-    ).toMatchObject({
+    expect(shaderUniformSampleGraph.nodes.find((node) => node.id === "shader_1")?.ports.find((port) => port.id === "speed")?.type).toMatchObject({
       flow: "value",
       dataKind: "number.f32"
     });
@@ -88,7 +86,9 @@ describe("node registry", () => {
     const node = createGraphNodeFromDefinition(definition!, []);
 
     expect(node.params).toEqual(defaultFullscreenShaderParams());
-    expect(node.ports.map((port) => port.id)).toEqual(["u_value", "u_value2", "u_color", "out"]);
+    expect(node.ports.map((port) => port.id)).toEqual(["out"]);
+    expect(String(node.params.source)).toContain("@skenion.uniform speed");
+    expect(String(node.params.source)).not.toContain("fn vs_main");
     expect(String(node.params.source)).toContain("fn fs_main");
   });
 
@@ -98,16 +98,16 @@ describe("node registry", () => {
       ?.ports.find((port) => port.id === "value");
     const uniformPort = shaderUniformSampleGraph.nodes
       .find((node) => node.id === "shader_1")
-      ?.ports.find((port) => port.id === "u_value");
+      ?.ports.find((port) => port.id === "speed");
     const secondUniformPort = shaderMultiUniformSampleGraph.nodes
       .find((node) => node.id === "shader_1")
-      ?.ports.find((port) => port.id === "u_value2");
+      ?.ports.find((port) => port.id === "phase");
     const colorPort = shaderMultiUniformSampleGraph.nodes
       .find((node) => node.id === "color_1")
       ?.ports.find((port) => port.id === "value");
     const colorUniformPort = shaderMultiUniformSampleGraph.nodes
       .find((node) => node.id === "shader_1")
-      ?.ports.find((port) => port.id === "u_color");
+      ?.ports.find((port) => port.id === "tint");
 
     expect(valuePort?.type.dataKind).toBe("number.f32");
     expect(uniformPort?.type.dataKind).toBe("number.f32");

@@ -15,8 +15,8 @@ describe("port and edge semantics", () => {
   it("derives v0.2 artist-facing port metadata from persisted v0.1 ports", () => {
     const shader = renderSampleGraph.nodes[0];
     const out = shader.ports.find((port) => port.id === "out")!;
-    const uniform = shader.ports.find((port) => port.id === "u_value")!;
-    const colorUniform = shader.ports.find((port) => port.id === "u_color")!;
+    const uniform = shader.ports.find((port) => port.id === "speed")!;
+    const colorUniform = shader.ports.find((port) => port.id === "tint")!;
     const semantics = portSemanticsForPort(shader, out);
     const uniformSemantics = portSemanticsForPort(shader, uniform);
     const colorSemantics = portSemanticsForPort(shader, colorUniform);

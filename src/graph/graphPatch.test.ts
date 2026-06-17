@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { nodeRegistry } from "../data/registry";
-import { sampleGraph } from "../data/sampleGraph";
+import { sampleGraph, shaderUniformSampleGraph } from "../data/sampleGraph";
 import {
   applyPatch,
   createGraphNodeFromDefinition,
@@ -59,6 +59,39 @@ describe("graph patch model", () => {
       key: "color",
       value: [0.8, 0.1, 0.2, 1]
     });
+  });
+
+  it("creates replaceNodeInterface patch operations and removes invalid local edges", () => {
+    const outOnly = shaderUniformSampleGraph.nodes
+      .find((node) => node.id === "shader_1")!
+      .ports.filter((port) => port.id === "out");
+    const localPatch = {
+      type: "replaceNodeInterface",
+      nodeId: "shader_1",
+      ports: outOnly,
+      edgePolicy: "removeInvalidEdges"
+    } satisfies GraphPatch;
+    const nextGraph = applyPatch(shaderUniformSampleGraph, localPatch);
+
+    expect(graphPatchFromStudioAction(localPatch)).toEqual({
+      op: "replaceNodeInterface",
+      nodeId: "shader_1",
+      ports: outOnly,
+      edgePolicy: "removeInvalidEdges"
+    });
+    expect(nextGraph.nodes.find((node) => node.id === "shader_1")?.ports.map((port) => port.id)).toEqual(["out"]);
+    expect(nextGraph.edges).toEqual([shaderUniformSampleGraph.edges[1]]);
+    expect(shaderUniformSampleGraph.edges).toHaveLength(2);
+
+    const targetNode = sampleGraph.nodes.find((node) => node.id === "target_1")!;
+    const targetPatch = {
+      type: "replaceNodeInterface",
+      nodeId: "target_1",
+      ports: targetNode.ports,
+      edgePolicy: "removeInvalidEdges"
+    } satisfies GraphPatch;
+    const nextSampleGraph = applyPatch(sampleGraph, targetPatch);
+    expect(nextSampleGraph.edges).toHaveLength(sampleGraph.edges.length);
   });
 
   it("creates graph patches with the runtime base revision", () => {

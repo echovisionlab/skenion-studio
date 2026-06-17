@@ -1,4 +1,5 @@
 import type { GraphDocumentV01 } from "@skenion/contracts";
+import { DEFAULT_FULLSCREEN_SHADER_SOURCE, portsForFullscreenShaderSource } from "../graph/fullscreenShader";
 import { createGraphNodeFromDefinition } from "../graph/skenionGraph";
 import type { ViewPositions } from "../graph/skenionGraph";
 import { nodeRegistry } from "./registry";
@@ -12,16 +13,31 @@ function node(kind: string, id: string, label: string, params: Record<string, un
   }
 
   const created = createGraphNodeFromDefinition(definition, []);
+  const nextParams: Record<string, unknown> = {
+    ...created.params,
+    label,
+    ...params
+  };
   return {
     ...created,
     id,
-    params: {
-      ...created.params,
-      label,
-      ...params
-    }
+    params: nextParams,
+    ports:
+      kind === "render.fullscreen-shader"
+        ? portsForFullscreenShaderSource(String(nextParams.source ?? DEFAULT_FULLSCREEN_SHADER_SOURCE))
+        : created.ports
   };
 }
+
+export const MULTI_UNIFORM_SHADER_SOURCE = `// @skenion.uniform speed number.f32 default=0.25 min=0 max=2 step=0.01 label="Speed"
+// @skenion.uniform phase number.f32 default=0.65 min=0 max=1 step=0.01 label="Phase"
+// @skenion.uniform tint color.rgba default=[0.95,0.25,0.12,1] label="Tint"
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+  let pulse = 0.5 + 0.5 * sin(skenion.time * (1.0 + skenion.speed * 2.0) + skenion.phase * 6.28318);
+  let base = vec3<f32>(skenion.speed, pulse, 1.0 - skenion.phase);
+  return vec4<f32>(mix(base, skenion.tint.rgb, 0.5), skenion.tint.a);
+}`;
 
 export const sampleGraph: GraphDocumentV01 = {
   schema: "skenion.graph",
@@ -121,7 +137,7 @@ export const shaderUniformSampleGraph: GraphDocumentV01 = {
   id: "studio-shader-uniform-sample",
   revision: "1",
   nodes: [
-    node("core.value-f32", "value_1", "u_value", { value: 0.2 }),
+    node("core.value-f32", "value_1", "speed", { value: 0.2 }),
     node("render.fullscreen-shader", "shader_1", "Fullscreen Shader"),
     node("render.output", "output_1", "Preview Output")
   ],
@@ -133,7 +149,7 @@ export const shaderUniformSampleGraph: GraphDocumentV01 = {
       },
       to: {
         node: "shader_1",
-        port: "u_value"
+        port: "speed"
       }
     },
     {
@@ -161,10 +177,12 @@ export const shaderMultiUniformSampleGraph: GraphDocumentV01 = {
   id: "studio-shader-multi-uniform-sample",
   revision: "1",
   nodes: [
-    node("core.value-f32", "value_1", "u_value", { value: 0.25 }),
-    node("core.value-f32", "value_2", "u_value2", { value: 0.65 }),
-    node("core.color-rgba", "color_1", "u_color", { value: [0.95, 0.25, 0.12, 1] }),
-    node("render.fullscreen-shader", "shader_1", "Fullscreen Shader"),
+    node("core.value-f32", "value_1", "speed", { value: 0.25 }),
+    node("core.value-f32", "value_2", "phase", { value: 0.65 }),
+    node("core.color-rgba", "color_1", "tint", { value: [0.95, 0.25, 0.12, 1] }),
+    node("render.fullscreen-shader", "shader_1", "Fullscreen Shader", {
+      source: MULTI_UNIFORM_SHADER_SOURCE
+    }),
     node("render.output", "output_1", "Preview Output")
   ],
   edges: [
@@ -175,7 +193,7 @@ export const shaderMultiUniformSampleGraph: GraphDocumentV01 = {
       },
       to: {
         node: "shader_1",
-        port: "u_value"
+        port: "speed"
       }
     },
     {
@@ -185,7 +203,7 @@ export const shaderMultiUniformSampleGraph: GraphDocumentV01 = {
       },
       to: {
         node: "shader_1",
-        port: "u_value2"
+        port: "phase"
       }
     },
     {
@@ -195,7 +213,7 @@ export const shaderMultiUniformSampleGraph: GraphDocumentV01 = {
       },
       to: {
         node: "shader_1",
-        port: "u_color"
+        port: "tint"
       }
     },
     {

@@ -24,6 +24,7 @@ interface InspectorPanelProps {
   onRemoveNode: (node: GraphNodeV01) => void;
   onSendRuntimeControl: (request: RuntimeControlEventRequest) => void;
   onSetNodeParam: (nodeId: string, key: string, value: unknown) => void;
+  onSyncShaderInputs: (nodeId: string, source: string) => void;
   runtimeControlBusy: boolean;
   runtimeControlEnabled: boolean;
 }
@@ -36,6 +37,7 @@ export function InspectorPanel({
   onRemoveNode,
   onSendRuntimeControl,
   onSetNodeParam,
+  onSyncShaderInputs,
   runtimeControlBusy,
   runtimeControlEnabled,
   semanticDiagnostics,
@@ -70,6 +72,7 @@ export function InspectorPanel({
             onRemoveNode={onRemoveNode}
             onSendRuntimeControl={onSendRuntimeControl}
             onSetNodeParam={onSetNodeParam}
+            onSyncShaderInputs={onSyncShaderInputs}
             runtimeControlBusy={runtimeControlBusy}
             runtimeControlEnabled={runtimeControlEnabled}
           />

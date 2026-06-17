@@ -19,7 +19,13 @@ export type GraphPatch =
   | { type: "addEdge"; edge: EdgeV01 }
   | { type: "removeEdge"; edge: EdgeV01 }
   | { type: "removeNode"; nodeId: string }
-  | { type: "setNodeParam"; nodeId: string; key: string; value: unknown };
+  | { type: "setNodeParam"; nodeId: string; key: string; value: unknown }
+  | {
+      type: "replaceNodeInterface";
+      nodeId: string;
+      ports: PortV01[];
+      edgePolicy: "removeInvalidEdges";
+    };
 
 export interface ConnectionCheck {
   ok: boolean;
@@ -183,6 +189,27 @@ export function applyPatch(graph: GraphDocumentV01, patch: GraphPatch): GraphDoc
     };
   }
 
+  if (patch.type === "replaceNodeInterface") {
+    const nodes = graph.nodes.map((node) =>
+      node.id === patch.nodeId
+        ? {
+            ...node,
+            ports: patch.ports.map(clonePort)
+          }
+        : node
+    );
+    const nextGraph = {
+      ...graph,
+      nodes
+    };
+
+    return {
+      ...nextGraph,
+      revision: bumpRevision(graph.revision),
+      edges: graph.edges.filter((edge) => edgeRemainsValidAfterInterfaceReplace(nextGraph, patch.nodeId, edge))
+    };
+  }
+
   return {
     ...graph,
     revision: bumpRevision(graph.revision),
@@ -251,4 +278,22 @@ export function findPort(graph: GraphDocumentV01, nodeId: string, portId: string
 function bumpRevision(revision: string): string {
   const numeric = Number.parseInt(revision, 10);
   return Number.isFinite(numeric) ? String(numeric + 1) : `${revision}.1`;
+}
+
+function clonePort(port: PortV01): PortV01 {
+  return JSON.parse(JSON.stringify(port)) as PortV01;
+}
+
+function edgeRemainsValidAfterInterfaceReplace(
+  graph: GraphDocumentV01,
+  replacedNodeId: string,
+  edge: EdgeV01
+): boolean {
+  if (edge.from.node !== replacedNodeId && edge.to.node !== replacedNodeId) {
+    return true;
+  }
+
+  const source = findPort(graph, edge.from.node, edge.from.port);
+  const target = findPort(graph, edge.to.node, edge.to.port);
+  return source?.direction === "output" && target?.direction === "input";
 }
