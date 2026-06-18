@@ -2,16 +2,18 @@ import { Text } from "@mantine/core";
 import { NodeTypeBadge } from "./NodeTypeBadge";
 
 export function NodeHeader({
+  className = "",
   kind,
   label,
   typeBadgeLabel
 }: {
+  className?: string;
   kind: string;
   label: string;
   typeBadgeLabel?: string;
 }) {
   return (
-    <div className="canvas-node-header">
+    <div className={className}>
       <div>
         <Text fw={800} size="sm">
           {label}

@@ -1,20 +1,24 @@
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import type { CSSProperties } from "react";
-import { NodeCard } from "../node/NodeCard";
+import { ObjectNodeRenderer } from "./ObjectNodeRenderer";
 import type { NodePortSide, NodePortView } from "../node/nodeTypes";
 import type { SkenionNodeData } from "../../graph/reactFlowAdapter";
+import socketStyles from "../node/PortSocket.module.css";
 
 type ReactFlowNodeAdapterProps = NodeProps<Node<SkenionNodeData>>;
 
 export function ReactFlowNodeAdapter({ data, selected }: ReactFlowNodeAdapterProps) {
-  return (
-    <NodeCard
-      {...data.card}
-      selected={selected}
-      renderInputHandle={(port, side) => <ReactFlowPortHandle port={port} side={side} />}
-      renderOutputHandle={(port, side) => <ReactFlowPortHandle port={port} side={side} />}
-    />
-  );
+  const objectNode = ObjectNodeRenderer({
+    card: data.card,
+    node: data.node,
+    onObjectControl: data.onObjectControl,
+    onObjectLiveControl: data.onObjectLiveControl,
+    onObjectParamChange: data.onObjectParamChange,
+    selected,
+    renderInputHandle: (port, side) => <ReactFlowPortHandle port={port} side={side} />,
+    renderOutputHandle: (port, side) => <ReactFlowPortHandle port={port} side={side} />
+  });
+  return objectNode;
 }
 
 function ReactFlowPortHandle({
@@ -27,11 +31,11 @@ function ReactFlowPortHandle({
   return (
     <Handle
       aria-label={`${side === "input" ? "Input" : "Output"} port ${port.label}`}
-      className={`port-handle port-handle-${side} port-handle-${port.typeLabel
+      className={`port-handle ${socketStyles.portHandle} port-handle-${port.typeLabel
         .replace(/[^a-z0-9]+/gi, "-")
         .toLowerCase()}`}
       id={port.id}
-      position={side === "input" ? Position.Left : Position.Right}
+      position={side === "input" ? Position.Top : Position.Bottom}
       style={{
         "--port-color": port.color
       } as CSSProperties}

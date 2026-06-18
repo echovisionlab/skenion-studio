@@ -39,7 +39,7 @@ fn fs_main() -> @location(0) vec4<f32> {
   return vec4<f32>(mix(base, skenion.tint.rgb, 0.5), skenion.tint.a);
 }`;
 
-export const SEND_RECEIVE_PANEL_SHADER_SOURCE = `// @skenion.uniform speed number.f32 default=0.75 min=0 max=2 step=0.01
+export const OBJECT_ROUTING_PANEL_SHADER_SOURCE = `// @skenion.uniform speed number.f32 default=0.75 min=0 max=2 step=0.01
 // @skenion.uniform enabled boolean default=true
 @fragment
 fn fs_main() -> @location(0) vec4<f32> {
@@ -254,20 +254,25 @@ export const shaderMultiUniformSampleViewState = createViewStateFromPositions(
   shaderMultiUniformSamplePositions
 );
 
-export const sendReceivePanelSampleGraph: GraphDocumentV01 = {
+export const objectRoutingPanelSampleGraph: GraphDocumentV01 = {
   schema: "skenion.graph",
   schemaVersion: "0.1.0",
-  id: "studio-send-receive-panel-sample",
+  id: "studio-object-routing-panel-sample",
   revision: "1",
   nodes: [
-    node("ui.slider-f32", "slider_speed", "Speed", { value: 0.75, min: 0, max: 2, step: 0.01 }),
-    node("core.send-f32", "send_speed", "Send Speed", { name: "speed" }),
-    node("core.receive-f32", "receive_speed", "Receive Speed", { name: "speed", default: 0.75 }),
-    node("ui.toggle", "toggle_enabled", "Enabled", { value: true }),
-    node("core.send-bool", "send_enabled", "Send Enabled", { name: "enabled" }),
-    node("core.receive-bool", "receive_enabled", "Receive Enabled", { name: "enabled", default: true }),
+    node("ui.slider-f32", "slider_speed", "Speed", {
+      value: 0.75,
+      min: 0,
+      max: 2,
+      step: 0.01,
+      sendName: "speed"
+    }),
+    node("ui.toggle", "toggle_enabled", "Enabled", {
+      value: true,
+      sendName: "enabled"
+    }),
     node("render.fullscreen-shader", "shader_1", "Fullscreen Shader", {
-      source: SEND_RECEIVE_PANEL_SHADER_SOURCE
+      source: OBJECT_ROUTING_PANEL_SHADER_SOURCE
     }),
     node("render.output", "output_1", "Preview Output")
   ],
@@ -278,16 +283,6 @@ export const sendReceivePanelSampleGraph: GraphDocumentV01 = {
         port: "value"
       },
       to: {
-        node: "send_speed",
-        port: "in"
-      }
-    },
-    {
-      from: {
-        node: "receive_speed",
-        port: "value"
-      },
-      to: {
         node: "shader_1",
         port: "speed"
       }
@@ -295,16 +290,6 @@ export const sendReceivePanelSampleGraph: GraphDocumentV01 = {
     {
       from: {
         node: "toggle_enabled",
-        port: "value"
-      },
-      to: {
-        node: "send_enabled",
-        port: "in"
-      }
-    },
-    {
-      from: {
-        node: "receive_enabled",
         port: "value"
       },
       to: {
@@ -325,19 +310,97 @@ export const sendReceivePanelSampleGraph: GraphDocumentV01 = {
   ]
 };
 
-export const sendReceivePanelSamplePositions: ViewPositions = {
+export const objectRoutingPanelSamplePositions: ViewPositions = {
   slider_speed: { x: 64, y: 64 },
-  send_speed: { x: 364, y: 64 },
-  receive_speed: { x: 364, y: 260 },
-  toggle_enabled: { x: 64, y: 408 },
-  send_enabled: { x: 364, y: 408 },
-  receive_enabled: { x: 364, y: 604 },
-  shader_1: { x: 704, y: 260 },
-  output_1: { x: 1044, y: 320 }
+  toggle_enabled: { x: 64, y: 240 },
+  shader_1: { x: 420, y: 150 },
+  output_1: { x: 760, y: 210 }
 };
-export const sendReceivePanelSampleViewState = createViewStateFromPositions(
-  sendReceivePanelSampleGraph,
-  sendReceivePanelSamplePositions
+export const objectRoutingPanelSampleViewState = createViewStateFromPositions(
+  objectRoutingPanelSampleGraph,
+  objectRoutingPanelSamplePositions
+);
+
+export const objectVisualSampleGraph: GraphDocumentV01 = {
+  schema: "skenion.graph",
+  schemaVersion: "0.1.0",
+  id: "studio-object-visual-sample",
+  revision: "1",
+  nodes: [
+    node("core.panel", "panel_1", "Panel", {
+      label: "Tempo Panel",
+      color: "transparent",
+      receiveName: "panelColor"
+    }),
+    node("core.comment", "comment_1", "Comment", {
+      text: "set <text> updates this comment inlet",
+      receiveName: "statusText"
+    }),
+    node("core.message", "message_1", "Message", {
+      value: "set #00ff00"
+    }),
+    node("ui.button", "button_1", "Bang", {
+      label: "Bang"
+    }),
+    node("ui.toggle", "toggle_1", "Toggle", {
+      label: "Enabled",
+      value: true
+    }),
+    node("ui.slider-f32", "slider_1", "Slider", {
+      label: "Speed",
+      value: 0.65,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      sendName: "speed"
+    }),
+    node("core.value-f32", "value_1", "F32", {
+      value: 0.5,
+      receiveName: "speed"
+    }),
+    node("core.video-asset", "asset_1", "Video Asset", {
+      assetRef: "skenion-runtime://assets/demo_clip",
+      name: "demo_clip.mp4",
+      mimeType: "video/mp4"
+    })
+  ],
+  edges: [
+    {
+      from: {
+        node: "button_1",
+        port: "bang"
+      },
+      to: {
+        node: "message_1",
+        port: "bang"
+      }
+    },
+    {
+      from: {
+        node: "slider_1",
+        port: "value"
+      },
+      to: {
+        node: "value_1",
+        port: "in"
+      }
+    }
+  ]
+};
+
+export const objectVisualSamplePositions: ViewPositions = {
+  panel_1: { x: 48, y: 42 },
+  comment_1: { x: 338, y: 70 },
+  message_1: { x: 338, y: 210 },
+  button_1: { x: 48, y: 218 },
+  toggle_1: { x: 48, y: 352 },
+  slider_1: { x: 338, y: 352 },
+  value_1: { x: 686, y: 364 },
+  asset_1: { x: 686, y: 96 }
+};
+export const objectVisualSampleViewState = createViewStateFromPositions(
+  objectVisualSampleGraph,
+  objectVisualSamplePositions
 );
 
 export const portDemoSampleGraph: GraphDocumentV01 = {

@@ -6,6 +6,9 @@ import {
 import type { GraphPatchHistoryV01 } from "@skenion/contracts";
 import type {
   RuntimeApiResponse,
+  RuntimeAssetGetResponse,
+  RuntimeAssetImportResponse,
+  RuntimeAssetListResponse,
   RuntimeControlEventRequest,
   RuntimeControlEventResponse,
   RuntimeControlReadRequest,
@@ -61,6 +64,9 @@ export interface RuntimeClient {
   startPreview: (options?: Partial<RuntimePreviewStartRequest>) => Promise<RuntimePreviewStatus>;
   stopPreview: () => Promise<RuntimePreviewStatus>;
   restartPreview: () => Promise<RuntimePreviewStatus>;
+  importAsset: (file: File, kind?: string) => Promise<RuntimeAssetImportResponse>;
+  listAssets: () => Promise<RuntimeAssetListResponse>;
+  getAsset: (assetId: string) => Promise<RuntimeAssetGetResponse>;
   getGeneratedShader: () => Promise<RuntimeGeneratedShaderResponse>;
   getTelemetry: () => Promise<RuntimeTelemetrySnapshot>;
   clearSession: () => Promise<RuntimeSessionResponse>;
@@ -189,6 +195,39 @@ export function createRuntimeClient(options: RuntimeClientOptions = {}): Runtime
         "/v0/session/preview/restart",
         { method: "POST" },
         isRuntimePreviewStatus
+      ),
+    importAsset: (file, kind) => {
+      const form = new FormData();
+      form.set("file", file);
+      if (kind) {
+        form.set("kind", kind);
+      }
+      return requestJson<RuntimeAssetImportResponse>(
+        fetchImpl,
+        baseUrl,
+        "/v0/assets/import",
+        {
+          body: form,
+          method: "POST"
+        },
+        isRuntimeAssetImportResponse
+      );
+    },
+    listAssets: () =>
+      requestJson<RuntimeAssetListResponse>(
+        fetchImpl,
+        baseUrl,
+        "/v0/assets",
+        { method: "GET" },
+        isRuntimeAssetListResponse
+      ),
+    getAsset: (assetId) =>
+      requestJson<RuntimeAssetGetResponse>(
+        fetchImpl,
+        baseUrl,
+        `/v0/assets/${encodeURIComponent(assetId)}`,
+        { method: "GET" },
+        isRuntimeAssetGetResponse
       ),
     getGeneratedShader: () =>
       requestJson<RuntimeGeneratedShaderResponse>(
@@ -527,6 +566,50 @@ function isRuntimePreviewStatus(value: unknown): value is RuntimePreviewStatus {
     (typeof value.exitedAt === "string" || value.exitedAt === null) &&
     (typeof value.exitCode === "number" || value.exitCode === null) &&
     (typeof value.message === "string" || value.message === null) &&
+    Array.isArray(value.diagnostics) &&
+    value.diagnostics.every(isRuntimeDiagnostic)
+  );
+}
+
+function isRuntimeAsset(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.mimeType === "string" &&
+    typeof value.kind === "string" &&
+    typeof value.sizeBytes === "number" &&
+    Number.isFinite(value.sizeBytes) &&
+    typeof value.runtimeUri === "string"
+  );
+}
+
+function isRuntimeAssetImportResponse(value: unknown): value is RuntimeAssetImportResponse {
+  return (
+    isRecord(value) &&
+    typeof value.ok === "boolean" &&
+    (value.asset === null || isRuntimeAsset(value.asset)) &&
+    Array.isArray(value.diagnostics) &&
+    value.diagnostics.every(isRuntimeDiagnostic)
+  );
+}
+
+function isRuntimeAssetListResponse(value: unknown): value is RuntimeAssetListResponse {
+  return (
+    isRecord(value) &&
+    typeof value.ok === "boolean" &&
+    Array.isArray(value.assets) &&
+    value.assets.every(isRuntimeAsset) &&
+    Array.isArray(value.diagnostics) &&
+    value.diagnostics.every(isRuntimeDiagnostic)
+  );
+}
+
+function isRuntimeAssetGetResponse(value: unknown): value is RuntimeAssetGetResponse {
+  return (
+    isRecord(value) &&
+    typeof value.ok === "boolean" &&
+    (value.asset === null || isRuntimeAsset(value.asset)) &&
     Array.isArray(value.diagnostics) &&
     value.diagnostics.every(isRuntimeDiagnostic)
   );

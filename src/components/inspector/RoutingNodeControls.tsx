@@ -1,12 +1,9 @@
-import { Group, NumberInput, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Stack, Text, TextInput } from "@mantine/core";
 import type { GraphNodeV01 } from "@skenion/contracts";
 import {
-  isReceiveNode,
-  isSendNode,
-  readChannelNameParam,
-  readReceiveDefaultValue,
-  receiveDataKind,
-  sendDataKind
+  isRoutingCapableObjectNode,
+  readReceiveNameParam,
+  readSendNameParam
 } from "../../graph/controlRouting";
 
 export interface RoutingNodeControlsProps {
@@ -15,103 +12,32 @@ export interface RoutingNodeControlsProps {
 }
 
 export function RoutingNodeControls({ node, onSetNodeParam }: RoutingNodeControlsProps) {
-  if (!isSendNode(node) && !isReceiveNode(node)) {
+  if (!isRoutingCapableObjectNode(node)) {
     return null;
   }
-
-  const dataKind = sendDataKind(node.kind) ?? receiveDataKind(node.kind) ?? "unknown";
-  const receiveValue = isReceiveNode(node) ? readReceiveDefaultValue(node) : null;
 
   return (
     <Stack gap="xs">
       <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-        Typed Channel
+        Routing
       </Text>
       <TextInput
-        label="Name"
-        onChange={(event) => onSetNodeParam(node.id, "name", event.currentTarget.value)}
+        label="Send name"
+        onChange={(event) => onSetNodeParam(node.id, "sendName", event.currentTarget.value)}
+        placeholder="Optional typed channel name"
         size="xs"
-        value={readChannelNameParam(node)}
+        value={readSendNameParam(node)}
+      />
+      <TextInput
+        label="Receive name"
+        onChange={(event) => onSetNodeParam(node.id, "receiveName", event.currentTarget.value)}
+        placeholder="Optional typed channel name"
+        size="xs"
+        value={readReceiveNameParam(node)}
       />
       <Text c="dimmed" size="xs">
-        {dataKind}:{readChannelNameParam(node)}
+        Routing names are graph params. Runtime clicks, sliders, toggles, and message events do not create graph patches.
       </Text>
-      {receiveValue ? (
-        <DefaultValueInput
-          dataKind={dataKind}
-          onChange={(value) => onSetNodeParam(node.id, "default", value)}
-          value={receiveValue}
-        />
-      ) : null}
     </Stack>
-  );
-}
-
-function DefaultValueInput({
-  dataKind,
-  onChange,
-  value
-}: {
-  dataKind: string;
-  value: ReturnType<typeof readReceiveDefaultValue>;
-  onChange: (value: unknown) => void;
-}) {
-  if (value.type === "bool") {
-    return (
-      <Switch
-        checked={value.value}
-        label="Default"
-        onChange={(event) => onChange(event.currentTarget.checked)}
-        size="sm"
-      />
-    );
-  }
-
-  if (value.type === "rgba") {
-    return (
-      <Stack gap={4}>
-        <Text c="dimmed" size="xs">
-          Default
-        </Text>
-        <Group gap="xs" grow>
-          {value.value.map((component, index) => (
-            <NumberInput
-              aria-label={`Default ${["R", "G", "B", "A"][index]}`}
-              decimalScale={3}
-              key={index}
-              max={1}
-              min={0}
-              onChange={(nextValue) => {
-                if (typeof nextValue !== "number" || !Number.isFinite(nextValue)) {
-                  return;
-                }
-                const next = [...value.value] as [number, number, number, number];
-                next[index] = nextValue;
-                onChange(next);
-              }}
-              size="xs"
-              step={0.01}
-              value={component}
-            />
-          ))}
-        </Group>
-      </Stack>
-    );
-  }
-
-  return (
-    <NumberInput
-      decimalScale={dataKind === "number.i32" ? 0 : 3}
-      label="Default"
-      onChange={(nextValue) => {
-        if (typeof nextValue !== "number" || !Number.isFinite(nextValue)) {
-          return;
-        }
-        onChange(dataKind === "number.i32" ? Math.trunc(nextValue) : nextValue);
-      }}
-      size="xs"
-      step={dataKind === "number.i32" ? 1 : 0.1}
-      value={value.type === "i32" || value.type === "f32" ? value.value : 0}
-    />
   );
 }

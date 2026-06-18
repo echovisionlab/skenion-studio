@@ -48,6 +48,7 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+const asyncNoop = async () => undefined;
 
 export const NodeControls: Story = {
   render: () => (
@@ -55,9 +56,12 @@ export const NodeControls: Story = {
       <NodeInspector
         node={renderSampleGraph.nodes[0]!}
         onRemoveNode={noop}
+        onImportAsset={asyncNoop}
         onSendRuntimeControl={noop}
         onSetNodeParam={noop}
         onSyncShaderInputs={noop}
+        runtimeAssetImportBusy={false}
+        runtimeAssetImportEnabled={false}
         runtimeControlBusy={false}
         runtimeControlEnabled
       />
@@ -126,9 +130,12 @@ export const MessageNodeInspector: Story = {
         <NodeInspector
           node={createGraphNodeFromDefinition(definition!, [])}
           onRemoveNode={noop}
+          onImportAsset={asyncNoop}
           onSendRuntimeControl={noop}
           onSetNodeParam={noop}
           onSyncShaderInputs={noop}
+          runtimeAssetImportBusy={false}
+          runtimeAssetImportEnabled={false}
           runtimeControlBusy={false}
           runtimeControlEnabled
         />

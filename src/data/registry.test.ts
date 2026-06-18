@@ -7,7 +7,8 @@ import { createGraphNodeFromDefinition } from "../graph/skenionGraph";
 import { nodeRegistry } from "./registry";
 import {
   renderSampleGraph,
-  sendReceivePanelSampleGraph,
+  objectRoutingPanelSampleGraph,
+  objectVisualSampleGraph,
   shaderMultiUniformSampleGraph,
   shaderUniformSampleGraph
 } from "./sampleGraph";
@@ -80,14 +81,19 @@ describe("node registry", () => {
       "value"
     ]);
     expect(findStudioDefinition("core.message")?.ports.map((port) => port.id)).toEqual([
+      "in",
+      "set",
       "bang",
       "value"
     ]);
-    expect(findStudioDefinition("core.comment")?.ports).toEqual([]);
-    expect(findStudioDefinition("core.send-f32")?.ports.map((port) => port.id)).toEqual(["in"]);
-    expect(findStudioDefinition("core.receive-f32")?.ports.map((port) => port.id)).toEqual(["bang", "value"]);
-    expect(findStudioDefinition("ui.slider-f32")?.ports.map((port) => port.id)).toEqual(["value"]);
-    expect(findStudioDefinition("ui.toggle")?.ports.map((port) => port.id)).toEqual(["value"]);
+    expect(findStudioDefinition("core.comment")?.ports.map((port) => port.id)).toEqual(["set"]);
+    expect(findStudioDefinition("ui.slider-f32")?.ports.map((port) => port.id)).toEqual([
+      "in",
+      "set",
+      "bang",
+      "value"
+    ]);
+    expect(findStudioDefinition("ui.toggle")?.ports.map((port) => port.id)).toEqual(["in", "set", "value"]);
   });
 
   it("creates fullscreen shader nodes with Studio default wgsl params", () => {
@@ -128,7 +134,8 @@ describe("node registry", () => {
         renderSampleGraph,
         shaderUniformSampleGraph,
         shaderMultiUniformSampleGraph,
-        sendReceivePanelSampleGraph
+        objectRoutingPanelSampleGraph,
+        objectVisualSampleGraph
       ])
     ).not.toContain("f32");
   });

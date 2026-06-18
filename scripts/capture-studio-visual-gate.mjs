@@ -31,19 +31,33 @@ const captures = [
     waitFor: ".react-flow__edge"
   },
   {
+    name: "object-visual-objects",
+    id: "graph-reactflowcanvas--object-visual-objects-graph",
+    waitFor: '.react-flow__node[data-id="panel_1"]'
+  },
+  {
+    name: "object-visual-pan-drag",
+    id: "graph-reactflowcanvas--object-visual-objects-graph",
+    waitFor: '.react-flow__node[data-id="panel_1"]',
+    drag: {
+      from: { x: 1040, y: 620 },
+      to: { x: 830, y: 520 }
+    }
+  },
+  {
     name: "nodecard-float-value",
     id: "node-nodecard--value-control-ports",
-    waitFor: ".canvas-node"
+    waitForText: "Float Value"
   },
   {
     name: "nodecard-fullscreen-shader",
     id: "node-nodecard--shader-input-and-output",
-    waitFor: ".canvas-node"
+    waitForText: "Fullscreen Shader"
   },
   {
     name: "nodecard-render-output",
     id: "node-nodecard--render-output-input",
-    waitFor: ".canvas-node"
+    waitForText: "Render Output"
   },
   {
     name: "shader-diagnostics-panel",
@@ -73,7 +87,7 @@ const captures = [
   {
     name: "many-port-node",
     id: "node-nodecard--many-ports",
-    waitFor: ".canvas-node"
+    waitForText: "Audio Mixer"
   }
 ];
 const expectedArtifactNames = captures.map((capture) => `${capture.name}.png`).sort();
@@ -96,14 +110,27 @@ try {
   for (const capture of captures) {
     const url = `${server.url}/iframe.html?id=${capture.id}&viewMode=story`;
     await page.goto(url, { waitUntil: "networkidle" });
-    await page.waitForSelector(capture.waitFor, { timeout: 15_000 });
+    if (capture.waitForText) {
+      await page.getByText(capture.waitForText).first().waitFor({ timeout: 15_000 });
+    } else {
+      await page.waitForSelector(capture.waitFor, { timeout: 15_000 });
+    }
     await page.waitForTimeout(250);
 
     const outputPath = path.join(outputDir, `${capture.name}.png`);
+    if (capture.drag) {
+      await page.mouse.move(capture.drag.from.x, capture.drag.from.y);
+      await page.mouse.down();
+      await page.mouse.move(capture.drag.to.x, capture.drag.to.y, { steps: 8 });
+      await page.waitForTimeout(120);
+    }
     await page.screenshot({
       fullPage: false,
       path: outputPath
     });
+    if (capture.drag) {
+      await page.mouse.up();
+    }
     console.log(`captured ${path.relative(rootDir, outputPath)}`);
   }
 
