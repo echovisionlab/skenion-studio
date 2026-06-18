@@ -2,23 +2,12 @@ import type { GraphNodeV01 } from "@skenion/contracts";
 import type { GraphPatch } from "./skenionGraph";
 import { BOOL_VALUE_NODE_KIND, defaultBoolValueParams } from "./boolValue";
 import { COMMENT_NODE_KIND, defaultCommentParams } from "./commentNode";
-import {
-  RECEIVE_BOOL_NODE_KIND,
-  RECEIVE_F32_NODE_KIND,
-  RECEIVE_I32_NODE_KIND,
-  RECEIVE_RGBA_NODE_KIND,
-  SEND_BOOL_NODE_KIND,
-  SEND_F32_NODE_KIND,
-  SEND_I32_NODE_KIND,
-  SEND_RGBA_NODE_KIND,
-  defaultReceiveParams,
-  defaultSendParams
-} from "./controlRouting";
 import { COLOR_RGBA_NODE_KIND, defaultColorRgbaParams } from "./colorRgba";
 import { FLOAT_VALUE_NODE_KIND, defaultFloatValueParams } from "./floatValue";
 import { FULLSCREEN_SHADER_NODE_KIND, defaultFullscreenShaderParams } from "./fullscreenShader";
 import { INT_VALUE_NODE_KIND, defaultIntValueParams } from "./intValue";
 import { MESSAGE_NODE_KIND, defaultMessageParams } from "./messageNode";
+import { PANEL_NODE_KIND, defaultPanelParams } from "./panelNode";
 import {
   UI_BUTTON_NODE_KIND,
   UI_SLIDER_F32_NODE_KIND,
@@ -29,6 +18,7 @@ import {
 } from "./panelControls";
 import { STRING_VALUE_NODE_KIND, defaultStringValueParams } from "./stringValue";
 import { TOGGLE_NODE_KIND, defaultToggleParams } from "./toggleValue";
+import { VIDEO_ASSET_NODE_KIND, defaultVideoAssetParams } from "./videoAsset";
 
 export const CLEAR_COLOR_NODE_KIND = "render.clear-color";
 export const DEFAULT_CLEAR_COLOR = [0.05, 0.08, 0.12, 1] as const;
@@ -68,24 +58,14 @@ export function defaultParamsForNodeKind(kind: string): Record<string, unknown> 
   if (kind === COMMENT_NODE_KIND) {
     return defaultCommentParams();
   }
+  if (kind === PANEL_NODE_KIND) {
+    return defaultPanelParams();
+  }
   if (kind === MESSAGE_NODE_KIND) {
     return defaultMessageParams();
   }
-  if (
-    kind === SEND_F32_NODE_KIND ||
-    kind === SEND_I32_NODE_KIND ||
-    kind === SEND_BOOL_NODE_KIND ||
-    kind === SEND_RGBA_NODE_KIND
-  ) {
-    return defaultSendParams();
-  }
-  if (
-    kind === RECEIVE_F32_NODE_KIND ||
-    kind === RECEIVE_I32_NODE_KIND ||
-    kind === RECEIVE_BOOL_NODE_KIND ||
-    kind === RECEIVE_RGBA_NODE_KIND
-  ) {
-    return defaultReceiveParams(kind);
+  if (kind === VIDEO_ASSET_NODE_KIND) {
+    return defaultVideoAssetParams();
   }
   if (kind === UI_BUTTON_NODE_KIND) {
     return defaultUiButtonParams();

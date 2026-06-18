@@ -4,6 +4,7 @@ import {
   Controls,
   Panel,
   ReactFlow,
+  useReactFlow,
   useEdgesState,
   useNodesState,
   type Connection,
@@ -17,6 +18,7 @@ import {
 } from "@xyflow/react";
 import type { GraphDocumentV01, ViewStateV01 } from "@skenion/contracts";
 import { ReactFlowNodeAdapter } from "./graph/ReactFlowNodeAdapter";
+import type { RuntimeControlValue } from "../runtime/types";
 import {
   applyPatch,
   checkConnection,
@@ -42,6 +44,11 @@ interface GraphCanvasProps {
   selectedEdgeId: string | null;
   selectedNodeId: string | null;
   onConnectionCheck: (check: ConnectionCheck | null) => void;
+  onAddNodeAtPosition?: (definitionId: string, position: { x: number; y: number }) => void;
+  onObjectControl?: (nodeId: string, portId: string, value: RuntimeControlValue) => void;
+  onObjectLiveControl?: (nodeId: string, portId: string, value: RuntimeControlValue) => void;
+  onObjectParamChange?: (nodeId: string, key: string, value: unknown) => void;
+  onShowNodeHelp?: (definitionId: string) => void;
   onSelectedEdgeChange: (edgeId: string | null) => void;
   onGraphChange: (graph: GraphDocumentV01, patches?: GraphPatch[]) => void;
   onViewStateChange: (viewState: ViewStateV01) => void;
@@ -54,17 +61,79 @@ export function GraphCanvas({
   selectedEdgeId,
   selectedNodeId,
   onConnectionCheck,
+  onAddNodeAtPosition,
+  onObjectControl,
+  onObjectLiveControl,
+  onObjectParamChange,
+  onShowNodeHelp,
   onSelectedEdgeChange,
   onGraphChange,
   onViewStateChange,
   onSelectedNodeChange
 }: GraphCanvasProps) {
-  const viewModel = useMemo(() => toReactFlowViewModel(graph, viewState), [graph, viewState]);
-  const [nodes, setNodes, onNodesChange] = useNodesState(viewModel.nodes);
+  const nodeViewStateKey = JSON.stringify(viewState.canvas.nodes);
+  const graphLayoutViewState = useMemo(
+    () =>
+      ({
+        schema: "skenion.view-state",
+        schemaVersion: "0.1.0",
+        canvas: {
+          nodes: JSON.parse(nodeViewStateKey) as ViewStateV01["canvas"]["nodes"],
+          viewport: { x: 0, y: 0, zoom: 1 }
+        }
+      }) satisfies ViewStateV01,
+    [nodeViewStateKey]
+  );
+  const viewModel = useMemo(() => toReactFlowViewModel(graph, graphLayoutViewState), [graph, graphLayoutViewState]);
+  const objectControlRef = useRef(onObjectControl);
+  const objectLiveControlRef = useRef(onObjectLiveControl);
+  const objectParamChangeRef = useRef(onObjectParamChange);
+  useEffect(() => {
+    objectControlRef.current = onObjectControl;
+  }, [onObjectControl]);
+  useEffect(() => {
+    objectLiveControlRef.current = onObjectLiveControl;
+  }, [onObjectLiveControl]);
+  useEffect(() => {
+    objectParamChangeRef.current = onObjectParamChange;
+  }, [onObjectParamChange]);
+  const handleObjectControl = useCallback(
+    (nodeId: string, portId: string, value: RuntimeControlValue) => {
+      objectControlRef.current?.(nodeId, portId, value);
+    },
+    []
+  );
+  const handleObjectParamChange = useCallback(
+    (nodeId: string, key: string, value: unknown) => {
+      objectParamChangeRef.current?.(nodeId, key, value);
+    },
+    []
+  );
+  const handleObjectLiveControl = useCallback(
+    (nodeId: string, portId: string, value: RuntimeControlValue) => {
+      objectLiveControlRef.current?.(nodeId, portId, value);
+    },
+    []
+  );
+  const flowNodes = useMemo(
+    () =>
+      viewModel.nodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          onObjectControl: handleObjectControl,
+          onObjectLiveControl: handleObjectLiveControl,
+          onObjectParamChange: handleObjectParamChange
+        }
+      })),
+    [handleObjectControl, handleObjectLiveControl, handleObjectParamChange, viewModel.nodes]
+  );
+  const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(viewModel.edges);
   const deletingNodeIdsRef = useRef<Set<string>>(new Set());
   const activeConnectionRef = useRef<string | null>(null);
   const [activeConnectionMessage, setActiveConnectionMessage] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<CanvasContextMenuState | null>(null);
   const viewport = viewState.canvas.viewport ?? { x: 0, y: 0, zoom: 1 };
   const defaultEdgeOptions = useMemo(
     () => ({
@@ -75,9 +144,9 @@ export function GraphCanvas({
   );
 
   useEffect(() => {
-    setNodes(viewModel.nodes);
+    setNodes(flowNodes);
     setEdges(viewModel.edges);
-  }, [setEdges, setNodes, viewModel.edges, viewModel.nodes]);
+  }, [flowNodes, setEdges, setNodes, viewModel.edges]);
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -152,7 +221,7 @@ export function GraphCanvas({
     [graph, onViewStateChange, viewState]
   );
 
-  const onViewportChange = useCallback(
+  const onMoveEnd = useCallback(
     (nextViewport: Viewport) => {
       onViewStateChange(updateViewStateViewport(graph, viewState, nextViewport));
     },
@@ -203,6 +272,68 @@ export function GraphCanvas({
     [graph, onGraphChange, onSelectedEdgeChange, onSelectedNodeChange]
   );
 
+  const addNodeAtMenuPosition = useCallback(
+    (definitionId: string) => {
+      if (!contextMenu || contextMenu.type !== "pane") {
+        return;
+      }
+      onAddNodeAtPosition?.(definitionId, contextMenu.flowPosition);
+      setContextMenu(null);
+    },
+    [contextMenu, onAddNodeAtPosition]
+  );
+
+  const deleteNodeById = useCallback(
+    (nodeId: string) => {
+      const patch = { type: "removeNode", nodeId } satisfies GraphPatch;
+      onGraphChange(applyPatch(graph, patch), [patch]);
+      onSelectedNodeChange(null);
+      onSelectedEdgeChange(null);
+      setContextMenu(null);
+    },
+    [graph, onGraphChange, onSelectedEdgeChange, onSelectedNodeChange]
+  );
+
+  const deleteEdgeById = useCallback(
+    (edgeId: string) => {
+      const edge = edges.find((candidate) => candidate.id === edgeId);
+      const skenionEdge = edge ? edgeFromReactFlow(edge) : null;
+      if (!skenionEdge) {
+        return;
+      }
+      const patch = { type: "removeEdge", edge: skenionEdge } satisfies GraphPatch;
+      onGraphChange(applyPatch(graph, patch), [patch]);
+      onSelectedEdgeChange(null);
+      setContextMenu(null);
+    },
+    [edges, graph, onGraphChange, onSelectedEdgeChange]
+  );
+
+  const duplicateNodeById = useCallback(
+    (nodeId: string) => {
+      const source = graph.nodes.find((node) => node.id === nodeId);
+      const viewNode = viewState.canvas.nodes[nodeId];
+      if (!source) {
+        return;
+      }
+      const nextId = nextDuplicateNodeId(source.id, graph.nodes.map((node) => node.id));
+      const node = {
+        ...JSON.parse(JSON.stringify(source)),
+        id: nextId
+      } as typeof source;
+      const patch = { type: "addNode", node } satisfies GraphPatch;
+      const nextGraph = applyPatch(graph, patch);
+      onGraphChange(nextGraph, [patch]);
+      onViewStateChange(
+        reconcileViewStateAfterDuplicate(viewState, nextId, viewNode ?? { x: 120, y: 120 })
+      );
+      onSelectedNodeChange(nextId);
+      onSelectedEdgeChange(null);
+      setContextMenu(null);
+    },
+    [graph, onGraphChange, onSelectedEdgeChange, onSelectedNodeChange, onViewStateChange, viewState]
+  );
+
   const selectedNodes = useMemo(
     () => nodes.map((node) => ({ ...node, selected: node.id === selectedNodeId })),
     [nodes, selectedNodeId]
@@ -216,8 +347,10 @@ export function GraphCanvas({
     <ReactFlow
       className="skenion-flow"
       defaultEdgeOptions={defaultEdgeOptions}
+      defaultViewport={viewport}
       deleteKeyCode={["Backspace", "Delete"]}
       edges={selectedEdges}
+      key={graph.id}
       nodeTypes={nodeTypes}
       nodes={selectedNodes}
       isValidConnection={isValidConnection}
@@ -230,9 +363,34 @@ export function GraphCanvas({
         onSelectedEdgeChange(edge.id);
         onSelectedNodeChange(null);
       }}
+      onEdgeContextMenu={(event, edge) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onSelectedEdgeChange(edge.id);
+        onSelectedNodeChange(null);
+        setContextMenu({
+          type: "edge",
+          edgeId: edge.id,
+          screenX: event.clientX,
+          screenY: event.clientY
+        });
+      }}
       onNodeClick={(_event, node) => {
         onSelectedNodeChange(node.id);
         onSelectedEdgeChange(null);
+      }}
+      onNodeContextMenu={(event, node) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onSelectedNodeChange(node.id);
+        onSelectedEdgeChange(null);
+        setContextMenu({
+          type: "node",
+          nodeId: node.id,
+          nodeKind: String(node.data.kind),
+          screenX: event.clientX,
+          screenY: event.clientY
+        });
       }}
       onNodeDragStop={onNodeDragStop}
       onNodesChange={onNodesChange}
@@ -240,9 +398,22 @@ export function GraphCanvas({
       onPaneClick={() => {
         onSelectedNodeChange(null);
         onSelectedEdgeChange(null);
+        setContextMenu(null);
       }}
-      onViewportChange={onViewportChange}
-      viewport={viewport}
+      onPaneContextMenu={(event) => {
+        event.preventDefault();
+        const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        setContextMenu({
+          type: "pane",
+          flowPosition: {
+            x: (event.clientX - bounds.left - viewport.x) / viewport.zoom,
+            y: (event.clientY - bounds.top - viewport.y) / viewport.zoom
+          },
+          screenX: event.clientX,
+          screenY: event.clientY
+        });
+      }}
+      onMoveEnd={(_event, nextViewport) => onMoveEnd(nextViewport)}
     >
       <Background color="#d8dee6" gap={20} size={1} />
       {activeConnectionMessage ? (
@@ -250,9 +421,155 @@ export function GraphCanvas({
           {activeConnectionMessage}
         </Panel>
       ) : null}
+      <ReactFlowContextMenu
+        menu={contextMenu}
+        onAddNode={addNodeAtMenuPosition}
+        onClose={() => setContextMenu(null)}
+        onCopy={(text) => {
+          void navigator.clipboard?.writeText(text);
+          setContextMenu(null);
+        }}
+        onDeleteEdge={deleteEdgeById}
+        onDeleteNode={deleteNodeById}
+        onDuplicateNode={duplicateNodeById}
+        onInspectEdge={(edgeId) => {
+          onSelectedEdgeChange(edgeId);
+          onSelectedNodeChange(null);
+          setContextMenu(null);
+        }}
+        onInspectNode={(nodeId) => {
+          onSelectedNodeChange(nodeId);
+          onSelectedEdgeChange(null);
+          setContextMenu(null);
+        }}
+        onShowHelp={(definitionId) => {
+          onShowNodeHelp?.(definitionId);
+          setContextMenu(null);
+        }}
+      />
       <Controls position="bottom-left" showInteractive={false} />
     </ReactFlow>
   );
+}
+
+type CanvasContextMenuState =
+  | {
+      type: "node";
+      nodeId: string;
+      nodeKind: string;
+      screenX: number;
+      screenY: number;
+    }
+  | {
+      type: "edge";
+      edgeId: string;
+      screenX: number;
+      screenY: number;
+    }
+  | {
+      type: "pane";
+      flowPosition: { x: number; y: number };
+      screenX: number;
+      screenY: number;
+    };
+
+function ReactFlowContextMenu({
+  menu,
+  onAddNode,
+  onClose,
+  onCopy,
+  onDeleteEdge,
+  onDeleteNode,
+  onDuplicateNode,
+  onInspectEdge,
+  onInspectNode,
+  onShowHelp
+}: {
+  menu: CanvasContextMenuState | null;
+  onAddNode: (definitionId: string) => void;
+  onClose: () => void;
+  onCopy: (text: string) => void;
+  onDeleteEdge: (edgeId: string) => void;
+  onDeleteNode: (nodeId: string) => void;
+  onDuplicateNode: (nodeId: string) => void;
+  onInspectEdge: (edgeId: string) => void;
+  onInspectNode: (nodeId: string) => void;
+  onShowHelp: (definitionId: string) => void;
+}) {
+  const { fitView } = useReactFlow();
+  if (!menu) {
+    return null;
+  }
+
+  return (
+    <div
+      className="canvas-context-menu"
+      onClick={(event) => event.stopPropagation()}
+      style={{ left: menu.screenX, top: menu.screenY }}
+    >
+      {menu.type === "node" ? (
+        <>
+          <button onClick={() => onInspectNode(menu.nodeId)} type="button">Inspect</button>
+          <button onClick={() => onShowHelp(menu.nodeKind)} type="button">Help</button>
+          <button onClick={() => onDuplicateNode(menu.nodeId)} type="button">Duplicate</button>
+          <button onClick={() => onCopy(menu.nodeId)} type="button">Copy Node ID</button>
+          <button onClick={() => onCopy(`node:${menu.nodeId}`)} type="button">Copy Node Address</button>
+          <button className="is-danger" onClick={() => onDeleteNode(menu.nodeId)} type="button">Delete</button>
+        </>
+      ) : null}
+      {menu.type === "edge" ? (
+        <>
+          <button onClick={() => onInspectEdge(menu.edgeId)} type="button">Inspect Cable</button>
+          <button onClick={() => onCopy(menu.edgeId)} type="button">Copy Edge ID</button>
+          <button className="is-danger" onClick={() => onDeleteEdge(menu.edgeId)} type="button">Delete Cable</button>
+        </>
+      ) : null}
+      {menu.type === "pane" ? (
+        <>
+          <button onClick={() => onAddNode("core.comment")} type="button">Add Comment</button>
+          <button onClick={() => onAddNode("core.panel")} type="button">Add Panel</button>
+          <button onClick={() => onAddNode("core.message")} type="button">Add Message</button>
+          <button onClick={() => onAddNode("ui.button")} type="button">Add Bang</button>
+          <button onClick={() => onAddNode("ui.toggle")} type="button">Add Toggle</button>
+          <button onClick={() => onAddNode("ui.slider-f32")} type="button">Add Slider</button>
+          <button onClick={() => onAddNode("core.value-f32")} type="button">Add F32</button>
+          <button onClick={() => onAddNode("core.video-asset")} type="button">Add Video Asset</button>
+          <button onClick={() => { fitView({ padding: 0.2 }); onClose(); }} type="button">Fit View</button>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function nextDuplicateNodeId(baseId: string, existingIds: string[]): string {
+  const used = new Set(existingIds);
+  let index = 2;
+  let id = `${baseId}_${index}`;
+  while (used.has(id)) {
+    index += 1;
+    id = `${baseId}_${index}`;
+  }
+  return id;
+}
+
+function reconcileViewStateAfterDuplicate(
+  viewState: ViewStateV01,
+  nodeId: string,
+  sourcePosition: { x: number; y: number }
+): ViewStateV01 {
+  return {
+    ...viewState,
+    canvas: {
+      ...viewState.canvas,
+      nodes: {
+        ...viewState.canvas.nodes,
+        [nodeId]: {
+          x: sourcePosition.x + 32,
+          y: sourcePosition.y + 32
+        }
+      }
+    }
+  };
 }
 
 function connectionFromFinalState(connectionState: FinalConnectionState): Connection | null {

@@ -1,0 +1,40 @@
+.slot {
+  position: relative;
+  width: 12px;
+  height: 8px;
+}
+
+.portSocket,
+.portHandle {
+  width: 10px;
+  height: 7px;
+  border: 1px solid rgb(17 24 39 / 72%);
+  border-radius: 1px;
+  background: var(--port-color);
+  box-shadow: none;
+  transition:
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.portSocket {
+  display: block;
+}
+
+.portHandle {
+  left: 50%;
+  right: auto;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.portHandle::after {
+  position: absolute;
+  inset: -9px -8px;
+  content: "";
+}
+
+.portHandle:hover {
+  transform: translate(-50%, -50%) scale(1.12);
+}
+

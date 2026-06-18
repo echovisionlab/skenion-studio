@@ -1,17 +1,15 @@
 import type { CSSProperties } from "react";
-import type { NodePortSide } from "./nodeTypes";
+import socketStyles from "./PortSocket.module.css";
 
 export function NodePortHandle({
-  color,
-  side
+  color
 }: {
   color: string;
-  side: NodePortSide;
 }) {
   return (
     <span
       aria-hidden="true"
-      className={`node-port-dot node-port-dot-${side}`}
+      className={`port-socket ${socketStyles.portSocket}`}
       style={{ "--port-color": color } as CSSProperties}
     />
   );

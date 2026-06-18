@@ -6,6 +6,8 @@ import {
   FolderOpen,
   MonitorPlay,
   Palette,
+  PanelRightClose,
+  PanelRightOpen,
   RefreshCcw,
   Save,
   SlidersHorizontal,
@@ -22,11 +24,13 @@ interface StudioToolbarProps {
   onOpenProject: (file: File | null) => void;
   onSaveProject: () => void;
   onLoadRenderSample: () => void;
-  onLoadSendReceivePanelSample: () => void;
+  onLoadObjectRoutingPanelSample: () => void;
   onLoadShaderMultiUniformSample: () => void;
   onLoadShaderUniformSample: () => void;
   onLoadPortDemoSample: () => void;
   onReset: () => void;
+  onToggleInspector: () => void;
+  inspectorOpen: boolean;
 }
 
 export function StudioToolbar({
@@ -39,10 +43,12 @@ export function StudioToolbar({
   onSaveProject,
   onLoadPortDemoSample,
   onLoadRenderSample,
-  onLoadSendReceivePanelSample,
+  onLoadObjectRoutingPanelSample,
   onLoadShaderMultiUniformSample,
   onLoadShaderUniformSample,
-  onReset
+  onReset,
+  onToggleInspector,
+  inspectorOpen
 }: StudioToolbarProps) {
   return (
     <Group className="studio-toolbar" justify="space-between" wrap="nowrap">
@@ -130,10 +136,10 @@ export function StudioToolbar({
             <Palette size={18} />
           </ActionIcon>
         </Tooltip>
-        <Tooltip label="Load send/receive panel sample">
+        <Tooltip label="Load object routing panel sample">
           <ActionIcon
-            aria-label="Load send/receive panel sample"
-            onClick={onLoadSendReceivePanelSample}
+            aria-label="Load object routing panel sample"
+            onClick={onLoadObjectRoutingPanelSample}
             radius="sm"
             size="lg"
             variant="subtle"
@@ -150,6 +156,17 @@ export function StudioToolbar({
             variant="subtle"
           >
             <Cable size={18} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label={inspectorOpen ? "Hide inspector" : "Show inspector"}>
+          <ActionIcon
+            aria-label={inspectorOpen ? "Hide inspector" : "Show inspector"}
+            onClick={onToggleInspector}
+            radius="sm"
+            size="lg"
+            variant={inspectorOpen ? "light" : "subtle"}
+          >
+            {inspectorOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
           </ActionIcon>
         </Tooltip>
         <Badge leftSection={<FileJson size={13} />} radius="sm" variant="outline">

@@ -16,12 +16,17 @@ import {
 } from "./portSemantics";
 import { toNodeCardView } from "./nodeCardView";
 import type { NodeCardView } from "../components/node/nodeTypes";
+import type { RuntimeControlValue } from "../runtime/types";
 
 export interface SkenionNodeData extends Record<string, unknown> {
   card: NodeCardView;
+  node: GraphNodeV01;
   label: string;
   kind: string;
   kindVersion: string;
+  onObjectControl?: (nodeId: string, portId: string, value: RuntimeControlValue) => void;
+  onObjectLiveControl?: (nodeId: string, portId: string, value: RuntimeControlValue) => void;
+  onObjectParamChange?: (nodeId: string, key: string, value: unknown) => void;
   primaryFlow: DataFlow;
 }
 
@@ -97,6 +102,7 @@ function toReactFlowNode(
     position: position ?? defaultPosition(index),
     data: {
       card: toNodeCardView(node),
+      node,
       label: String(node.params.label ?? node.id),
       kind: node.kind,
       kindVersion: node.kindVersion,

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { getBuiltinNodeHelp, getBuiltinNodeHelpGraph } from "@skenion/contracts";
 import type { GraphNodeV01, ShaderDiagnosticV01 } from "@skenion/contracts";
 import type { RuntimeControlEventRequest, RuntimeGeneratedShaderResponse } from "../../runtime/types";
+import { AssetControls } from "./AssetControls";
 import { BooleanValueControls } from "./BooleanValueControls";
 import { ClearColorControls } from "./ClearColorControls";
 import { CommentControls } from "./CommentControls";
@@ -67,17 +68,21 @@ import {
   isUiSliderF32Node,
   isUiToggleNode
 } from "../../graph/panelControls";
+import { isVideoAssetNode } from "../../graph/videoAsset";
 
 export function NodeInspector({
   node,
   onRemoveNode,
   onLoadGeneratedShader,
+  onImportAsset,
   onOpenHelpGraph,
   onSendRuntimeControl,
   onSetNodeParam,
   onSyncShaderInputs,
   generatedShader,
   generatedShaderBusy,
+  runtimeAssetImportBusy,
+  runtimeAssetImportEnabled,
   runtimeControlBusy,
   runtimeControlEnabled,
   runtimeShaderDiagnostics
@@ -87,11 +92,14 @@ export function NodeInspector({
   node: GraphNodeV01;
   runtimeShaderDiagnostics?: ShaderDiagnosticV01[];
   onLoadGeneratedShader?: () => void;
+  onImportAsset?: (node: GraphNodeV01, file: File) => Promise<void>;
   onOpenHelpGraph?: (nodeKind: string) => void;
   onRemoveNode: (node: GraphNodeV01) => void;
   onSendRuntimeControl: (request: RuntimeControlEventRequest) => void;
   onSetNodeParam: (nodeId: string, key: string, value: unknown) => void;
   onSyncShaderInputs: (nodeId: string, source: string) => void;
+  runtimeAssetImportBusy: boolean;
+  runtimeAssetImportEnabled: boolean;
   runtimeControlBusy: boolean;
   runtimeControlEnabled: boolean;
 }) {
@@ -105,6 +113,7 @@ export function NodeInspector({
   const stringValue = isStringValueNode(node) ? readStringValueParam(node) : null;
   const toggleValue = isToggleNode(node) ? readToggleParam(node) : null;
   const messageValue = isMessageNode(node) ? readMessageValueParam(node) : null;
+  const isAssetNode = isVideoAssetNode(node);
   const isPanelControl = isUiButtonNode(node) || isUiSliderF32Node(node) || isUiToggleNode(node);
   const runtimeControlValue = isPanelControl ? null : runtimeControlValueForNode(node);
   const runtimeControlPorts = runtimeControlPortsForNode(node);
@@ -174,6 +183,18 @@ export function NodeInspector({
             node={node}
             onSend={onSendRuntimeControl}
             onSetNodeParam={onSetNodeParam}
+          />
+        </>
+      ) : null}
+
+      {isAssetNode ? (
+        <>
+          <Divider />
+            <AssetControls
+            busy={runtimeAssetImportBusy}
+            enabled={runtimeAssetImportEnabled}
+            node={node}
+            onImportAsset={onImportAsset}
           />
         </>
       ) : null}

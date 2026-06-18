@@ -6,6 +6,10 @@ import type {
 } from "@skenion/contracts";
 import { createRuntimeClient, normalizeRuntimeUrl, RuntimeClientError } from "./client";
 import type {
+  RuntimeAsset,
+  RuntimeAssetGetResponse,
+  RuntimeAssetImportResponse,
+  RuntimeAssetListResponse,
   RuntimeControlEventResponse,
   RuntimeControlReadResponse,
   RuntimeControlStateResponse,
@@ -285,6 +289,42 @@ describe("runtime client", () => {
     expect(JSON.parse(String(calls[2][1].body))).toEqual({ restart: true });
     expect(calls[3]).toEqual(["http://runtime.local/v0/session/preview/stop", { method: "POST" }]);
     expect(calls[4]).toEqual(["http://runtime.local/v0/session/preview/restart", { method: "POST" }]);
+  });
+
+  it("calls runtime asset endpoints", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
+      String(_input).endsWith("/v0/assets/import")
+        ? jsonResponse(assetImportResponse())
+        : String(_input).endsWith("/v0/assets")
+        ? jsonResponse(assetListResponse())
+        : jsonResponse(assetGetResponse({ asset: null }))
+    );
+    const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
+    const file = new File(["movie"], "clip.mp4", { type: "video/mp4" });
+
+    await expect(client.importAsset(file, "video")).resolves.toMatchObject({
+      asset: {
+        runtimeUri: "skenion-runtime://assets/asset_1"
+      }
+    });
+    await expect(client.importAsset(file)).resolves.toMatchObject({
+      ok: true
+    });
+    await expect(client.listAssets()).resolves.toMatchObject({
+      assets: [{ id: "asset_1" }]
+    });
+    await expect(client.getAsset("asset/with space")).resolves.toMatchObject({
+      asset: null
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(calls[0][0]).toBe("http://runtime.local/v0/assets/import");
+    expect((calls[0][1].body as FormData).get("file")).toBe(file);
+    expect((calls[0][1].body as FormData).get("kind")).toBe("video");
+    expect((calls[1][1].body as FormData).get("kind")).toBeNull();
+    expect(calls[2]).toEqual(["http://runtime.local/v0/assets", { method: "GET" }]);
+    expect(calls[3]).toEqual(["http://runtime.local/v0/assets/asset%2Fwith%20space", { method: "GET" }]);
   });
 
   it("calls runtime telemetry endpoint", async () => {
@@ -912,6 +952,57 @@ describe("runtime client", () => {
     await expect(invalidDiagnosticClient.getPreviewStatus()).rejects.toThrow("unsupported response shape");
   });
 
+  it("rejects unsupported runtime asset response shapes", async () => {
+    const file = new File(["movie"], "clip.mp4", { type: "video/mp4" });
+    const invalidAssetShapes: unknown[] = [
+      null,
+      { ...runtimeAsset(), id: 1 },
+      { ...runtimeAsset(), name: 1 },
+      { ...runtimeAsset(), mimeType: 1 },
+      { ...runtimeAsset(), kind: 1 },
+      { ...runtimeAsset(), sizeBytes: "10" },
+      { ...runtimeAsset(), runtimeUri: 1 }
+    ];
+
+    for (const asset of invalidAssetShapes) {
+      const client = createRuntimeClient({
+        baseUrl: "http://runtime.local",
+        fetchImpl: vi.fn(async () => jsonResponse(assetListResponse({ assets: [asset as RuntimeAsset] }))) as typeof fetch
+      });
+      await expect(client.listAssets()).rejects.toThrow("unsupported response shape");
+    }
+
+    const nonFiniteSizeClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        rawJsonResponse(
+          '{"ok":true,"assets":[{"id":"asset_1","name":"clip.mp4","mimeType":"video/mp4","kind":"video","sizeBytes":1e999,"runtimeUri":"skenion-runtime://assets/asset_1"}],"diagnostics":[]}'
+        )
+      ) as typeof fetch
+    });
+    await expect(nonFiniteSizeClient.listAssets()).rejects.toThrow("unsupported response shape");
+
+    const invalidImportClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(assetImportResponse({ asset: { ...runtimeAsset(), runtimeUri: 1 } as unknown as RuntimeAsset }))
+      ) as typeof fetch
+    });
+    await expect(invalidImportClient.importAsset(file)).rejects.toThrow("unsupported response shape");
+
+    const invalidGetClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          assetGetResponse({
+            diagnostics: [{ severity: "debug", message: "hidden" }] as unknown as RuntimeAssetGetResponse["diagnostics"]
+          })
+        )
+      ) as typeof fetch
+    });
+    await expect(invalidGetClient.getAsset("asset_1")).rejects.toThrow("unsupported response shape");
+  });
+
   it("rejects unsupported runtime telemetry shapes", async () => {
     const invalidSchemaClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
@@ -1136,6 +1227,45 @@ function controlReadResponse(overrides: Partial<RuntimeControlReadResponse> = {}
   };
 }
 
+function runtimeAsset(overrides: Partial<RuntimeAsset> = {}): RuntimeAsset {
+  return {
+    id: "asset_1",
+    name: "clip.mp4",
+    mimeType: "video/mp4",
+    kind: "video",
+    sizeBytes: 5,
+    runtimeUri: "skenion-runtime://assets/asset_1",
+    ...overrides
+  };
+}
+
+function assetImportResponse(overrides: Partial<RuntimeAssetImportResponse> = {}): RuntimeAssetImportResponse {
+  return {
+    ok: true,
+    asset: runtimeAsset(),
+    diagnostics: [],
+    ...overrides
+  };
+}
+
+function assetListResponse(overrides: Partial<RuntimeAssetListResponse> = {}): RuntimeAssetListResponse {
+  return {
+    ok: true,
+    assets: [runtimeAsset()],
+    diagnostics: [],
+    ...overrides
+  };
+}
+
+function assetGetResponse(overrides: Partial<RuntimeAssetGetResponse> = {}): RuntimeAssetGetResponse {
+  return {
+    ok: true,
+    asset: runtimeAsset(),
+    diagnostics: [],
+    ...overrides
+  };
+}
+
 function previewResponse(overrides: Partial<RuntimePreviewStatus> = {}): RuntimePreviewStatus {
   return {
     ok: true,
@@ -1249,6 +1379,15 @@ function patchEvent(overrides: Partial<GraphPatchEventV01> = {}): GraphPatchEven
 
 function jsonResponse(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
+    headers: {
+      "content-type": "application/json"
+    },
+    status
+  });
+}
+
+function rawJsonResponse(value: string, status = 200): Response {
+  return new Response(value, {
     headers: {
       "content-type": "application/json"
     },

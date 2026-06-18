@@ -96,12 +96,12 @@ export const WithVisibleHandleDots: Story = {
     <Stack gap="lg">
       <NodeCard
         {...renderCard}
-        renderOutputHandle={(port, side) => <NodePortHandle color={port.color} side={side} />}
+        renderOutputHandle={(port) => <NodePortHandle color={port.color} />}
       />
       <NodeCard
         {...multiPortCard}
-        renderInputHandle={(port, side) => <NodePortHandle color={port.color} side={side} />}
-        renderOutputHandle={(port, side) => <NodePortHandle color={port.color} side={side} />}
+        renderInputHandle={(port) => <NodePortHandle color={port.color} />}
+        renderOutputHandle={(port) => <NodePortHandle color={port.color} />}
       />
     </Stack>
   )

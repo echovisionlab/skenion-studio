@@ -28,6 +28,33 @@ export interface RuntimeInfo {
   capabilities: string[];
 }
 
+export interface RuntimeAsset {
+  id: string;
+  name: string;
+  mimeType: string;
+  kind: string;
+  sizeBytes: number;
+  runtimeUri: string;
+}
+
+export interface RuntimeAssetImportResponse {
+  ok: boolean;
+  asset: RuntimeAsset | null;
+  diagnostics: RuntimeDiagnostic[];
+}
+
+export interface RuntimeAssetListResponse {
+  ok: boolean;
+  assets: RuntimeAsset[];
+  diagnostics: RuntimeDiagnostic[];
+}
+
+export interface RuntimeAssetGetResponse {
+  ok: boolean;
+  asset: RuntimeAsset | null;
+  diagnostics: RuntimeDiagnostic[];
+}
+
 export type RuntimeDiagnosticSeverity = "error" | "warning" | "info";
 
 export interface RuntimeDiagnostic {

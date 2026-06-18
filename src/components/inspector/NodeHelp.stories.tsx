@@ -36,18 +36,18 @@ export const Toggle: Story = {
   render: (args) => <NodeHelp {...args} />
 };
 
-export const SendF32: Story = {
+export const Message: Story = {
   args: {
-    help: getRequiredHelp("core.send-f32"),
-    helpGraph: getBuiltinNodeHelpGraph("core.send-f32")
+    help: getRequiredHelp("core.message"),
+    helpGraph: getBuiltinNodeHelpGraph("core.message")
   },
   render: (args) => <NodeHelp {...args} />
 };
 
-export const ReceiveF32: Story = {
+export const Panel: Story = {
   args: {
-    help: getRequiredHelp("core.receive-f32"),
-    helpGraph: getBuiltinNodeHelpGraph("core.receive-f32")
+    help: getRequiredHelp("core.panel"),
+    helpGraph: getBuiltinNodeHelpGraph("core.panel")
   },
   render: (args) => <NodeHelp {...args} />
 };

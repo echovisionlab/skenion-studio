@@ -88,7 +88,7 @@ export const CompatibleAndIncompatible: Story = {
 
 export const CustomHandleSlot: Story = {
   args: {
-    handle: <NodePortHandle color={renderFrameOutputPort.color} side="output" />,
+    handle: <NodePortHandle color={renderFrameOutputPort.color} />,
     port: renderFrameOutputPort,
     side: "output"
   }

@@ -2,6 +2,7 @@ import { Group, Stack, Text, Tooltip } from "@mantine/core";
 import type { ReactNode } from "react";
 import { NodePortHandle } from "./NodePortHandle";
 import type { NodePortSide, NodePortView } from "./nodeTypes";
+import cardStyles from "./NodeCard.module.css";
 
 export interface NodePortRowProps {
   port: NodePortView;
@@ -21,17 +22,17 @@ export function NodePortRow({
   side
 }: NodePortRowProps) {
   const className = [
-    "port-row",
-    selected ? "is-selected" : "",
-    compatible ? "is-compatible" : "",
-    incompatible ? "is-incompatible" : ""
+    cardStyles.row,
+    selected ? cardStyles.rowSelected : "",
+    compatible ? cardStyles.rowCompatible : "",
+    incompatible ? cardStyles.rowIncompatible : ""
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
     <div className={className}>
-      {handle ?? <NodePortHandle color={port.color} side={side} />}
+      {handle === false ? null : handle ?? <NodePortHandle color={port.color} />}
       <Tooltip
         label={<PortTooltipContent port={port} />}
         multiline
@@ -41,18 +42,16 @@ export function NodePortRow({
       >
         <div>
           <Group
-            className="port-label"
+            className={cardStyles.label}
             gap={5}
             justify={side === "input" ? "flex-start" : "flex-end"}
             wrap="nowrap"
           >
-            {side === "input" ? <span className="flow-swatch" style={{ background: port.color }} /> : null}
             <Text size="xs" truncate>
               {port.label}
             </Text>
-            {side === "output" ? <span className="flow-swatch" style={{ background: port.color }} /> : null}
           </Group>
-          <Text c="dimmed" className="port-type" size="10px" ta={side === "input" ? "left" : "right"}>
+          <Text c="dimmed" className={cardStyles.type} size="10px" ta={side === "input" ? "left" : "right"}>
             {port.typeLabel}
           </Text>
         </div>

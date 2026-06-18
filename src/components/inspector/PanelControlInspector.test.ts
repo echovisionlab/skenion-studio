@@ -22,17 +22,17 @@ describe("PanelControlInspector", () => {
     });
   });
 
-  it("edits send channel names as graph params", () => {
+  it("edits object routing names as graph params", () => {
     const patched: unknown[] = [];
     const element = RoutingNodeControls({
-      node: node("core.send-f32", { name: "speed" }),
+      node: node("ui.slider-f32", { sendName: "speed", receiveName: "" }),
       onSetNodeParam: (...args) => patched.push(args)
     });
     const inputs = findElementsByType(element, TextInput);
 
     inputs[0]?.props.onChange?.({ currentTarget: { value: "phase" } });
 
-    expect(patched).toEqual([["node_1", "name", "phase"]]);
+    expect(patched).toEqual([["node_1", "sendName", "phase"]]);
   });
 });
 

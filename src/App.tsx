@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppShell, Group, ScrollArea, Stack, Text } from "@mantine/core";
 import { CircleAlert } from "lucide-react";
 import {
@@ -19,8 +19,8 @@ import {
   portDemoSampleViewState,
   renderSampleGraph,
   sampleGraph,
-  sendReceivePanelSampleGraph,
-  sendReceivePanelSampleViewState,
+  objectRoutingPanelSampleGraph,
+  objectRoutingPanelSampleViewState,
   shaderMultiUniformSampleGraph,
   shaderMultiUniformSampleViewState,
   shaderUniformSampleGraph,
@@ -82,6 +82,7 @@ export default function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>("value_1");
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [activeHelpNodeId, setActiveHelpNodeId] = useState<string | null>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
   const [connectionCheck, setConnectionCheck] = useState<ConnectionCheck | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [runtimeUrl, setRuntimeUrl] = useState(DEFAULT_RUNTIME_URL);
@@ -127,6 +128,25 @@ export default function App() {
     }
     return runtimeTelemetry?.render.diagnostics ?? [];
   }, [runtimeTelemetry, selectedNode?.id, selectedNode?.kind]);
+  const liveControlQueueRef = useRef<{
+    inFlight: boolean;
+    request: RuntimeControlEventRequest | null;
+  }>({ inFlight: false, request: null });
+  const runtimeLiveStateRef = useRef({
+    info: runtimeInfo,
+    sessionLoaded: Boolean(runtimeSession?.loaded),
+    status: runtimeStatus,
+    url: runtimeUrl
+  });
+
+  useEffect(() => {
+    runtimeLiveStateRef.current = {
+      info: runtimeInfo,
+      sessionLoaded: Boolean(runtimeSession?.loaded),
+      status: runtimeStatus,
+      url: runtimeUrl
+    };
+  }, [runtimeInfo, runtimeSession?.loaded, runtimeStatus, runtimeUrl]);
 
   function addNode(definitionId: string) {
     const definition = nodeRegistry.find((candidate) => candidate.id === definitionId);
@@ -150,6 +170,36 @@ export default function App() {
               x: 88 + (graph.nodes.length % 2) * 300,
               y: 88 + Math.floor(graph.nodes.length / 2) * 180
             }
+          }
+        }
+      })
+    );
+    setSelectedNodeId(node.id);
+    setActiveHelpNodeId(null);
+    setSelectedEdgeId(null);
+    setConnectionCheck(null);
+    setRuntimeResult(null);
+  }
+
+  function addNodeAtPosition(definitionId: string, position: { x: number; y: number }) {
+    const definition = nodeRegistry.find((candidate) => candidate.id === definitionId);
+    if (!definition) {
+      return;
+    }
+
+    const node = createGraphNodeFromDefinition(definition, graph.nodes);
+    const patch = { type: "addNode", node } satisfies GraphPatch;
+    const nextGraph = applyPatch(graph, patch);
+    setGraph(nextGraph);
+    recordGraphPatches([patch]);
+    setViewState((currentViewState) =>
+      reconcileViewStateWithGraph(nextGraph, {
+        ...currentViewState,
+        canvas: {
+          ...currentViewState.canvas,
+          nodes: {
+            ...currentViewState.canvas.nodes,
+            [node.id]: position
           }
         }
       })
@@ -331,10 +381,10 @@ export default function App() {
     setRuntimeResult(null);
   }
 
-  function loadSendReceivePanelSample() {
-    setGraph(sendReceivePanelSampleGraph);
-    setViewState(sendReceivePanelSampleViewState);
-    setSelectedNodeId(sendReceivePanelSampleGraph.nodes[0]?.id ?? null);
+  function loadObjectRoutingPanelSample() {
+    setGraph(objectRoutingPanelSampleGraph);
+    setViewState(objectRoutingPanelSampleViewState);
+    setSelectedNodeId(objectRoutingPanelSampleGraph.nodes[0]?.id ?? null);
     setActiveHelpNodeId(null);
     setSelectedEdgeId(null);
     clearPendingPatch();
@@ -364,6 +414,17 @@ export default function App() {
     if (key === "source") {
       setGeneratedShader(null);
     }
+  }
+
+  function setNodeParams(nodeId: string, params: Record<string, unknown>) {
+    const patches = Object.entries(params).map(([key, value]) => ({
+      type: "setNodeParam",
+      nodeId,
+      key,
+      value
+    }) satisfies GraphPatch);
+    const nextGraph = patches.reduce((currentGraph, patch) => applyPatch(currentGraph, patch), graph);
+    updateGraph(nextGraph, patches);
   }
 
   function syncShaderInputs(nodeId: string, source: string) {
@@ -615,6 +676,33 @@ export default function App() {
     }
   }
 
+  async function importRuntimeAsset(node: GraphNodeV01, file: File) {
+    if (runtimeStatus !== "connected" || !runtimeSupportsAssetImport(runtimeInfo)) {
+      setRuntimeError("Runtime asset import is not available.");
+      return;
+    }
+
+    setRuntimeBusyAction("assetImport");
+    setRuntimeError(null);
+    try {
+      const response = await createRuntimeClient({ baseUrl: runtimeUrl }).importAsset(file, "video");
+      if (!response.ok || !response.asset) {
+        throw new RuntimeClientError(response.diagnostics[0]?.message ?? "Runtime asset import failed.");
+      }
+      setNodeParams(node.id, {
+        assetRef: response.asset.runtimeUri,
+        name: response.asset.name,
+        mimeType: response.asset.mimeType
+      });
+      setRuntimeStatus("connected");
+    } catch (error) {
+      setRuntimeStatus("error");
+      setRuntimeError(error instanceof Error ? error.message : "Runtime asset import failed.");
+    } finally {
+      setRuntimeBusyAction(null);
+    }
+  }
+
   async function refreshRuntimeHistoryFromPanel() {
     setRuntimeBusyAction("refreshHistory");
     setRuntimeError(null);
@@ -731,6 +819,48 @@ export default function App() {
     }
   }
 
+  function sendRuntimeLiveControlEvent(request: RuntimeControlEventRequest) {
+    liveControlQueueRef.current.request = request;
+    void flushRuntimeLiveControlQueue();
+  }
+
+  async function flushRuntimeLiveControlQueue() {
+    const queue = liveControlQueueRef.current;
+    if (queue.inFlight) {
+      return;
+    }
+
+    const request = queue.request;
+    const { info, sessionLoaded, status, url } = runtimeLiveStateRef.current;
+    if (!request || status !== "connected" || !sessionLoaded || !runtimeSupportsControl(info)) {
+      return;
+    }
+
+    queue.request = null;
+    queue.inFlight = true;
+    try {
+      const response = await createRuntimeClient({ baseUrl: url }).sendControlEvent(request);
+      setRuntimeStatus("connected");
+      setRuntimeError(null);
+      if (response.controlRevision !== null) {
+        setRuntimeSession((current) =>
+          current ? { ...current, controlRevision: response.controlRevision ?? current.controlRevision } : current
+        );
+        setRuntimePreviewStatus((current) =>
+          current ? { ...current, controlRevision: response.controlRevision ?? current.controlRevision } : current
+        );
+      }
+    } catch (error) {
+      setRuntimeStatus("error");
+      setRuntimeError(error instanceof Error ? error.message : "Runtime control event failed.");
+    } finally {
+      queue.inFlight = false;
+      if (queue.request) {
+        void flushRuntimeLiveControlQueue();
+      }
+    }
+  }
+
   function runtimeSupportsHistory(info: RuntimeInfo | null): boolean {
     return info?.capabilities.includes("session.history") ?? false;
   }
@@ -749,6 +879,10 @@ export default function App() {
 
   function runtimeSupportsGeneratedShader(info: RuntimeInfo | null): boolean {
     return info?.capabilities.includes("session.render.generatedShader") ?? false;
+  }
+
+  function runtimeSupportsAssetImport(info: RuntimeInfo | null): boolean {
+    return info?.capabilities.includes("assets.import") ?? false;
   }
 
   useEffect(() => {
@@ -786,7 +920,7 @@ export default function App() {
     <AppShell
       header={{ height: 58 }}
       navbar={{ width: 292, breakpoint: "sm" }}
-      aside={{ width: 356, breakpoint: "md" }}
+      aside={inspectorOpen ? { width: 356, breakpoint: "md" } : undefined}
       padding={0}
     >
       <AppShell.Header>
@@ -800,10 +934,12 @@ export default function App() {
           onSaveProject={saveProject}
           onLoadPortDemoSample={loadPortDemoSample}
           onLoadRenderSample={loadRenderSample}
-          onLoadSendReceivePanelSample={loadSendReceivePanelSample}
+          onLoadObjectRoutingPanelSample={loadObjectRoutingPanelSample}
           onLoadShaderMultiUniformSample={loadShaderMultiUniformSample}
           onLoadShaderUniformSample={loadShaderUniformSample}
           onReset={resetSample}
+          inspectorOpen={inspectorOpen}
+          onToggleInspector={() => setInspectorOpen((open) => !open)}
         />
       </AppShell.Header>
 
@@ -830,8 +966,24 @@ export default function App() {
           <GraphCanvas
             graph={graph}
             viewState={viewState}
+            onAddNodeAtPosition={addNodeAtPosition}
             onConnectionCheck={setConnectionCheck}
             onGraphChange={updateGraph}
+            onObjectControl={(nodeId, portId, value) => {
+              void sendRuntimeControlEvent({
+                nodeId,
+                portId: portId as RuntimeControlEventRequest["portId"],
+                value
+              });
+            }}
+            onObjectLiveControl={(nodeId, portId, value) => {
+              sendRuntimeLiveControlEvent({
+                nodeId,
+                portId: portId as RuntimeControlEventRequest["portId"],
+                value
+              });
+            }}
+            onObjectParamChange={setNodeParam}
             onViewStateChange={setViewState}
             onSelectedEdgeChange={(edgeId) => {
               setSelectedEdgeId(edgeId);
@@ -845,12 +997,14 @@ export default function App() {
                 setActiveHelpNodeId(null);
               }
             }}
+            onShowNodeHelp={showNodeHelp}
             selectedEdgeId={selectedEdgeId}
             selectedNodeId={selectedNodeId}
           />
         </div>
       </AppShell.Main>
 
+      {inspectorOpen ? (
       <AppShell.Aside p="md">
         <ScrollArea className="aside-scroll" offsetScrollbars>
           <Stack gap="md">
@@ -969,6 +1123,7 @@ export default function App() {
               edge={selectedEdge}
               helpNodeId={activeHelpNodeId}
               node={selectedNode}
+              onImportAsset={importRuntimeAsset}
               onLoadGeneratedShader={runtimeSupportsGeneratedShader(runtimeInfo) ? loadGeneratedShader : undefined}
               onOpenHelpGraph={openHelpGraphAsNewGraph}
               onRemoveNode={removeNode}
@@ -983,6 +1138,8 @@ export default function App() {
                 Boolean(runtimeSession?.loaded) &&
                 runtimeSupportsControl(runtimeInfo)
               }
+              runtimeAssetImportBusy={runtimeBusyAction === "assetImport"}
+              runtimeAssetImportEnabled={runtimeStatus === "connected" && runtimeSupportsAssetImport(runtimeInfo)}
               runtimeShaderDiagnostics={selectedRuntimeShaderDiagnostics}
               semanticDiagnostics={semanticDiagnostics}
               validation={validation}
@@ -990,6 +1147,7 @@ export default function App() {
           </Stack>
         </ScrollArea>
       </AppShell.Aside>
+      ) : null}
     </AppShell>
   );
 }

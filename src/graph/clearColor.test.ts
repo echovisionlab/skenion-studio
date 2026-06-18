@@ -41,12 +41,9 @@ describe("clear color graph helpers", () => {
     expect(defaultParamsForNodeKind("core.comment")).toEqual({
       text: ""
     });
-    expect(defaultParamsForNodeKind("core.send-f32")).toEqual({
-      name: "channel"
-    });
-    expect(defaultParamsForNodeKind("core.receive-bool")).toEqual({
-      name: "channel",
-      default: false
+    expect(defaultParamsForNodeKind("core.panel")).toEqual({
+      color: "transparent",
+      label: "Panel"
     });
     expect(defaultParamsForNodeKind("ui.slider-f32")).toEqual({
       label: "Value",

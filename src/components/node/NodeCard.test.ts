@@ -8,15 +8,14 @@ import { multiPortCard, shaderUniformCard, zeroPortCard } from "../../stories/st
 import type { NodePortSide, NodePortView } from "./nodeTypes";
 
 describe("NodeCard", () => {
-  it("renders explicit input and output columns with handle dots", () => {
+  it("renders explicit input and output columns with shared port sockets", () => {
     const html = renderNodeCard(shaderUniformCard);
 
     expect(html).toContain("IN");
     expect(html).toContain("OUT");
     expect(html).toContain("speed");
     expect(html).toContain("out");
-    expect(html).toContain("node-port-dot-input");
-    expect(html).toContain("node-port-dot-output");
+    expect(html).toContain("port-socket");
   });
 
   it("renders empty inlet and outlet states for zero-port nodes", () => {
@@ -29,8 +28,7 @@ describe("NodeCard", () => {
   it("renders a handle for every input and output port", () => {
     const html = renderNodeCard(multiPortCard);
 
-    expect(countOccurrences(html, "node-port-dot-input")).toBe(multiPortCard.inputs.length);
-    expect(countOccurrences(html, "node-port-dot-output")).toBe(multiPortCard.outputs.length);
+    expect(countOccurrences(html, "port-socket")).toBe(multiPortCard.inputs.length + multiPortCard.outputs.length);
   });
 });
 
@@ -49,9 +47,9 @@ function renderNodeCard(card: Parameters<typeof NodeCard>[0]): string {
 }
 
 function renderHandle(port: NodePortView, side: NodePortSide) {
+  void side;
   return createElement(NodePortHandle, {
-    color: port.color,
-    side
+    color: port.color
   });
 }
 

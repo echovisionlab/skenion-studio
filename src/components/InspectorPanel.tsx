@@ -26,7 +26,10 @@ interface InspectorPanelProps {
   validation: ValidationResult<GraphDocumentV01>;
   generatedShader: RuntimeGeneratedShaderResponse | null;
   generatedShaderBusy: boolean;
+  runtimeAssetImportBusy: boolean;
+  runtimeAssetImportEnabled: boolean;
   runtimeShaderDiagnostics: ShaderDiagnosticV01[];
+  onImportAsset?: (node: GraphNodeV01, file: File) => Promise<void>;
   onLoadGeneratedShader?: () => void;
   onOpenHelpGraph?: (nodeKind: string) => void;
   onRemoveNode: (node: GraphNodeV01) => void;
@@ -45,6 +48,7 @@ export function InspectorPanel({
   generatedShaderBusy,
   helpNodeId,
   node,
+  onImportAsset,
   onLoadGeneratedShader,
   onOpenHelpGraph,
   onRemoveNode,
@@ -53,6 +57,8 @@ export function InspectorPanel({
   onSyncShaderInputs,
   runtimeControlBusy,
   runtimeControlEnabled,
+  runtimeAssetImportBusy,
+  runtimeAssetImportEnabled,
   runtimeShaderDiagnostics,
   semanticDiagnostics,
   validation
@@ -88,6 +94,7 @@ export function InspectorPanel({
             generatedShaderBusy={generatedShaderBusy}
             node={node}
             onLoadGeneratedShader={onLoadGeneratedShader}
+            onImportAsset={onImportAsset}
             onOpenHelpGraph={onOpenHelpGraph}
             onRemoveNode={onRemoveNode}
             onSendRuntimeControl={onSendRuntimeControl}
@@ -95,6 +102,8 @@ export function InspectorPanel({
             onSyncShaderInputs={onSyncShaderInputs}
             runtimeControlBusy={runtimeControlBusy}
             runtimeControlEnabled={runtimeControlEnabled}
+            runtimeAssetImportBusy={runtimeAssetImportBusy}
+            runtimeAssetImportEnabled={runtimeAssetImportEnabled}
             runtimeShaderDiagnostics={runtimeShaderDiagnostics}
           />
         ) : paletteHelp ? (

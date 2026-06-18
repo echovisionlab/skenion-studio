@@ -7,8 +7,10 @@ import {
   portDemoSampleViewState,
   renderSampleGraph,
   sampleGraph,
-  sendReceivePanelSampleGraph,
-  sendReceivePanelSampleViewState,
+  objectRoutingPanelSampleGraph,
+  objectRoutingPanelSampleViewState,
+  objectVisualSampleGraph,
+  objectVisualSampleViewState,
   shaderMultiUniformSampleGraph,
   shaderMultiUniformSampleViewState,
   shaderUniformSampleGraph,
@@ -58,11 +60,11 @@ export const PortDemoGraph: Story = {
   )
 };
 
-export const SendReceivePanelGraph: Story = {
+export const ObjectRoutingPanelGraph: Story = {
   render: () => (
     <GraphCanvasStory
-      initialGraph={sendReceivePanelSampleGraph}
-      initialViewState={sendReceivePanelSampleViewState}
+      initialGraph={objectRoutingPanelSampleGraph}
+      initialViewState={objectRoutingPanelSampleViewState}
     />
   )
 };
@@ -70,21 +72,26 @@ export const SendReceivePanelGraph: Story = {
 export const SavedProjectLayoutGraph: Story = {
   render: () => (
     <GraphCanvasStory
-      initialGraph={sendReceivePanelSampleGraph}
+      initialGraph={objectRoutingPanelSampleGraph}
       initialViewState={createViewStateFromPositions(
-        sendReceivePanelSampleGraph,
+        objectRoutingPanelSampleGraph,
         {
           slider_speed: { x: 48, y: 72 },
-          send_speed: { x: 330, y: 72 },
-          receive_speed: { x: 330, y: 256 },
-          toggle_enabled: { x: 48, y: 396 },
-          send_enabled: { x: 330, y: 396 },
-          receive_enabled: { x: 330, y: 580 },
-          shader_1: { x: 676, y: 236 },
-          output_1: { x: 1016, y: 296 }
+          toggle_enabled: { x: 48, y: 236 },
+          shader_1: { x: 390, y: 146 },
+          output_1: { x: 730, y: 206 }
         },
         { x: -24, y: -16, zoom: 0.92 }
       )}
+    />
+  )
+};
+
+export const ObjectVisualObjectsGraph: Story = {
+  render: () => (
+    <GraphCanvasStory
+      initialGraph={objectVisualSampleGraph}
+      initialViewState={objectVisualSampleViewState}
     />
   )
 };

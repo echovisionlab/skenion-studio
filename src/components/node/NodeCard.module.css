@@ -1,0 +1,121 @@
+.root {
+  position: relative;
+  width: 238px;
+  min-height: 132px;
+  overflow: visible;
+}
+
+.body {
+  position: relative;
+  border: 1px solid #cdd5df;
+  border-left: 4px solid var(--node-accent);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgb(31 41 51 / 10%);
+  overflow: visible;
+}
+
+.rootSelected .body {
+  border-color: #1c7ed6;
+  box-shadow:
+    0 0 0 2px rgb(28 126 214 / 22%),
+    0 12px 30px rgb(31 41 51 / 12%);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-height: 58px;
+  gap: 10px;
+  padding: 12px 12px 8px;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.ports {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+
+.rail {
+  position: absolute;
+  left: 14px;
+  z-index: 6;
+  display: flex;
+  gap: 8px;
+}
+
+.railInput {
+  top: -4px;
+}
+
+.railOutput {
+  bottom: -4px;
+}
+
+.column {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.columnTitle {
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.empty {
+  min-height: 24px;
+  padding-top: 4px;
+  font-weight: 600;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 32px;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.rowSelected {
+  color: #1864ab;
+}
+
+.outputColumn .row {
+  justify-content: flex-end;
+}
+
+.outputColumn .label {
+  text-align: right;
+}
+
+.label {
+  min-width: 0;
+}
+
+.type {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  line-height: 1.1;
+}
+
+.rowCompatible :global(.port-socket),
+.rowCompatible :global(.react-flow__handle) {
+  box-shadow:
+    0 0 0 1px rgb(31 41 51 / 18%),
+    0 0 0 4px rgb(12 166 120 / 18%);
+}
+
+.rowIncompatible :global(.port-socket),
+.rowIncompatible :global(.react-flow__handle) {
+  box-shadow:
+    0 0 0 1px rgb(31 41 51 / 18%),
+    0 0 0 4px rgb(250 82 82 / 18%);
+}
