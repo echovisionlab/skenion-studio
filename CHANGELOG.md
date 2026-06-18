@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.23.0](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.22.0...skenion-studio-v0.23.0) (2026-06-18)
+
+
+### Features
+
+* **studio:** send runtime control messages ([66d7949](https://github.com/echovisionlab/skenion-studio/commit/66d7949c1399c055cab9dd2f17d4c15ff8928c97))
+
+
+### Bug Fixes
+
+* **studio:** use localhost runtime defaults ([8cf295c](https://github.com/echovisionlab/skenion-studio/commit/8cf295cf4659dd7a659a59ed52374134c7a4d28c))
+
 ## [0.22.0](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.21.0...skenion-studio-v0.22.0) (2026-06-18)
 
 
