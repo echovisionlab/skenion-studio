@@ -161,9 +161,7 @@ body {
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
-  filter: drop-shadow(0 2px 5px rgb(31 41 51 / 24%));
   stroke: #1864ab !important;
-  stroke-width: 5px !important;
 }
 
 .react-flow__edge.selected .react-flow__edge-textbg {
