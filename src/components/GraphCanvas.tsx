@@ -34,6 +34,7 @@ import {
   type SkenionNodeData
 } from "../graph/reactFlowAdapter";
 import { portSemanticsForPort } from "../graph/portSemantics";
+import { runtimeControlValueEquals } from "../runtime/controlMessage";
 
 const nodeTypes: NodeTypes = {
   skenion: ReactFlowNodeAdapter
@@ -100,8 +101,8 @@ export function GraphCanvas({
     [nodeViewStateKey]
   );
   const viewModel = useMemo(
-    () => toReactFlowViewModel(graph, graphLayoutViewState, runtimeControlValues),
-    [graph, graphLayoutViewState, runtimeControlValues]
+    () => toReactFlowViewModel(graph, graphLayoutViewState),
+    [graph, graphLayoutViewState]
   );
   const objectControlRef = useRef(onObjectControl);
   const objectLiveControlRef = useRef(onObjectLiveControl);
@@ -145,6 +146,7 @@ export function GraphCanvas({
           layoutEditable: !graphLocked,
           runtimeControlEnabled,
           runtimeControlPulseKey: runtimeControlPulses[node.id] ?? 0,
+          runtimeControlValue: runtimeControlValues[node.id],
         }
       })),
     [
@@ -154,6 +156,7 @@ export function GraphCanvas({
       graphLocked,
       runtimeControlEnabled,
       runtimeControlPulses,
+      runtimeControlValues,
       viewModel.nodes
     ]
   );
@@ -733,6 +736,7 @@ function mergeFlowNode(currentNode: StudioFlowNode, nextNode: StudioFlowNode): S
   return {
     ...currentNode,
     ...nextNode,
+    position: currentNode.dragging ? currentNode.position : nextNode.position,
     data: {
       ...currentNode.data,
       ...nextNode.data
@@ -763,7 +767,7 @@ function sameFlowNode(currentNode: StudioFlowNode, nextNode: StudioFlowNode): bo
     currentNode.data.layoutEditable === nextNode.data.layoutEditable &&
     currentNode.data.runtimeControlEnabled === nextNode.data.runtimeControlEnabled &&
     currentNode.data.runtimeControlPulseKey === nextNode.data.runtimeControlPulseKey &&
-    sameRuntimeControlValue(
+    runtimeControlValueEquals(
       currentNode.data.runtimeControlValue,
       nextNode.data.runtimeControlValue
     )
@@ -782,24 +786,6 @@ function sameFlowEdge(currentEdge: Edge, nextEdge: Edge): boolean {
     JSON.stringify(currentEdge.markerStart ?? null) === JSON.stringify(nextEdge.markerStart ?? null) &&
     JSON.stringify(currentEdge.markerEnd ?? null) === JSON.stringify(nextEdge.markerEnd ?? null)
   );
-}
-
-function sameRuntimeControlValue(a?: RuntimeControlValue, b?: RuntimeControlValue): boolean {
-  if (!a || !b) {
-    return a === b;
-  }
-  if (a.type !== b.type) {
-    return false;
-  }
-  if (a.type === "color" && b.type === "color") {
-    return (
-      a.representation === b.representation &&
-      a.colorSpace === b.colorSpace &&
-      a.value.length === b.value.length &&
-      a.value.every((value, index) => Object.is(value, b.value[index]))
-    );
-  }
-  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 function connectionFromFinalState(connectionState: FinalConnectionState): Connection | null {

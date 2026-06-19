@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type {
   DataFlow,
   EdgeV01,
@@ -46,13 +47,12 @@ export interface ReactFlowViewModel {
 
 export function toReactFlowViewModel(
   graph: GraphDocumentV01,
-  viewState: ViewStateV01,
-  runtimeControlValues: Record<string, RuntimeControlValue> = {}
+  viewState: ViewStateV01
 ): ReactFlowViewModel {
   const positions = viewPositionsFromViewState(viewState);
   return {
     nodes: graph.nodes.map((node, index) =>
-      toReactFlowNode(node, index, positions[node.id], runtimeControlValues[node.id])
+      toReactFlowNode(node, index, positions[node.id])
     ),
     edges: graph.edges.map((edge) => toReactFlowEdge(edge, graph))
   };
@@ -97,8 +97,7 @@ export function flowName(flow: DataFlow, dataKind?: string): string {
 function toReactFlowNode(
   node: GraphNodeV01,
   index: number,
-  position?: { x: number; y: number },
-  runtimeControlValue?: RuntimeControlValue
+  position?: { x: number; y: number }
 ): Node<SkenionNodeData> {
   const outputPort = node.ports.find((port) => port.direction === "output");
   const inputPort = node.ports.find((port) => port.direction === "input");
@@ -114,8 +113,7 @@ function toReactFlowNode(
       label: String(node.params.label ?? node.id),
       kind: node.kind,
       kindVersion: node.kindVersion,
-      primaryFlow: primaryPort?.type.flow ?? "value",
-      runtimeControlValue
+      primaryFlow: primaryPort?.type.flow ?? "value"
     }
   };
 }
@@ -127,6 +125,7 @@ function toReactFlowEdge(edge: EdgeV01, graph: GraphDocumentV01): Edge {
   const color = sourcePort && sourceNode ? semanticTypeColor(portSemanticsForPort(sourceNode, sourcePort).type) : "#868e96";
   const label = inspector.resolvedType === "unknown" ? "" : inspector.resolvedType;
   const feedback = Boolean(inspector.feedback);
+  const strokeWidth = label === "gpu.texture2d" || label === "render.frame" ? 3 : 2;
 
   return {
     id: inspector.id,
@@ -151,8 +150,9 @@ function toReactFlowEdge(edge: EdgeV01, graph: GraphDocumentV01): Edge {
     style: {
       stroke: color,
       strokeDasharray: feedback ? "7 4" : undefined,
-      strokeWidth: label === "gpu.texture2d" || label === "render.frame" ? 3 : 2
-    },
+      strokeWidth,
+      "--skenion-selected-edge-stroke-width": `${strokeWidth + 0.75}px`
+    } as CSSProperties,
     labelStyle: {
       fill: "#343a40",
       fontWeight: 600

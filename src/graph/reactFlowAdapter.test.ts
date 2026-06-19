@@ -202,27 +202,15 @@ describe("React Flow adapter", () => {
     expect(viewModel.nodes[1].position).toEqual(defaultPosition(1));
   });
 
-  it("carries runtime control values separately from graph params", () => {
+  it("keeps runtime control values out of the static graph view model", () => {
     const viewModel = toReactFlowViewModel(
       sampleGraph,
-      createViewStateFromPositions(sampleGraph, {}),
-      {
-        value_1: { type: "float", representation: "f32", value: 9.5 },
-        target_1: { type: "float", representation: "f32", value: 9.5 }
-      }
+      createViewStateFromPositions(sampleGraph, {})
     );
 
     expect(viewModel.nodes[0].data.node.params.value).toBe(0.5);
-    expect(viewModel.nodes[0].data.runtimeControlValue).toEqual({
-      type: "float",
-      representation: "f32",
-      value: 9.5
-    });
-    expect(viewModel.nodes[1].data.runtimeControlValue).toEqual({
-      type: "float",
-      representation: "f32",
-      value: 9.5
-    });
+    expect(viewModel.nodes[0].data.runtimeControlValue).toBeUndefined();
+    expect(viewModel.nodes[1].data.runtimeControlValue).toBeUndefined();
   });
 
   it("maps flow display color and names", () => {
