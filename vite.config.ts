@@ -5,5 +5,10 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 900
   },
-  plugins: [react()]
+  plugins: [react()],
+  server: {
+    watch: {
+      ignored: ["**/.deps/**"]
+    }
+  }
 });
