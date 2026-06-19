@@ -1,6 +1,6 @@
 import type { GraphNodeV01 } from "@skenion/contracts";
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from "react";
+import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from "react";
 import { readCommentTextParam } from "../../graph/commentNode";
 import { FLOAT_VALUE_NODE_KIND, readFloatRepresentationParam, readFloatValueParam } from "../../graph/floatValue";
 import { INT_VALUE_NODE_KIND, readIntRepresentationParam, readIntValueParam } from "../../graph/intValue";
@@ -346,6 +346,7 @@ function BangControlObject({
 }) {
   const [active, setActive] = useState(false);
   const resetTimerRef = useRef<number | null>(null);
+  const pointerStartRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
   const pulse = () => {
     if (resetTimerRef.current !== null) {
       window.clearTimeout(resetTimerRef.current);
@@ -380,6 +381,40 @@ function BangControlObject({
     onObjectControl?.(node.id, "in", bangControlMessage());
   };
 
+  const handlePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    if (!runtimeControlEnabled || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    pointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      pointerId: event.pointerId
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+    if (!runtimeControlEnabled) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const start = pointerStartRef.current;
+    pointerStartRef.current = null;
+    if (!start || start.pointerId !== event.pointerId) {
+      return;
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+    if (distance <= 4) {
+      activate();
+    }
+  };
+
   return (
     <ObjectBox
       className={styles.bangObject}
@@ -399,8 +434,20 @@ function BangControlObject({
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
           activate();
         }}
+        onPointerCancel={() => {
+          pointerStartRef.current = null;
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
         type="button"
       >
         <span className={[styles.bangDot, active ? styles.bangActive : ""].filter(Boolean).join(" ")} />
@@ -469,7 +516,7 @@ function ObjectBox({
         chromePolicyClassName(chromePolicy),
         className,
         layoutEditable ? styles.layoutEditable : "",
-        !layoutEditable ? "nopan" : "",
+        onActivate ? "nopan" : "",
         selected ? styles.selected : "",
         disabled ? styles.disabled : ""
       ]
@@ -646,6 +693,9 @@ function NumericValueDragObject({
   const displayValue = numericDisplayValue(mode, node, runtimeControlValue);
   const [draftValue, setDraftValue] = useState(displayValue);
   const suppressMouseDragRef = useRef(false);
+  const formattedDraftValue = mode === "float" ? formatFloatAtom(draftValue) : formatIntegerAtom(draftValue);
+  const formattedDisplayValue = mode === "float" ? formatFloatAtom(displayValue) : formatIntegerAtom(displayValue);
+  const stableWidthCh = Math.max(3, formattedDraftValue.length, formattedDisplayValue.length) + 1;
 
   useEffect(() => {
     setDraftValue(displayValue);
@@ -694,7 +744,7 @@ function NumericValueDragObject({
       className={[styles.valueDrag, "nodrag", "nopan"].join(" ")}
       disabled={!runtimeControlEnabled}
       onMouseDown={(event) => {
-        if (!runtimeControlEnabled || event.button !== 0) {
+        if (!runtimeControlEnabled || !isPrimaryPointerButton(event.button)) {
           return;
         }
         if (suppressMouseDragRef.current) {
@@ -712,7 +762,7 @@ function NumericValueDragObject({
         });
       }}
       onPointerDown={(event) => {
-        if (!runtimeControlEnabled) {
+        if (!runtimeControlEnabled || !isPrimaryPointerButton(event.button)) {
           return;
         }
         suppressMouseDragRef.current = true;
@@ -736,8 +786,9 @@ function NumericValueDragObject({
           : "Connect and load a Runtime session to send values"
       }
       type="button"
+      style={{ "--atom-width": `${stableWidthCh}ch` } as CSSProperties}
     >
-      {mode === "float" ? formatFloatAtom(draftValue) : formatIntegerAtom(draftValue)}
+      {formattedDraftValue}
     </button>
   );
 }
@@ -754,6 +805,10 @@ function numericDisplayValue(
     return controlIntValue(runtimeControlValue) ?? readIntValueParam(node);
   }
   return controlUIntValue(runtimeControlValue) ?? readUIntValueParam(node);
+}
+
+export function isPrimaryPointerButton(button: number): boolean {
+  return button === 0;
 }
 
 function controlFloatValue(value?: RuntimeControlValue): number | null {

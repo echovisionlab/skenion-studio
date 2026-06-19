@@ -46,13 +46,12 @@ export interface ReactFlowViewModel {
 
 export function toReactFlowViewModel(
   graph: GraphDocumentV01,
-  viewState: ViewStateV01,
-  runtimeControlValues: Record<string, RuntimeControlValue> = {}
+  viewState: ViewStateV01
 ): ReactFlowViewModel {
   const positions = viewPositionsFromViewState(viewState);
   return {
     nodes: graph.nodes.map((node, index) =>
-      toReactFlowNode(node, index, positions[node.id], runtimeControlValues[node.id])
+      toReactFlowNode(node, index, positions[node.id])
     ),
     edges: graph.edges.map((edge) => toReactFlowEdge(edge, graph))
   };
@@ -97,8 +96,7 @@ export function flowName(flow: DataFlow, dataKind?: string): string {
 function toReactFlowNode(
   node: GraphNodeV01,
   index: number,
-  position?: { x: number; y: number },
-  runtimeControlValue?: RuntimeControlValue
+  position?: { x: number; y: number }
 ): Node<SkenionNodeData> {
   const outputPort = node.ports.find((port) => port.direction === "output");
   const inputPort = node.ports.find((port) => port.direction === "input");
@@ -114,8 +112,7 @@ function toReactFlowNode(
       label: String(node.params.label ?? node.id),
       kind: node.kind,
       kindVersion: node.kindVersion,
-      primaryFlow: primaryPort?.type.flow ?? "value",
-      runtimeControlValue
+      primaryFlow: primaryPort?.type.flow ?? "value"
     }
   };
 }

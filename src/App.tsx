@@ -62,6 +62,7 @@ import {
   runtimeSessionFingerprint,
   runtimeSessionIsSynced
 } from "./runtime/sessionSync";
+import { runtimeControlValueEquals } from "./runtime/controlMessage";
 import type {
   RuntimeActionResult,
   RuntimeConnectionStatus,
@@ -1023,14 +1024,14 @@ export default function App() {
         return current;
       }
       const values = { ...current.values };
-      values[request.nodeId] = atom;
+      let changed = setRuntimeControlValueIfChanged(values, request.nodeId, atom);
       if (shouldPropagate) {
-        propagateOptimisticValue(request.nodeId, atom, values);
+        changed = propagateOptimisticValue(request.nodeId, atom, values) || changed;
       }
-      return {
+      return changed ? {
         ...current,
         values
-      };
+      } : current;
     });
   }
 
@@ -1038,9 +1039,10 @@ export default function App() {
     sourceNodeId: string,
     value: RuntimeControlValue,
     values: Record<string, RuntimeControlValue>
-  ) {
+  ): boolean {
     const queue = [sourceNodeId];
     const visited = new Set<string>();
+    let changed = false;
     while (queue.length > 0) {
       const nodeId = queue.shift();
       if (!nodeId || visited.has(nodeId)) {
@@ -1055,10 +1057,11 @@ export default function App() {
         if (!targetNode || !isOptimisticValueTarget(targetNode, value)) {
           continue;
         }
-        values[targetNode.id] = value;
+        changed = setRuntimeControlValueIfChanged(values, targetNode.id, value) || changed;
         queue.push(targetNode.id);
       }
     }
+    return changed;
   }
 
   function isOptimisticValueTarget(node: GraphNodeV01, value: RuntimeControlValue): boolean {
@@ -1146,18 +1149,32 @@ export default function App() {
         return current;
       }
       const values = { ...current.values };
+      let changed = false;
       for (const emission of response.emitted) {
         const atom = emission.message.atoms[0];
         if (atom && emission.portId === "value") {
-          values[emission.nodeId] = atom;
+          changed = setRuntimeControlValueIfChanged(values, emission.nodeId, atom) || changed;
         }
       }
-      return {
+      const revisionChanged = response.controlRevision !== current.controlRevision;
+      return changed || revisionChanged ? {
         ...current,
         controlRevision: response.controlRevision ?? current.controlRevision,
         values
-      };
+      } : current;
     });
+  }
+
+  function setRuntimeControlValueIfChanged(
+    values: Record<string, RuntimeControlValue>,
+    nodeId: string,
+    value: RuntimeControlValue
+  ): boolean {
+    if (runtimeControlValueEquals(values[nodeId], value)) {
+      return false;
+    }
+    values[nodeId] = value;
+    return true;
   }
 
   function runtimeSupportsSessionProject(info: RuntimeInfo | null): boolean {
