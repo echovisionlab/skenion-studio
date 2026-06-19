@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.25.1](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.25.0...skenion-studio-v0.25.1) (2026-06-19)
+
+
+### Bug Fixes
+
+* **studio:** keep selected cables thin ([43be90e](https://github.com/echovisionlab/skenion-studio/commit/43be90e4ca78c289c794b36cbe3ba43b8eae041a))
+* **studio:** lock graph layout editing ([4492e87](https://github.com/echovisionlab/skenion-studio/commit/4492e87121cc868ed98c179bbcd4e96cf9a2d999))
+* **studio:** stabilize live control object updates ([7f16b2d](https://github.com/echovisionlab/skenion-studio/commit/7f16b2d9eb9188a8a8884cce7d1f61d7e084d0a3))
+
 ## [0.25.0](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.24.0...skenion-studio-v0.25.0) (2026-06-19)
 
 
