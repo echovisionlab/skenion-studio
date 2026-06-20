@@ -8,6 +8,22 @@ import type {
   ShaderDiagnosticV01
 } from "@skenion/contracts";
 
+export type {
+  ClockFieldV01,
+  ClockSourceListResponse,
+  ClockSourceSnapshot,
+  ClockSourceSnapshotResponse,
+  ClockStateV01,
+  ClockTimeSignatureV01,
+  MidiClockSourceStartRequest,
+  MidiClockSourceStartResponse,
+  MidiClockSourceStopRequest,
+  MidiClockSourceStopResponse,
+  MidiInputDescriptor,
+  MidiInputListResponse,
+  RuntimeClockDiagnostic
+} from "@skenion/contracts";
+
 export type RuntimeConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export interface RuntimeProjectPayload {

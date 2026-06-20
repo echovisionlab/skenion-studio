@@ -6,6 +6,13 @@ import {
   runtimeHistoryActionAvailability
 } from "../runtime/historySync";
 import type {
+  ClockSourceListResponse,
+  ClockSourceSnapshotResponse,
+  MidiClockSourceStartRequest,
+  MidiClockSourceStartResponse,
+  MidiClockSourceStopRequest,
+  MidiClockSourceStopResponse,
+  MidiInputListResponse,
   RuntimeActionResult,
   RuntimeConnectionStatus,
   RuntimeInfo,
@@ -13,6 +20,7 @@ import type {
   RuntimeSessionResponse,
   RuntimeTelemetrySnapshot
 } from "../runtime/types";
+import { ClockSourcesPanel } from "./runtime/ClockSourcesPanel";
 import { RuntimeConnectionPanel } from "./runtime/RuntimeConnectionPanel";
 import { RuntimeHistoryPanel } from "./runtime/RuntimeHistoryPanel";
 import { RuntimePreviewPanel } from "./runtime/RuntimePreviewPanel";
@@ -34,6 +42,9 @@ interface RuntimePanelProps {
   url: string;
   onClearSession: () => void;
   onConnect: () => void;
+  onGetClockSource: (sourceId: string) => Promise<ClockSourceSnapshotResponse>;
+  onListClockSources: () => Promise<ClockSourceListResponse>;
+  onListMidiInputs: () => Promise<MidiInputListResponse>;
   onPlanSession: () => void;
   onRefreshPreview: () => void;
   onRedoPatch: () => void;
@@ -41,7 +52,9 @@ interface RuntimePanelProps {
   onRefreshHistory: () => void;
   onRefreshSession: () => void;
   onRunSession: () => void;
+  onStartMidiClockSource: (request: MidiClockSourceStartRequest) => Promise<MidiClockSourceStartResponse>;
   onStartPreview: () => void;
+  onStopMidiClockSource: (request: MidiClockSourceStopRequest) => Promise<MidiClockSourceStopResponse>;
   onStopPreview: () => void;
   onUndoPatch: () => void;
   onUrlChange: (url: string) => void;
@@ -62,6 +75,9 @@ export function RuntimePanel({
   url,
   onClearSession,
   onConnect,
+  onGetClockSource,
+  onListClockSources,
+  onListMidiInputs,
   onPlanSession,
   onRefreshPreview,
   onRedoPatch,
@@ -69,7 +85,9 @@ export function RuntimePanel({
   onRefreshHistory,
   onRefreshSession,
   onRunSession,
+  onStartMidiClockSource,
   onStartPreview,
+  onStopMidiClockSource,
   onStopPreview,
   onUndoPatch,
   onUrlChange,
@@ -96,6 +114,17 @@ export function RuntimePanel({
         onUrlChange={onUrlChange}
         status={status}
         url={url}
+      />
+
+      <Divider />
+
+      <ClockSourcesPanel
+        connected={connected}
+        onGetClockSource={onGetClockSource}
+        onListClockSources={onListClockSources}
+        onListMidiInputs={onListMidiInputs}
+        onStartMidiClockSource={onStartMidiClockSource}
+        onStopMidiClockSource={onStopMidiClockSource}
       />
 
       <Divider />

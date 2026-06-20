@@ -1436,6 +1436,15 @@ export default function App() {
                 )
               }
               onConnect={connectRuntime}
+              onGetClockSource={(sourceId) =>
+                createRuntimeClient({ baseUrl: runtimeUrl }).getClockSource(sourceId)
+              }
+              onListClockSources={() =>
+                createRuntimeClient({ baseUrl: runtimeUrl }).listClockSources()
+              }
+              onListMidiInputs={() =>
+                createRuntimeClient({ baseUrl: runtimeUrl }).listMidiInputs()
+              }
               onPlanSession={() =>
                 runRuntimeSessionAction("planSession", () =>
                   createRuntimeClient({ baseUrl: runtimeUrl }).planSession()
@@ -1446,6 +1455,9 @@ export default function App() {
                 runRuntimeSessionAction("runSession", () =>
                   createRuntimeClient({ baseUrl: runtimeUrl }).runSession(runtimeFrames)
                 )
+              }
+              onStartMidiClockSource={(request) =>
+                createRuntimeClient({ baseUrl: runtimeUrl }).startMidiClockSource(request)
               }
               onUrlChange={(nextUrl) => {
                 setRuntimeUrl(nextUrl);
@@ -1461,6 +1473,9 @@ export default function App() {
                 clearPendingPatch();
                 setRuntimeError(null);
               }}
+              onStopMidiClockSource={(request) =>
+                createRuntimeClient({ baseUrl: runtimeUrl }).stopMidiClockSource(request)
+              }
               onRedoPatch={() =>
                 runRuntimePatchHistoryAction("redoPatch", () =>
                   createRuntimeClient({ baseUrl: runtimeUrl }).redoSessionPatch()

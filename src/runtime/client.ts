@@ -9,6 +9,11 @@ import type {
   RuntimeAssetGetResponse,
   RuntimeAssetImportResponse,
   RuntimeAssetListResponse,
+  ClockSourceListResponse,
+  ClockSourceSnapshotResponse,
+  ClockStateV01,
+  ClockFieldV01,
+  ClockTimeSignatureV01,
   RuntimeControlEventRequest,
   RuntimeControlEventResponse,
   RuntimeControlMessage,
@@ -18,6 +23,11 @@ import type {
   RuntimeControlValue,
   RuntimeHealth,
   RuntimeInfo,
+  MidiClockSourceStartRequest,
+  MidiClockSourceStartResponse,
+  MidiClockSourceStopRequest,
+  MidiClockSourceStopResponse,
+  MidiInputListResponse,
   RuntimeGeneratedShaderResponse,
   RuntimePatchResponse,
   RuntimePreviewStartRequest,
@@ -73,6 +83,11 @@ export interface RuntimeClient {
   getAsset: (assetId: string) => Promise<RuntimeAssetGetResponse>;
   getGeneratedShader: () => Promise<RuntimeGeneratedShaderResponse>;
   getTelemetry: () => Promise<RuntimeTelemetrySnapshot>;
+  listClockSources: () => Promise<ClockSourceListResponse>;
+  getClockSource: (sourceId: string) => Promise<ClockSourceSnapshotResponse>;
+  listMidiInputs: () => Promise<MidiInputListResponse>;
+  startMidiClockSource: (request: MidiClockSourceStartRequest) => Promise<MidiClockSourceStartResponse>;
+  stopMidiClockSource: (request: MidiClockSourceStopRequest) => Promise<MidiClockSourceStopResponse>;
   clearSession: () => Promise<RuntimeSessionResponse>;
 }
 
@@ -257,6 +272,34 @@ export function createRuntimeClient(options: RuntimeClientOptions = {}): Runtime
         { method: "GET" },
         isRuntimeTelemetrySnapshot
       ),
+    listClockSources: () =>
+      requestJson<ClockSourceListResponse>(
+        fetchImpl,
+        baseUrl,
+        "/v0/clock/sources",
+        { method: "GET" },
+        isClockSourceListResponse
+      ),
+    getClockSource: (sourceId) =>
+      requestJson<ClockSourceSnapshotResponse>(
+        fetchImpl,
+        baseUrl,
+        `/v0/clock/sources/${encodeURIComponent(sourceId)}`,
+        { method: "GET" },
+        isClockSourceSnapshotResponse
+      ),
+    listMidiInputs: () =>
+      requestJson<MidiInputListResponse>(
+        fetchImpl,
+        baseUrl,
+        "/v0/clock/midi/inputs",
+        { method: "GET" },
+        isMidiInputListResponse
+      ),
+    startMidiClockSource: (request) =>
+      postMidiClockSourceStartResponse(fetchImpl, baseUrl, "/v0/clock/midi/start", request),
+    stopMidiClockSource: (request) =>
+      postMidiClockSourceStopResponse(fetchImpl, baseUrl, "/v0/clock/midi/stop", request),
     clearSession: () =>
       requestJson<RuntimeSessionResponse>(fetchImpl, baseUrl, "/v0/session", { method: "DELETE" }, isRuntimeSessionResponse)
   };
@@ -373,6 +416,48 @@ async function postRuntimeControlEventResponse(
       method: "POST"
     },
     isRuntimeControlEventResponse
+  );
+}
+
+async function postMidiClockSourceStartResponse(
+  fetchImpl: FetchLike,
+  baseUrl: string,
+  path: string,
+  body: MidiClockSourceStartRequest
+): Promise<MidiClockSourceStartResponse> {
+  return requestJson<MidiClockSourceStartResponse>(
+    fetchImpl,
+    baseUrl,
+    path,
+    {
+      body: JSON.stringify(body),
+      headers: {
+        "content-type": "application/json"
+      },
+      method: "POST"
+    },
+    isMidiClockSourceStartResponse
+  );
+}
+
+async function postMidiClockSourceStopResponse(
+  fetchImpl: FetchLike,
+  baseUrl: string,
+  path: string,
+  body: MidiClockSourceStopRequest
+): Promise<MidiClockSourceStopResponse> {
+  return requestJson<MidiClockSourceStopResponse>(
+    fetchImpl,
+    baseUrl,
+    path,
+    {
+      body: JSON.stringify(body),
+      headers: {
+        "content-type": "application/json"
+      },
+      method: "POST"
+    },
+    isMidiClockSourceStopResponse
   );
 }
 
@@ -662,6 +747,166 @@ function isRuntimeAssetGetResponse(value: unknown): value is RuntimeAssetGetResp
     Array.isArray(value.diagnostics) &&
     value.diagnostics.every(isRuntimeDiagnostic)
   );
+}
+
+function isClockSourceListResponse(value: unknown): value is ClockSourceListResponse {
+  return (
+    isRecord(value) &&
+    typeof value.ok === "boolean" &&
+    Array.isArray(value.sources) &&
+    value.sources.every(isClockSourceSnapshot) &&
+    isRuntimeClockDiagnostics(value.diagnostics)
+  );
+}
+
+function isClockSourceSnapshotResponse(value: unknown): value is ClockSourceSnapshotResponse {
+  return (
+    isRecord(value) &&
+    typeof value.ok === "boolean" &&
+    (value.source === null || isClockSourceSnapshot(value.source)) &&
+    isRuntimeClockDiagnostics(value.diagnostics)
+  );
+}
+
+function isMidiInputListResponse(value: unknown): value is MidiInputListResponse {
+  return (
+    isRecord(value) &&
+    typeof value.ok === "boolean" &&
+    Array.isArray(value.inputs) &&
+    value.inputs.every(isMidiInputDescriptor) &&
+    isRuntimeClockDiagnostics(value.diagnostics)
+  );
+}
+
+function isMidiClockSourceStartResponse(value: unknown): value is MidiClockSourceStartResponse {
+  return (
+    isRecord(value) &&
+    typeof value.ok === "boolean" &&
+    (value.source === null || isClockSourceSnapshot(value.source)) &&
+    isRuntimeClockDiagnostics(value.diagnostics)
+  );
+}
+
+function isMidiClockSourceStopResponse(value: unknown): value is MidiClockSourceStopResponse {
+  return (
+    isRecord(value) &&
+    typeof value.ok === "boolean" &&
+    (value.source === null || isClockSourceSnapshot(value.source)) &&
+    isRuntimeClockDiagnostics(value.diagnostics)
+  );
+}
+
+function isClockSourceSnapshot(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.sourceId === "string" &&
+    typeof value.sourceKind === "string" &&
+    isRuntimeClockSourceStatus(value.status) &&
+    (value.latestSnapshot === null || isClockState(value.latestSnapshot)) &&
+    isRuntimeClockDiagnostics(value.diagnostics)
+  );
+}
+
+function isClockState(value: unknown): value is ClockStateV01 {
+  return (
+    isRecord(value) &&
+    typeof value.sourceId === "string" &&
+    typeof value.sourceKind === "string" &&
+    Array.isArray(value.capabilities) &&
+    value.capabilities.every((capability) => typeof capability === "string") &&
+    isOptionalClockField(value.running, isBooleanValue) &&
+    isOptionalClockField(value.tempoBpm, isFiniteNumberValue) &&
+    isOptionalClockField(value.phase01, isFiniteNumberValue) &&
+    isOptionalClockField(value.tickIndex, isFiniteNumberValue) &&
+    isOptionalClockField(value.ppqPosition, isFiniteNumberValue) &&
+    isOptionalClockField(value.songPositionSixteenth, isFiniteNumberValue) &&
+    isOptionalClockField(value.bar, isFiniteNumberValue) &&
+    isOptionalClockField(value.beat, isFiniteNumberValue) &&
+    isOptionalClockField(value.division, isFiniteNumberValue) &&
+    isOptionalClockField(value.tickInDivision, isFiniteNumberValue) &&
+    isOptionalClockField(value.timeSignature, isClockTimeSignature) &&
+    isOptionalClockField(value.timeSeconds, isFiniteNumberValue) &&
+    isOptionalClockField(value.timecode, isStringValue) &&
+    isOptionalClockField(value.sampleRate, isFiniteNumberValue) &&
+    isOptionalClockField(value.sampleFrame, isFiniteNumberValue) &&
+    isOptionalClockField(value.latencySeconds, isFiniteNumberValue) &&
+    (typeof value.lastUpdateHostTimeNs === "number" || value.lastUpdateHostTimeNs === undefined)
+  );
+}
+
+function isOptionalClockField<T>(
+  value: unknown,
+  valueGuard: (fieldValue: unknown) => fieldValue is T
+): value is ClockFieldV01<T> | undefined {
+  return value === undefined || isClockField(value, valueGuard);
+}
+
+function isClockField<T>(
+  value: unknown,
+  valueGuard: (fieldValue: unknown) => fieldValue is T
+): value is ClockFieldV01<T> {
+  return (
+    isRecord(value) &&
+    (value.value === null || valueGuard(value.value)) &&
+    isClockAuthority(value.authority) &&
+    typeof value.source === "string" &&
+    (typeof value.confidence === "number" || value.confidence === undefined)
+  );
+}
+
+function isClockTimeSignature(value: unknown): value is ClockTimeSignatureV01 {
+  return (
+    isRecord(value) &&
+    typeof value.numerator === "number" &&
+    Number.isInteger(value.numerator) &&
+    typeof value.denominator === "number" &&
+    Number.isInteger(value.denominator)
+  );
+}
+
+function isMidiInputDescriptor(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.index === "number" &&
+    Number.isInteger(value.index) &&
+    typeof value.name === "string" &&
+    value.backend === "midir" &&
+    (typeof value.id === "string" || value.id === null) &&
+    value.stable === false
+  );
+}
+
+function isRuntimeClockDiagnostics(value: unknown): boolean {
+  return Array.isArray(value) && value.every(isRuntimeClockDiagnostic);
+}
+
+function isRuntimeClockDiagnostic(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (value.severity === "error" || value.severity === "warning") &&
+    typeof value.code === "string" &&
+    typeof value.message === "string"
+  );
+}
+
+function isRuntimeClockSourceStatus(value: unknown): boolean {
+  return value === "running" || value === "stopped" || value === "error";
+}
+
+function isClockAuthority(value: unknown): boolean {
+  return value === "authoritative" || value === "derived" || value === "estimated" || value === "unavailable";
+}
+
+function isBooleanValue(value: unknown): value is boolean {
+  return typeof value === "boolean";
+}
+
+function isFiniteNumberValue(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isStringValue(value: unknown): value is string {
+  return typeof value === "string";
 }
 
 function isRuntimeTelemetrySnapshot(value: unknown): value is RuntimeTelemetrySnapshot {

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
+  ClockSourceListResponse,
+  ClockSourceSnapshot,
+  ClockSourceSnapshotResponse,
+  ClockStateV01,
   GraphPatchEventV01,
   GraphPatchHistoryV01,
   GraphPatchV01
@@ -10,6 +14,9 @@ import type {
   RuntimeAssetGetResponse,
   RuntimeAssetImportResponse,
   RuntimeAssetListResponse,
+  MidiClockSourceStartResponse,
+  MidiClockSourceStopResponse,
+  MidiInputListResponse,
   RuntimeControlEventResponse,
   RuntimeControlReadResponse,
   RuntimeControlStateResponse,
@@ -339,6 +346,87 @@ describe("runtime client", () => {
     await client.getTelemetry();
 
     expect(fetchMock).toHaveBeenCalledWith("http://runtime.local/v0/session/telemetry", { method: "GET" });
+  });
+
+  it("calls runtime clock source endpoints", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
+      String(_input).endsWith("/v0/clock/sources")
+        ? jsonResponse(clockSourceListResponse())
+        : String(_input).endsWith("/v0/clock/midi/inputs")
+        ? jsonResponse(midiInputListResponse())
+        : String(_input).endsWith("/v0/clock/midi/start")
+        ? jsonResponse(midiClockSourceStartResponse())
+        : String(_input).endsWith("/v0/clock/midi/stop")
+        ? jsonResponse(midiClockSourceStopResponse())
+        : jsonResponse(clockSourceSnapshotResponse())
+    );
+    const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
+
+    await client.listClockSources();
+    await client.getClockSource("midi/clock main");
+    await client.listMidiInputs();
+    await client.startMidiClockSource({
+      inputPortIndex: 2,
+      sourceId: "midi-clock-main",
+      timeSignature: { numerator: 4, denominator: 4 }
+    });
+    await client.stopMidiClockSource({ sourceId: "midi-clock-main" });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(calls[0]).toEqual(["http://runtime.local/v0/clock/sources", { method: "GET" }]);
+    expect(calls[1]).toEqual(["http://runtime.local/v0/clock/sources/midi%2Fclock%20main", { method: "GET" }]);
+    expect(calls[2]).toEqual(["http://runtime.local/v0/clock/midi/inputs", { method: "GET" }]);
+    expect(calls[3][0]).toBe("http://runtime.local/v0/clock/midi/start");
+    expect(JSON.parse(String(calls[3][1].body))).toEqual({
+      inputPortIndex: 2,
+      sourceId: "midi-clock-main",
+      timeSignature: { numerator: 4, denominator: 4 }
+    });
+    expect(calls[4][0]).toBe("http://runtime.local/v0/clock/midi/stop");
+    expect(JSON.parse(String(calls[4][1].body))).toEqual({ sourceId: "midi-clock-main" });
+  });
+
+  it("accepts runtime clock source responses with authority metadata", async () => {
+    const client = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async (_input: RequestInfo | URL) =>
+        String(_input).endsWith("/v0/clock/midi/inputs")
+          ? jsonResponse(midiInputListResponse({ inputs: [] }))
+          : String(_input).endsWith("/v0/clock/midi/start")
+          ? jsonResponse(midiClockSourceStartResponse({ diagnostics: [{ severity: "warning", code: "clock-source-already-running", message: "source is already running" }] }))
+          : jsonResponse(
+              clockSourceListResponse({
+                sources: [
+                  clockSourceSnapshot({
+                    latestSnapshot: clockState({
+                      lastUpdateHostTimeNs: undefined,
+                      timecode: { authority: "estimated", source: "midi-clock-main", value: "00:00:00:00" }
+                    })
+                  })
+                ]
+              })
+            )
+      ) as typeof fetch
+    });
+
+    await expect(client.listClockSources()).resolves.toMatchObject({
+      sources: [
+        {
+          latestSnapshot: {
+            songPositionSixteenth: { authority: "authoritative" },
+            tempoBpm: { authority: "unavailable" }
+          }
+        }
+      ]
+    });
+    await expect(client.listMidiInputs()).resolves.toMatchObject({
+      ok: true,
+      inputs: []
+    });
+    await expect(client.startMidiClockSource({ inputPortIndex: 0, sourceId: "midi-clock-main" })).resolves.toMatchObject({
+      diagnostics: [{ code: "clock-source-already-running" }]
+    });
   });
 
   it("accepts runtime preview status responses", async () => {
@@ -1026,6 +1114,94 @@ describe("runtime client", () => {
     await expect(invalidGetClient.getAsset("asset_1")).rejects.toThrow("unsupported response shape");
   });
 
+  it("rejects unsupported runtime clock source response shapes", async () => {
+    const invalidListShapes: unknown[] = [
+      null,
+      { ok: true, diagnostics: [] },
+      { ok: true, sources: "none", diagnostics: [] },
+      clockSourceListResponse({
+        sources: [{ ...clockSourceSnapshot(), status: "paused" as ClockSourceSnapshot["status"] }]
+      }),
+      clockSourceListResponse({
+        sources: [
+          {
+            ...clockSourceSnapshot(),
+            latestSnapshot: 1 as unknown as ClockStateV01
+          }
+        ]
+      }),
+      clockSourceListResponse({
+        sources: [
+          {
+            ...clockSourceSnapshot(),
+            latestSnapshot: {
+              ...clockState(),
+              capabilities: [1]
+            } as unknown as ClockStateV01
+          }
+        ]
+      }),
+      clockSourceListResponse({
+        sources: [
+          clockSourceSnapshot({
+            latestSnapshot: clockState({
+              timecode: { authority: "estimated", source: "midi-clock-main", value: 12 } as unknown as ClockStateV01["timecode"]
+            })
+          })
+        ]
+      }),
+      clockSourceListResponse({
+        diagnostics: [{ severity: "info", code: "hidden", message: "wrong severity" }] as unknown as ClockSourceListResponse["diagnostics"]
+      })
+    ];
+
+    for (const shape of invalidListShapes) {
+      const client = createRuntimeClient({
+        baseUrl: "http://runtime.local",
+        fetchImpl: vi.fn(async () => jsonResponse(shape)) as typeof fetch
+      });
+      await expect(client.listClockSources()).rejects.toThrow("unsupported response shape");
+    }
+
+    const invalidSourceClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(clockSourceSnapshotResponse({ source: { ...clockSourceSnapshot(), sourceKind: 42 } as unknown as ClockSourceSnapshot }))
+      ) as typeof fetch
+    });
+    await expect(invalidSourceClient.getClockSource("midi-clock-main")).rejects.toThrow("unsupported response shape");
+
+    const invalidInputClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          midiInputListResponse({
+            inputs: [{ backend: "midir", id: "device-1", index: 0, name: "USB MIDI", stable: true } as unknown as MidiInputListResponse["inputs"][number]]
+          })
+        )
+      ) as typeof fetch
+    });
+    await expect(invalidInputClient.listMidiInputs()).rejects.toThrow("unsupported response shape");
+
+    const invalidStartClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(midiClockSourceStartResponse({ source: { ...clockSourceSnapshot(), diagnostics: [{ severity: "debug", code: "x", message: "bad" }] } as unknown as ClockSourceSnapshot }))
+      ) as typeof fetch
+    });
+    await expect(invalidStartClient.startMidiClockSource({ inputPortIndex: 0, sourceId: "midi-clock-main" })).rejects.toThrow(
+      "unsupported response shape"
+    );
+
+    const invalidStopClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () => jsonResponse({ ok: true, source: null, diagnostics: "none" })) as typeof fetch
+    });
+    await expect(invalidStopClient.stopMidiClockSource({ sourceId: "midi-clock-main" })).rejects.toThrow(
+      "unsupported response shape"
+    );
+  });
+
   it("rejects unsupported runtime telemetry shapes", async () => {
     const invalidSchemaClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
@@ -1389,6 +1565,102 @@ function generatedShaderResponse(
       generatedLineOffset: 31
     },
     diagnostics: [],
+    ...overrides
+  };
+}
+
+function clockState(overrides: Partial<ClockStateV01> = {}): ClockStateV01 {
+  return {
+    bar: { authority: "derived", source: "midi-clock-main", value: 2 },
+    beat: { authority: "derived", source: "midi-clock-main", value: 1 },
+    capabilities: ["running", "tick", "ppq-position", "song-position", "bar-beat", "time-signature"],
+    division: { authority: "derived", source: "midi-clock-main", value: 1 },
+    lastUpdateHostTimeNs: 1234,
+    latencySeconds: { authority: "unavailable", source: "midi-clock-main", value: null },
+    phase01: { authority: "derived", source: "midi-clock-main", value: 0.25 },
+    ppqPosition: { authority: "derived", source: "midi-clock-main", value: 4.5 },
+    running: { authority: "authoritative", source: "midi-clock-main", value: true },
+    sampleFrame: { authority: "unavailable", source: "midi-clock-main", value: null },
+    sampleRate: { authority: "unavailable", source: "midi-clock-main", value: null },
+    songPositionSixteenth: { authority: "authoritative", source: "midi-clock-main", value: 18 },
+    sourceId: "midi-clock-main",
+    sourceKind: "midi-clock",
+    tempoBpm: { authority: "unavailable", source: "midi-clock-main", value: null },
+    tickInDivision: { authority: "derived", source: "midi-clock-main", value: 0 },
+    tickIndex: { authority: "authoritative", source: "midi-clock-main", value: 108 },
+    timeSeconds: { authority: "unavailable", source: "midi-clock-main", value: null },
+    timeSignature: { authority: "authoritative", source: "midi-clock-main", value: { numerator: 4, denominator: 4 } },
+    timecode: { authority: "unavailable", source: "midi-clock-main", value: null },
+    ...overrides
+  };
+}
+
+function clockSourceSnapshot(overrides: Partial<ClockSourceSnapshot> = {}): ClockSourceSnapshot {
+  return {
+    diagnostics: [],
+    latestSnapshot: clockState(),
+    sourceId: "midi-clock-main",
+    sourceKind: "midi-clock",
+    status: "running",
+    ...overrides
+  };
+}
+
+function clockSourceListResponse(overrides: Partial<ClockSourceListResponse> = {}): ClockSourceListResponse {
+  return {
+    diagnostics: [],
+    ok: true,
+    sources: [clockSourceSnapshot()],
+    ...overrides
+  };
+}
+
+function clockSourceSnapshotResponse(
+  overrides: Partial<ClockSourceSnapshotResponse> = {}
+): ClockSourceSnapshotResponse {
+  return {
+    diagnostics: [],
+    ok: true,
+    source: clockSourceSnapshot(),
+    ...overrides
+  };
+}
+
+function midiInputListResponse(overrides: Partial<MidiInputListResponse> = {}): MidiInputListResponse {
+  return {
+    diagnostics: [],
+    inputs: [
+      {
+        backend: "midir",
+        id: null,
+        index: 0,
+        name: "USB MIDI",
+        stable: false
+      }
+    ],
+    ok: true,
+    ...overrides
+  };
+}
+
+function midiClockSourceStartResponse(
+  overrides: Partial<MidiClockSourceStartResponse> = {}
+): MidiClockSourceStartResponse {
+  return {
+    diagnostics: [],
+    ok: true,
+    source: clockSourceSnapshot(),
+    ...overrides
+  };
+}
+
+function midiClockSourceStopResponse(
+  overrides: Partial<MidiClockSourceStopResponse> = {}
+): MidiClockSourceStopResponse {
+  return {
+    diagnostics: [],
+    ok: true,
+    source: clockSourceSnapshot({ status: "stopped" }),
     ...overrides
   };
 }
