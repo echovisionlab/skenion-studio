@@ -1,7 +1,8 @@
-import { Alert, Badge, Button, Code, Group, Stack, Table, Text } from "@mantine/core";
+import { Alert, Badge, Code, Group, Stack, Table, Text } from "@mantine/core";
 import { GitBranch } from "lucide-react";
 import type { ReactNode } from "react";
 import type { EdgeInspectorModel, GraphSemanticDiagnostic } from "../../graph/portSemantics";
+import { Button } from "../core/Button/Button";
 
 export function EdgeInspector({
   diagnostics,

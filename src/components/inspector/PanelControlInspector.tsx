@@ -1,4 +1,4 @@
-import { Button, Divider, Group, NumberInput, Slider, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Divider, Group, NumberInput, Slider, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { MousePointerClick, Send } from "lucide-react";
 import { useState } from "react";
 import type { GraphNodeV01 } from "@skenion/contracts";
@@ -12,6 +12,7 @@ import {
   readSliderFloatParams,
   readToggleControlValue
 } from "../../graph/panelControls";
+import { Button } from "../core/Button/Button";
 
 export interface PanelControlInspectorProps {
   busy: boolean;
@@ -19,6 +20,7 @@ export interface PanelControlInspectorProps {
   node: GraphNodeV01;
   onSend: (request: RuntimeControlEventRequest) => void;
   onSetNodeParam: (nodeId: string, key: string, value: unknown) => void;
+  section?: "all" | "graph-params" | "runtime-control";
 }
 
 export function PanelControlInspector({
@@ -26,36 +28,42 @@ export function PanelControlInspector({
   enabled,
   node,
   onSend,
-  onSetNodeParam
+  onSetNodeParam,
+  section = "all"
 }: PanelControlInspectorProps) {
   if (!isBangControlNode(node) && !isSliderFloatNode(node) && !isToggleControlNode(node)) {
     return null;
   }
 
+  const showGraphParams = section === "all" || section === "graph-params";
+  const showRuntimeControl = section === "all" || section === "runtime-control";
+
   return (
     <Stack gap="sm">
-      <Stack gap="xs">
-        <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-          Panel Graph Params
-        </Text>
-        <TextInput
-          label="Label"
-          onChange={(event) => onSetNodeParam(node.id, "label", event.currentTarget.value)}
-          size="xs"
-          value={readPanelLabelParam(node)}
-        />
-        {isSliderFloatNode(node) ? <SliderGraphParams node={node} onSetNodeParam={onSetNodeParam} /> : null}
-        {isToggleControlNode(node) ? (
-          <Switch
-            checked={readToggleControlValue(node)}
-            label="Initial value"
-            onChange={(event) => onSetNodeParam(node.id, "value", event.currentTarget.checked)}
-            size="sm"
+      {showGraphParams ? (
+        <Stack gap="xs">
+          <Text c="dimmed" fw={700} size="xs" tt="uppercase">
+            Panel Graph Params
+          </Text>
+          <TextInput
+            label="Label"
+            onChange={(event) => onSetNodeParam(node.id, "label", event.currentTarget.value)}
+            size="xs"
+            value={readPanelLabelParam(node)}
           />
-        ) : null}
-      </Stack>
-      <Divider />
-      {isBangControlNode(node) ? (
+          {isSliderFloatNode(node) ? <SliderGraphParams node={node} onSetNodeParam={onSetNodeParam} /> : null}
+          {isToggleControlNode(node) ? (
+            <Switch
+              checked={readToggleControlValue(node)}
+              label="Initial value"
+              onChange={(event) => onSetNodeParam(node.id, "value", event.currentTarget.checked)}
+              size="sm"
+            />
+          ) : null}
+        </Stack>
+      ) : null}
+      {showGraphParams && showRuntimeControl ? <Divider /> : null}
+      {showRuntimeControl && isBangControlNode(node) ? (
         <Button
           disabled={!enabled}
           leftSection={<MousePointerClick size={14} />}
@@ -68,10 +76,10 @@ export function PanelControlInspector({
           Bang
         </Button>
       ) : null}
-      {isSliderFloatNode(node) ? (
+      {showRuntimeControl && isSliderFloatNode(node) ? (
         <RuntimeSlider node={node} busy={busy} enabled={enabled} onSend={onSend} />
       ) : null}
-      {isToggleControlNode(node) ? (
+      {showRuntimeControl && isToggleControlNode(node) ? (
         <RuntimeToggle node={node} busy={busy} enabled={enabled} onSend={onSend} />
       ) : null}
     </Stack>

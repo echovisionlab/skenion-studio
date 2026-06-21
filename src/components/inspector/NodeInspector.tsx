@@ -1,6 +1,6 @@
-import { Button, Divider, Group, Stack, Text } from "@mantine/core";
-import { BookOpen, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Divider, Group, Modal, Stack, Text, Tooltip } from "@mantine/core";
+import { BookOpen, Settings, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { getBuiltinNodeHelp, getBuiltinNodeHelpGraph } from "@skenion/contracts";
 import type { GraphNodeV01, ShaderDiagnosticV01 } from "@skenion/contracts";
 import type { RuntimeControlEventRequest, RuntimeGeneratedShaderResponse } from "../../runtime/types";
@@ -79,6 +79,9 @@ import {
   isToggleControlNode
 } from "../../graph/panelControls";
 import { isVideoAssetNode } from "../../graph/videoAsset";
+import { isRoutingCapableObjectNode } from "../../graph/controlRouting";
+import { Button } from "../core/Button/Button";
+import { IconButton } from "../core/IconButton/IconButton";
 
 export function NodeInspector({
   graphLocked = false,
@@ -116,6 +119,7 @@ export function NodeInspector({
   runtimeControlEnabled: boolean;
 }) {
   const [helpOpen, setHelpOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const clearColor = isClearColorNode(node) ? readClearColorParam(node) : null;
   const commentText = isCommentNode(node) ? readCommentTextParam(node) : null;
   const isPanelControl = isBangControlNode(node) || isSliderFloatNode(node) || isToggleControlNode(node);
@@ -145,9 +149,201 @@ export function NodeInspector({
     : false;
   const help = getBuiltinNodeHelp(node.kind);
   const helpGraph = getBuiltinNodeHelpGraph(node.kind);
+  const hasRoutingSettings = isRoutingCapableObjectNode(node);
+  const hasObjectSettings =
+    hasRoutingSettings ||
+    isPanelControl ||
+    isAssetNode ||
+    clearColor !== null ||
+    floatValue !== null ||
+    intValue !== null ||
+    uintValue !== null ||
+    boolValue !== null ||
+    toggleValue !== null ||
+    stringValue !== null ||
+    messageValue !== null ||
+    commentText !== null ||
+    colorRgba !== null ||
+    shaderSource !== null;
+
+  useEffect(() => {
+    setSettingsOpen(false);
+  }, [node.id]);
 
   return (
-    <Stack gap="sm">
+    <>
+      <Modal
+        centered
+        onClose={() => setSettingsOpen(false)}
+        opened={settingsOpen && hasObjectSettings}
+        size="lg"
+        title="Object Settings"
+      >
+        <Stack gap="md">
+          {hasRoutingSettings ? <RoutingNodeControls node={node} onSetNodeParam={onSetNodeParam} /> : null}
+
+          {isPanelControl ? (
+            <>
+              {hasRoutingSettings ? <Divider /> : null}
+              <PanelControlInspector
+                busy={runtimeControlBusy}
+                enabled={runtimeControlEnabled}
+                node={node}
+                onSend={onSendRuntimeControl}
+                onSetNodeParam={onSetNodeParam}
+                section="graph-params"
+              />
+            </>
+          ) : null}
+
+          {isAssetNode ? (
+            <>
+              {(hasRoutingSettings || isPanelControl) ? <Divider /> : null}
+              <AssetControls
+                busy={runtimeAssetImportBusy}
+                enabled={runtimeAssetImportEnabled}
+                node={node}
+                onImportAsset={onImportAsset}
+              />
+            </>
+          ) : null}
+
+          {clearColor ? (
+            <>
+              <Divider />
+              <ClearColorControls
+                color={clearColor}
+                onChange={(color) => onSetNodeParam(node.id, "color", color)}
+              />
+            </>
+          ) : null}
+
+          {floatValue !== null ? (
+            <>
+              <Divider />
+              <FloatValueControls
+                onChange={(value) => onSetNodeParam(node.id, "value", value)}
+                onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
+                representation={floatRepresentation!}
+                value={floatValue}
+              />
+            </>
+          ) : null}
+
+          {intValue !== null ? (
+            <>
+              <Divider />
+              <IntegerValueControls
+                onChange={(value) => onSetNodeParam(node.id, "value", value)}
+                onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
+                representation={intRepresentation!}
+                value={intValue}
+              />
+            </>
+          ) : null}
+
+          {uintValue !== null ? (
+            <>
+              <Divider />
+              <UnsignedIntegerValueControls
+                onChange={(value) => onSetNodeParam(node.id, "value", value)}
+                onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
+                representation={uintRepresentation!}
+                value={uintValue}
+              />
+            </>
+          ) : null}
+
+          {boolValue !== null ? (
+            <>
+              <Divider />
+              <BooleanValueControls
+                onChange={(value) => onSetNodeParam(node.id, "value", value)}
+                value={boolValue}
+              />
+            </>
+          ) : null}
+
+          {toggleValue !== null ? (
+            <>
+              <Divider />
+              <BooleanValueControls
+                onChange={(value) => onSetNodeParam(node.id, "value", value)}
+                title="Toggle Graph Param"
+                value={toggleValue}
+              />
+            </>
+          ) : null}
+
+          {stringValue !== null ? (
+            <>
+              <Divider />
+              <StringValueControls
+                onChange={(value) => onSetNodeParam(node.id, "value", value)}
+                value={stringValue}
+              />
+            </>
+          ) : null}
+
+          {messageValue !== null ? (
+            <>
+              <Divider />
+              <StringValueControls
+                label="Message"
+                onChange={(value) => onSetNodeParam(node.id, "value", value)}
+                title="Message Graph Param"
+                value={messageValue}
+              />
+            </>
+          ) : null}
+
+          {commentText !== null ? (
+            <>
+              <Divider />
+              <CommentControls
+                onChange={(text) => onSetNodeParam(node.id, "text", text)}
+                text={commentText}
+              />
+            </>
+          ) : null}
+
+          {colorRgba ? (
+            <>
+              <Divider />
+              <ColorRgbaControls
+                color={colorRgba}
+                colorSpace={colorSpace!}
+                onChange={(color) => onSetNodeParam(node.id, "value", color)}
+                onColorSpaceChange={(nextColorSpace) => onSetNodeParam(node.id, "colorSpace", nextColorSpace)}
+                onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
+                representation={colorRepresentation!}
+              />
+            </>
+          ) : null}
+
+          {shaderSource !== null ? (
+            <>
+              <Divider />
+              <FullscreenShaderControls
+                analysis={shaderAnalysis!}
+                generatedShader={generatedShader}
+                generatedShaderBusy={generatedShaderBusy}
+                interfaceSynced={shaderInterfaceSynced}
+                language={shaderLanguage ?? "unsupported"}
+                onAnalyze={() => undefined}
+                onLoadGeneratedShader={onLoadGeneratedShader}
+                onResetSource={() => onSetNodeParam(node.id, "source", DEFAULT_FULLSCREEN_SHADER_SOURCE)}
+                onSourceChange={(source) => onSetNodeParam(node.id, "source", source)}
+                onSyncInputs={() => onSyncShaderInputs(node.id, shaderSource)}
+                runtimeDiagnostics={runtimeShaderDiagnostics}
+                source={shaderSource}
+              />
+            </>
+          ) : null}
+        </Stack>
+      </Modal>
+
+      <Stack gap="sm">
       <Group justify="space-between" wrap="nowrap">
         <div>
           <Text fw={800}>{String(node.params.label ?? node.id)}</Text>
@@ -167,14 +363,22 @@ export function NodeInspector({
               Help
             </Button>
           ) : null}
+          {hasObjectSettings ? (
+            <Tooltip label="Object Settings">
+              <IconButton
+                icon={<Settings size={15} />}
+                label="Object Settings"
+                onClick={() => setSettingsOpen(true)}
+                size="sm"
+              />
+            </Tooltip>
+          ) : null}
           <Button
-            color="red"
             disabled={graphLocked}
+            intent="danger"
             leftSection={<Trash2 size={15} />}
             onClick={() => onRemoveNode(node)}
-            radius="sm"
             size="compact-sm"
-            variant="light"
           >
             Delete
           </Button>
@@ -191,8 +395,6 @@ export function NodeInspector({
 
       <PortTable node={node} />
 
-      <RoutingNodeControls node={node} onSetNodeParam={onSetNodeParam} />
-
       {isPanelControl ? (
         <>
           <Divider />
@@ -202,131 +404,7 @@ export function NodeInspector({
             node={node}
             onSend={onSendRuntimeControl}
             onSetNodeParam={onSetNodeParam}
-          />
-        </>
-      ) : null}
-
-      {isAssetNode ? (
-        <>
-          <Divider />
-            <AssetControls
-            busy={runtimeAssetImportBusy}
-            enabled={runtimeAssetImportEnabled}
-            node={node}
-            onImportAsset={onImportAsset}
-          />
-        </>
-      ) : null}
-
-      {clearColor ? (
-        <>
-          <Divider />
-          <ClearColorControls
-            color={clearColor}
-            onChange={(color) => onSetNodeParam(node.id, "color", color)}
-          />
-        </>
-      ) : null}
-
-      {floatValue !== null ? (
-        <>
-          <Divider />
-          <FloatValueControls
-            onChange={(value) => onSetNodeParam(node.id, "value", value)}
-            onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
-            representation={floatRepresentation!}
-            value={floatValue}
-          />
-        </>
-      ) : null}
-
-      {intValue !== null ? (
-        <>
-          <Divider />
-          <IntegerValueControls
-            onChange={(value) => onSetNodeParam(node.id, "value", value)}
-            onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
-            representation={intRepresentation!}
-            value={intValue}
-          />
-        </>
-      ) : null}
-
-      {uintValue !== null ? (
-        <>
-          <Divider />
-          <UnsignedIntegerValueControls
-            onChange={(value) => onSetNodeParam(node.id, "value", value)}
-            onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
-            representation={uintRepresentation!}
-            value={uintValue}
-          />
-        </>
-      ) : null}
-
-      {boolValue !== null ? (
-        <>
-          <Divider />
-          <BooleanValueControls
-            onChange={(value) => onSetNodeParam(node.id, "value", value)}
-            value={boolValue}
-          />
-        </>
-      ) : null}
-
-      {toggleValue !== null ? (
-        <>
-          <Divider />
-          <BooleanValueControls
-            onChange={(value) => onSetNodeParam(node.id, "value", value)}
-            title="Toggle Graph Param"
-            value={toggleValue}
-          />
-        </>
-      ) : null}
-
-      {stringValue !== null ? (
-        <>
-          <Divider />
-          <StringValueControls
-            onChange={(value) => onSetNodeParam(node.id, "value", value)}
-            value={stringValue}
-          />
-        </>
-      ) : null}
-
-      {messageValue !== null ? (
-        <>
-          <Divider />
-          <StringValueControls
-            label="Message"
-            onChange={(value) => onSetNodeParam(node.id, "value", value)}
-            title="Message Graph Param"
-            value={messageValue}
-          />
-        </>
-      ) : null}
-
-      {commentText !== null ? (
-        <>
-          <Divider />
-          <CommentControls
-            onChange={(text) => onSetNodeParam(node.id, "text", text)}
-            text={commentText}
-          />
-        </>
-      ) : null}
-
-      {colorRgba ? (
-        <>
-          <Divider />
-          <ColorRgbaControls
-            color={colorRgba}
-            colorSpace={colorSpace!}
-            onChange={(color) => onSetNodeParam(node.id, "value", color)}
-            onColorSpaceChange={(nextColorSpace) => onSetNodeParam(node.id, "colorSpace", nextColorSpace)}
-            onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
-            representation={colorRepresentation!}
+            section="runtime-control"
           />
         </>
       ) : null}
@@ -344,27 +422,8 @@ export function NodeInspector({
           />
         </>
       ) : null}
-
-      {shaderSource !== null ? (
-        <>
-          <Divider />
-          <FullscreenShaderControls
-            analysis={shaderAnalysis!}
-            generatedShader={generatedShader}
-            generatedShaderBusy={generatedShaderBusy}
-            interfaceSynced={shaderInterfaceSynced}
-            language={shaderLanguage ?? "unsupported"}
-            onAnalyze={() => undefined}
-            onLoadGeneratedShader={onLoadGeneratedShader}
-            onResetSource={() => onSetNodeParam(node.id, "source", DEFAULT_FULLSCREEN_SHADER_SOURCE)}
-            onSourceChange={(source) => onSetNodeParam(node.id, "source", source)}
-            onSyncInputs={() => onSyncShaderInputs(node.id, shaderSource)}
-            runtimeDiagnostics={runtimeShaderDiagnostics}
-            source={shaderSource}
-          />
-        </>
-      ) : null}
-    </Stack>
+      </Stack>
+    </>
   );
 }
 

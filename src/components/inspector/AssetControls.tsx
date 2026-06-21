@@ -1,7 +1,8 @@
-import { Alert, Button, FileButton, Stack, Text, TextInput } from "@mantine/core";
+import { Alert, FileButton, Stack, Text, TextInput } from "@mantine/core";
 import { Upload } from "lucide-react";
 import type { GraphNodeV01 } from "@skenion/contracts";
 import { readVideoAssetParams } from "../../graph/videoAsset";
+import { Button } from "../core/Button/Button";
 
 export interface AssetControlsProps {
   busy?: boolean;

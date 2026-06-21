@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
-import { Button } from "@mantine/core";
+import { Button } from "../core/Button/Button";
 import { RuntimeControlValueControls } from "./RuntimeControlValueControls";
 
 describe("RuntimeControlValueControls", () => {

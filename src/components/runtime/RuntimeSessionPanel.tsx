@@ -1,6 +1,7 @@
-import { Badge, Button, Code, Group, Text } from "@mantine/core";
+import { Badge, Code, Group, Text } from "@mantine/core";
 import { Play, Route, ShieldCheck, Trash2 } from "lucide-react";
 import type { RuntimeSessionResponse } from "../../runtime/types";
+import { Button } from "../core/Button/Button";
 
 export function RuntimeSessionPanel({
   busyAction,

@@ -1,7 +1,8 @@
-import { Badge, Button, Group, Stack, Text } from "@mantine/core";
+import { Badge, Group, Stack, Text } from "@mantine/core";
 import { ExternalLink } from "lucide-react";
 import type { BuiltinNodeHelpV01, GraphDocumentV01 } from "@skenion/contracts";
 import { HelpGraphViewer } from "../help/HelpGraphViewer";
+import { Button } from "../core/Button/Button";
 
 export function NodeHelp({
   help,

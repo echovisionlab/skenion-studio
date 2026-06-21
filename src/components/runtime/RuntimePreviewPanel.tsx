@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Code, Group, Stack, Text } from "@mantine/core";
+import { Alert, Badge, Code, Group, Stack, Text } from "@mantine/core";
 import { MonitorPlay, RefreshCw, RotateCw, Square } from "lucide-react";
 import {
   canRestartPreview,
@@ -8,6 +8,7 @@ import {
   previewButtonVariant
 } from "../../runtime/previewSync";
 import type { RuntimePreviewStatus } from "../../runtime/types";
+import { Button } from "../core/Button/Button";
 
 export function RuntimePreviewPanel({
   busyAction,

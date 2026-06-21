@@ -1,5 +1,6 @@
-import { Button, Group, NumberInput, Text } from "@mantine/core";
+import { Group, NumberInput, Text } from "@mantine/core";
 import { Play, Route, ShieldCheck } from "lucide-react";
+import { Button } from "../core/Button/Button";
 
 interface RuntimeStatelessToolsPanelProps {
   busyAction: string | null;

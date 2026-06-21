@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Badge, Button, Checkbox, Divider, Group, NumberInput, Stack, Table, Text, TextInput } from "@mantine/core";
+import { Alert, Badge, Checkbox, Divider, Group, NumberInput, Stack, Table, Text, TextInput } from "@mantine/core";
 import { List, Play, RefreshCw, Square } from "lucide-react";
 import type {
   ClockSourceListResponse,
@@ -13,6 +13,7 @@ import type {
   MidiInputListResponse,
   RuntimeClockDiagnostic
 } from "../../runtime/types";
+import { Button } from "../core/Button/Button";
 import { ClockStateDisplay } from "./ClockStateDisplay";
 
 interface ClockSourcesPanelProps {

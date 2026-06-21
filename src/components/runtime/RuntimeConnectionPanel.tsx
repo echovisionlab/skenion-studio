@@ -1,6 +1,7 @@
-import { Badge, Button, Group, Text, TextInput } from "@mantine/core";
+import { Badge, Group, Text, TextInput } from "@mantine/core";
 import { Cable, RefreshCw } from "lucide-react";
 import type { RuntimeConnectionStatus } from "../../runtime/types";
+import { Button } from "../core/Button/Button";
 
 export function RuntimeConnectionPanel({
   busyAction,

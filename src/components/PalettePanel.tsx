@@ -1,9 +1,11 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { ActionIcon, Badge, Button, Divider, Group, ScrollArea, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { Badge, Divider, Group, ScrollArea, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import { HelpCircle, Plus } from "lucide-react";
 import { parseObjectTextV01, type NodeDefinitionManifestV01 } from "@skenion/contracts";
 import { flowColor, flowName } from "../graph/reactFlowAdapter";
 import { objectTextRegistryDiagnostic } from "../graph/objectTextNode";
+import { Button } from "./core/Button/Button";
+import { IconButton } from "./core/IconButton/IconButton";
 
 interface PalettePanelProps {
   addDisabled?: boolean;
@@ -82,7 +84,7 @@ export function PalettePanel({
               {objectTextDiagnostic.message}
             </Text>
           ) : null}
-          <Button disabled={!objectTextCanCreate} fullWidth radius="sm" size="compact-sm" type="submit" variant="light">
+          <Button disabled={!objectTextCanCreate} fullWidth size="compact-sm" type="submit">
             Create Object
           </Button>
         </Stack>
@@ -118,10 +120,8 @@ export function PalettePanel({
                         justify="space-between"
                         leftSection={<span className="flow-swatch" style={{ background: swatchColor }} />}
                         onClick={() => onAddNode(definition.id)}
-                        radius="sm"
                         rightSection={<Plus size={15} />}
                         size="compact-md"
-                        variant="subtle"
                       >
                         <span>
                           <Text component="span" fw={700} size="sm">
@@ -133,15 +133,12 @@ export function PalettePanel({
                         </span>
                       </Button>
                       <Tooltip label={`Help: ${definition.displayName}`}>
-                        <ActionIcon
-                          aria-label={`Show help for ${definition.displayName}`}
+                        <IconButton
+                          icon={<HelpCircle size={16} />}
+                          label={`Show help for ${definition.displayName}`}
                           onClick={() => onShowHelp(definition.id)}
-                          radius="sm"
                           size={34}
-                          variant="light"
-                        >
-                          <HelpCircle size={16} />
-                        </ActionIcon>
+                        />
                       </Tooltip>
                     </Group>
                   );

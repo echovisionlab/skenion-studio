@@ -1,10 +1,11 @@
-import { Button, Group, Stack, Text } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import { Send, SlidersHorizontal, Zap } from "lucide-react";
 import type {
   RuntimeControlEventRequest,
   RuntimeControlValue
 } from "../../runtime/types";
 import { bangControlMessage, controlMessageFromValue, setControlMessage } from "../../runtime/controlMessage";
+import { Button } from "../core/Button/Button";
 
 export interface RuntimeControlValueControlsProps {
   availableActions?: {

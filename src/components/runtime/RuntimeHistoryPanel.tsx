@@ -1,7 +1,8 @@
-import { Badge, Button, Code, Group, Stack, Text } from "@mantine/core";
+import { Badge, Code, Group, Stack, Text } from "@mantine/core";
 import { History, Redo2, Undo2 } from "lucide-react";
 import type { GraphPatchEventV01, GraphPatchHistoryV01 } from "@skenion/contracts";
 import type { RuntimeHistoryActionAvailability } from "../../runtime/historySync";
+import { Button } from "../core/Button/Button";
 
 interface RuntimeHistoryPanelProps {
   busyAction: string | null;

@@ -1,9 +1,10 @@
-import { Alert, Badge, Button, Code, Group, Stack, Text, Textarea } from "@mantine/core";
+import { Alert, Badge, Code, Group, Stack, Text, Textarea } from "@mantine/core";
 import { FileCode, RotateCcw, ScanSearch, Waypoints } from "lucide-react";
 import { useState } from "react";
 import type { ShaderInterfaceAnalysisV01 } from "@skenion/contracts";
 import type { RuntimeGeneratedShaderResponse } from "../../runtime/types";
 import type { ShaderDiagnosticV01 } from "@skenion/contracts";
+import { Button } from "../core/Button/Button";
 
 export interface FullscreenShaderControlsProps {
   analysis: ShaderInterfaceAnalysisV01;

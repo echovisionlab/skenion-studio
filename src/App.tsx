@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, AppShell, Badge, Group, ScrollArea, Stack, Text } from "@mantine/core";
+import { Alert, AppShell, Badge, Group, Modal, ScrollArea, Stack, Text } from "@mantine/core";
 import { CircleAlert } from "lucide-react";
 import {
   getBuiltinNodeHelpGraph,
@@ -12,11 +12,6 @@ import { GraphCanvas } from "./components/GraphCanvas";
 import { InspectorPanel } from "./components/InspectorPanel";
 import { PalettePanel } from "./components/PalettePanel";
 import { RuntimePanel } from "./components/RuntimePanel";
-import {
-  DEFAULT_STUDIO_SIDE_PANEL_TAB,
-  StudioSidePanel,
-  type StudioSidePanelTab
-} from "./components/StudioSidePanel";
 import { StudioToolbar } from "./components/StudioToolbar";
 import { nodeRegistry } from "./data/registry";
 import {
@@ -92,7 +87,7 @@ export default function App() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [activeHelpNodeId, setActiveHelpNodeId] = useState<string | null>(null);
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
-  const [sidePanelTab, setSidePanelTab] = useState<StudioSidePanelTab>(DEFAULT_STUDIO_SIDE_PANEL_TAB);
+  const [runtimeControlOpen, setRuntimeControlOpen] = useState(false);
   const [graphLocked, setGraphLocked] = useState(true);
   const [connectionCheck, setConnectionCheck] = useState<ConnectionCheck | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -173,7 +168,6 @@ export default function App() {
 
   function openInspectSidePanel() {
     setSidePanelOpen(true);
-    setSidePanelTab("inspect");
   }
 
   function addNode(definitionId: string, paramsOverride: Record<string, unknown> = {}) {
@@ -1320,6 +1314,100 @@ export default function App() {
     };
   }, [runtimeInfo, runtimeStatus, runtimeUrl]);
 
+  const runtimeControlPanel = (
+    <RuntimePanel
+      busyAction={runtimeBusyAction}
+      error={runtimeError}
+      info={runtimeInfo}
+      result={runtimeResult}
+      history={runtimeHistory}
+      previewStatus={runtimePreviewStatus}
+      session={runtimeSession}
+      sessionSynced={runtimeSessionSynced}
+      telemetry={runtimeTelemetry}
+      status={runtimeStatus}
+      url={runtimeUrl}
+      onClearSession={() =>
+        runRuntimeSessionAction("clearSession", () =>
+          createRuntimeClient({ baseUrl: runtimeUrl }).clearSession()
+        )
+      }
+      onConnect={connectRuntime}
+      onGetClockSource={(sourceId) =>
+        createRuntimeClient({ baseUrl: runtimeUrl }).getClockSource(sourceId)
+      }
+      onListClockSources={() =>
+        createRuntimeClient({ baseUrl: runtimeUrl }).listClockSources()
+      }
+      onListMidiInputs={() =>
+        createRuntimeClient({ baseUrl: runtimeUrl }).listMidiInputs()
+      }
+      onPlanSession={() =>
+        runRuntimeSessionAction("planSession", () =>
+          createRuntimeClient({ baseUrl: runtimeUrl }).planSession()
+        )
+      }
+      onRefreshSession={refreshRuntimeSessionFromPanel}
+      onRunSession={() =>
+        runRuntimeSessionAction("runSession", () =>
+          createRuntimeClient({ baseUrl: runtimeUrl }).runSession(runtimeFrames)
+        )
+      }
+      onStartMidiClockSource={(request) =>
+        createRuntimeClient({ baseUrl: runtimeUrl }).startMidiClockSource(request)
+      }
+      onUrlChange={(nextUrl) => {
+        setRuntimeUrl(nextUrl);
+        setRuntimeStatus("disconnected");
+        setRuntimeInfo(null);
+        setRuntimeResult(null);
+        setRuntimeSession(null);
+        setRuntimeHistory(null);
+        setRuntimePreviewStatus(null);
+        setRuntimeTelemetry(null);
+        setGeneratedShader(null);
+        setLastLoadedGraphFingerprint(null);
+        clearPendingPatch();
+        setRuntimeError(null);
+      }}
+      onStopMidiClockSource={(request) =>
+        createRuntimeClient({ baseUrl: runtimeUrl }).stopMidiClockSource(request)
+      }
+      onRedoPatch={() =>
+        runRuntimePatchHistoryAction("redoPatch", () =>
+          createRuntimeClient({ baseUrl: runtimeUrl }).redoSessionPatch()
+        )
+      }
+      onRefreshHistory={refreshRuntimeHistoryFromPanel}
+      onRefreshPreview={refreshRuntimePreviewFromPanel}
+      onRestartPreview={() =>
+        runRuntimePreviewAction("restartPreview", () =>
+          createRuntimeClient({ baseUrl: runtimeUrl }).restartPreview()
+        )
+      }
+      onStartPreview={() =>
+        runRuntimePreviewAction("startPreview", () =>
+          createRuntimeClient({ baseUrl: runtimeUrl }).startPreview()
+        )
+      }
+      onStopPreview={() =>
+        runRuntimePreviewAction("stopPreview", () =>
+          createRuntimeClient({ baseUrl: runtimeUrl }).stopPreview()
+        )
+      }
+      onUndoPatch={() =>
+        runRuntimePatchHistoryAction("undoPatch", () =>
+          createRuntimeClient({ baseUrl: runtimeUrl }).undoSessionPatch()
+        )
+      }
+      onValidateSession={() =>
+        runRuntimeSessionAction("validateSession", () =>
+          createRuntimeClient({ baseUrl: runtimeUrl }).validateSession()
+        )
+      }
+    />
+  );
+
   return (
     <AppShell
       header={{ height: 58 }}
@@ -1327,6 +1415,18 @@ export default function App() {
       aside={sidePanelOpen ? { width: 356, breakpoint: "md" } : undefined}
       padding={0}
     >
+      <Modal
+        centered
+        onClose={() => setRuntimeControlOpen(false)}
+        opened={runtimeControlOpen}
+        size="xl"
+        title="Runtime Control"
+      >
+        <ScrollArea.Autosize mah="78vh" offsetScrollbars>
+          {runtimeControlPanel}
+        </ScrollArea.Autosize>
+      </Modal>
+
       <AppShell.Header>
         <StudioToolbar
           graph={graph}
@@ -1345,6 +1445,7 @@ export default function App() {
           onLoadShaderUniformSample={loadShaderUniformSample}
           onReset={resetSample}
           onToggleGraphLock={() => setGraphLocked((locked) => !locked)}
+          onOpenRuntimeControl={() => setRuntimeControlOpen(true)}
           inspectorOpen={sidePanelOpen}
           onToggleInspector={() => setSidePanelOpen((open) => !open)}
         />
@@ -1434,139 +1535,40 @@ export default function App() {
       {sidePanelOpen ? (
         <AppShell.Aside p="md">
           <ScrollArea className="aside-scroll" offsetScrollbars>
-            <StudioSidePanel
-              activeTab={sidePanelTab}
-              onTabChange={setSidePanelTab}
-              runtimePanel={
-                <RuntimePanel
-                  busyAction={runtimeBusyAction}
-                  error={runtimeError}
-                  info={runtimeInfo}
-                  result={runtimeResult}
-                  history={runtimeHistory}
-                  previewStatus={runtimePreviewStatus}
-                  session={runtimeSession}
-                  sessionSynced={runtimeSessionSynced}
-                  telemetry={runtimeTelemetry}
-                  status={runtimeStatus}
-                  url={runtimeUrl}
-                  onClearSession={() =>
-                    runRuntimeSessionAction("clearSession", () =>
-                      createRuntimeClient({ baseUrl: runtimeUrl }).clearSession()
-                    )
-                  }
-                  onConnect={connectRuntime}
-                  onGetClockSource={(sourceId) =>
-                    createRuntimeClient({ baseUrl: runtimeUrl }).getClockSource(sourceId)
-                  }
-                  onListClockSources={() =>
-                    createRuntimeClient({ baseUrl: runtimeUrl }).listClockSources()
-                  }
-                  onListMidiInputs={() =>
-                    createRuntimeClient({ baseUrl: runtimeUrl }).listMidiInputs()
-                  }
-                  onPlanSession={() =>
-                    runRuntimeSessionAction("planSession", () =>
-                      createRuntimeClient({ baseUrl: runtimeUrl }).planSession()
-                    )
-                  }
-                  onRefreshSession={refreshRuntimeSessionFromPanel}
-                  onRunSession={() =>
-                    runRuntimeSessionAction("runSession", () =>
-                      createRuntimeClient({ baseUrl: runtimeUrl }).runSession(runtimeFrames)
-                    )
-                  }
-                  onStartMidiClockSource={(request) =>
-                    createRuntimeClient({ baseUrl: runtimeUrl }).startMidiClockSource(request)
-                  }
-                  onUrlChange={(nextUrl) => {
-                    setRuntimeUrl(nextUrl);
-                    setRuntimeStatus("disconnected");
-                    setRuntimeInfo(null);
-                    setRuntimeResult(null);
-                    setRuntimeSession(null);
-                    setRuntimeHistory(null);
-                    setRuntimePreviewStatus(null);
-                    setRuntimeTelemetry(null);
-                    setGeneratedShader(null);
-                    setLastLoadedGraphFingerprint(null);
-                    clearPendingPatch();
-                    setRuntimeError(null);
-                  }}
-                  onStopMidiClockSource={(request) =>
-                    createRuntimeClient({ baseUrl: runtimeUrl }).stopMidiClockSource(request)
-                  }
-                  onRedoPatch={() =>
-                    runRuntimePatchHistoryAction("redoPatch", () =>
-                      createRuntimeClient({ baseUrl: runtimeUrl }).redoSessionPatch()
-                    )
-                  }
-                  onRefreshHistory={refreshRuntimeHistoryFromPanel}
-                  onRefreshPreview={refreshRuntimePreviewFromPanel}
-                  onRestartPreview={() =>
-                    runRuntimePreviewAction("restartPreview", () =>
-                      createRuntimeClient({ baseUrl: runtimeUrl }).restartPreview()
-                    )
-                  }
-                  onStartPreview={() =>
-                    runRuntimePreviewAction("startPreview", () =>
-                      createRuntimeClient({ baseUrl: runtimeUrl }).startPreview()
-                    )
-                  }
-                  onStopPreview={() =>
-                    runRuntimePreviewAction("stopPreview", () =>
-                      createRuntimeClient({ baseUrl: runtimeUrl }).stopPreview()
-                    )
-                  }
-                  onUndoPatch={() =>
-                    runRuntimePatchHistoryAction("undoPatch", () =>
-                      createRuntimeClient({ baseUrl: runtimeUrl }).undoSessionPatch()
-                    )
-                  }
-                  onValidateSession={() =>
-                    runRuntimeSessionAction("validateSession", () =>
-                      createRuntimeClient({ baseUrl: runtimeUrl }).validateSession()
-                    )
-                  }
-                />
-              }
-              inspectPanel={
-                runtimeGraphAvailable ? (
-                  <InspectorPanel
-                    connectionCheck={connectionCheck}
-                    generatedShader={generatedShader}
-                    generatedShaderBusy={runtimeBusyAction === "generatedShader"}
-                    graph={graph}
-                    graphLocked={graphLocked}
-                    edge={selectedEdge}
-                    helpNodeId={activeHelpNodeId}
-                    node={selectedNode}
-                    onImportAsset={importRuntimeAsset}
-                    onLoadGeneratedShader={runtimeSupportsGeneratedShader(runtimeInfo) ? loadGeneratedShader : undefined}
-                    onOpenHelpGraph={openHelpGraphAsNewGraph}
-                    onRemoveNode={removeNode}
-                    onSendRuntimeControl={(request) => {
-                      void sendRuntimeControlEvent(request);
-                    }}
-                    onSetNodeParam={setNodeParam}
-                    onSyncShaderInputs={syncShaderInputs}
-                    runtimeControlBusy={runtimeBusyAction === "controlEvent"}
-                    runtimeControlEnabled={
-                      runtimeStatus === "connected" &&
-                      Boolean(runtimeSession?.loaded) &&
-                      runtimeSupportsControl(runtimeInfo)
-                    }
-                    runtimeAssetImportBusy={runtimeBusyAction === "assetImport"}
-                    runtimeAssetImportEnabled={runtimeStatus === "connected" && runtimeSupportsAssetImport(runtimeInfo)}
-                    runtimeShaderDiagnostics={selectedRuntimeShaderDiagnostics}
-                    semanticDiagnostics={semanticDiagnostics}
-                    validation={validation}
-                  />
-                ) : (
-                  <RuntimeRequiredPanel status={runtimeStatus} />
-                )
-              }
-            />
+            {runtimeGraphAvailable ? (
+              <InspectorPanel
+                connectionCheck={connectionCheck}
+                generatedShader={generatedShader}
+                generatedShaderBusy={runtimeBusyAction === "generatedShader"}
+                graph={graph}
+                graphLocked={graphLocked}
+                edge={selectedEdge}
+                helpNodeId={activeHelpNodeId}
+                node={selectedNode}
+                onImportAsset={importRuntimeAsset}
+                onLoadGeneratedShader={runtimeSupportsGeneratedShader(runtimeInfo) ? loadGeneratedShader : undefined}
+                onOpenHelpGraph={openHelpGraphAsNewGraph}
+                onRemoveNode={removeNode}
+                onSendRuntimeControl={(request) => {
+                  void sendRuntimeControlEvent(request);
+                }}
+                onSetNodeParam={setNodeParam}
+                onSyncShaderInputs={syncShaderInputs}
+                runtimeControlBusy={runtimeBusyAction === "controlEvent"}
+                runtimeControlEnabled={
+                  runtimeStatus === "connected" &&
+                  Boolean(runtimeSession?.loaded) &&
+                  runtimeSupportsControl(runtimeInfo)
+                }
+                runtimeAssetImportBusy={runtimeBusyAction === "assetImport"}
+                runtimeAssetImportEnabled={runtimeStatus === "connected" && runtimeSupportsAssetImport(runtimeInfo)}
+                runtimeShaderDiagnostics={selectedRuntimeShaderDiagnostics}
+                semanticDiagnostics={semanticDiagnostics}
+                validation={validation}
+              />
+            ) : (
+              <RuntimeRequiredPanel status={runtimeStatus} />
+            )}
           </ScrollArea>
         </AppShell.Aside>
       ) : null}

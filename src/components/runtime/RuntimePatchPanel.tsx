@@ -1,5 +1,6 @@
-import { Alert, Badge, Button, Code, Group, Text } from "@mantine/core";
+import { Alert, Badge, Code, Group, Text } from "@mantine/core";
 import { SendHorizontal, X } from "lucide-react";
+import { Button } from "../core/Button/Button";
 
 interface RuntimePatchPanelProps {
   busyAction: string | null;
