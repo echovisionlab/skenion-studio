@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     env,
     io::{BufRead, BufReader},
     path::PathBuf,
@@ -25,10 +25,15 @@ struct RuntimeSidecarManager {
 
 struct RuntimeSidecarChild {
     child: Child,
-    owner_window_id: String,
+    owners: RuntimeSidecarOwners,
     profile_id: String,
     runtime_url: String,
     startup: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RuntimeSidecarOwners {
+    window_ids: BTreeSet<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -106,7 +111,8 @@ fn start_runtime_sidecar(
             .lock()
             .map_err(|_| "Runtime sidecar state lock is poisoned.".to_owned())?;
         manager.drop_exited_children();
-        if let Some(child) = manager.children.get(&key) {
+        if let Some(child) = manager.children.get_mut(&key) {
+            child.owners.register(request.owner_window_id.clone());
             return Ok(child.startup.clone());
         }
     }
@@ -150,11 +156,17 @@ fn start_runtime_sidecar(
         .manager
         .lock()
         .map_err(|_| "Runtime sidecar state lock is poisoned.".to_owned())?;
+    if let Some(existing) = manager.children.get_mut(&key) {
+        existing.owners.register(request.owner_window_id.clone());
+        let _ = child.kill();
+        let _ = child.wait();
+        return Ok(existing.startup.clone());
+    }
     manager.children.insert(
         key,
         RuntimeSidecarChild {
             child,
-            owner_window_id: request.owner_window_id,
+            owners: RuntimeSidecarOwners::new(request.owner_window_id),
             profile_id: request.profile_id,
             runtime_url,
             startup: startup.clone(),
@@ -250,17 +262,24 @@ impl RuntimeSidecarManager {
             .filter(|(_, child)| {
                 child.profile_id == profile_id
                     && owner_window_id
-                        .map(|owner| child.owner_window_id == owner)
+                        .map(|owner| child.owners.contains(owner))
                         .unwrap_or(true)
             })
             .map(|(key, _)| key.clone())
             .collect();
         let mut stopped_runtime_url = None;
         for key in keys {
-            if let Some(mut child) = self.children.remove(&key) {
-                stopped_runtime_url = Some(child.runtime_url.clone());
-                let _ = child.child.kill();
-                let _ = child.child.wait();
+            let should_stop = match (owner_window_id, self.children.get_mut(&key)) {
+                (Some(owner), Some(child)) => child.owners.release(owner),
+                (None, Some(_)) => true,
+                _ => false,
+            };
+            if should_stop {
+                if let Some(mut child) = self.children.remove(&key) {
+                    stopped_runtime_url = Some(child.runtime_url.clone());
+                    let _ = child.child.kill();
+                    let _ = child.child.wait();
+                }
             }
         }
         stopped_runtime_url
@@ -270,15 +289,75 @@ impl RuntimeSidecarManager {
         let keys: Vec<String> = self
             .children
             .iter()
-            .filter(|(_, child)| child.owner_window_id == owner_window_id)
+            .filter(|(_, child)| child.owners.contains(owner_window_id))
             .map(|(key, _)| key.clone())
             .collect();
         for key in keys {
-            if let Some(mut child) = self.children.remove(&key) {
-                let _ = child.child.kill();
-                let _ = child.child.wait();
+            let should_stop = self
+                .children
+                .get_mut(&key)
+                .map(|child| child.owners.release(owner_window_id))
+                .unwrap_or(false);
+            if should_stop {
+                if let Some(mut child) = self.children.remove(&key) {
+                    let _ = child.child.kill();
+                    let _ = child.child.wait();
+                }
             }
         }
+    }
+}
+
+impl RuntimeSidecarOwners {
+    fn new(owner_window_id: String) -> Self {
+        let mut window_ids = BTreeSet::new();
+        window_ids.insert(owner_window_id);
+        Self { window_ids }
+    }
+
+    fn register(&mut self, owner_window_id: String) {
+        self.window_ids.insert(owner_window_id);
+    }
+
+    fn release(&mut self, owner_window_id: &str) -> bool {
+        self.window_ids.remove(owner_window_id);
+        self.window_ids.is_empty()
+    }
+
+    fn contains(&self, owner_window_id: &str) -> bool {
+        self.window_ids.contains(owner_window_id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{sidecar_key, RuntimeSidecarOwners};
+
+    #[test]
+    fn sidecar_key_reuses_shared_profiles_and_splits_isolated_windows() {
+        assert_eq!(sidecar_key("local-managed", "main", false), "local-managed");
+        assert_eq!(
+            sidecar_key("local-managed", "main", true),
+            "local-managed:main"
+        );
+        assert_ne!(
+            sidecar_key("local-managed", "main", true),
+            sidecar_key("local-managed", "detail", true)
+        );
+    }
+
+    #[test]
+    fn shared_sidecar_owners_keep_child_alive_until_last_owner_releases() {
+        let mut owners = RuntimeSidecarOwners::new("main".to_owned());
+
+        owners.register("detail".to_owned());
+
+        assert!(owners.contains("main"));
+        assert!(owners.contains("detail"));
+        assert!(!owners.release("main"));
+        assert!(!owners.contains("main"));
+        assert!(owners.contains("detail"));
+        assert!(owners.release("detail"));
     }
 }
 

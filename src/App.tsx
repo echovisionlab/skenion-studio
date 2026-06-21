@@ -78,6 +78,10 @@ import {
   RuntimeClientError,
   type RuntimeClient
 } from "./runtime/client";
+import {
+  createRuntimeGraphMutationRequest,
+  createRuntimeViewMutationRequest
+} from "./runtime/mutationRequest";
 import { createRuntimeProjectPayload } from "./runtime/payload";
 import {
   runtimeGraphFingerprint,
@@ -933,14 +937,13 @@ export default function App() {
     setPatchConflict(null);
     try {
       const client = createActiveRuntimeClient();
-      const response = await client.mutateSession({
-        clientId: "studio-local",
-        description: "move object",
-        viewPatch: {
+      const response = await client.mutateSession(
+        createRuntimeViewMutationRequest({
           baseViewRevision,
+          description: "move object",
           ops
-        }
-      });
+        })
+      );
       const nextSession = runtimeSessionFromMutation(response);
       setRuntimeSession(nextSession);
       setRuntimeHistory(response.history);
@@ -1000,13 +1003,9 @@ export default function App() {
     try {
       const client = createActiveRuntimeClient();
       const patch = createGraphPatch(baseRevision, operations, {
-        id: `patch_${Date.now()}`,
-        clientId: "studio-local"
+        id: `patch_${Date.now()}`
       });
-      const response = await client.mutateSession({
-        graphPatch: patch,
-        clientId: "studio-local"
-      });
+      const response = await client.mutateSession(createRuntimeGraphMutationRequest(patch));
       const nextSession = runtimeSessionFromMutation(response);
       setRuntimeSession(nextSession);
       setRuntimeHistory(response.history);
