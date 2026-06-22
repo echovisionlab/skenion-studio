@@ -191,6 +191,44 @@ jobs:
         with:
           ref: ${{ needs.release.outputs.tag_ref }}
 
+      - name: Preflight macOS signing and notarization secrets
+        if: needs.release.outputs.upload_release_assets == 'true' && runner.os == 'macOS' && matrix.release_blocking == true
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          failed=false
+          signing_missing=()
+          notarization_missing=()
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+            if [[ -z "${!name:-}" ]]; then
+              signing_missing+=("${name}")
+            fi
+          done
+          for name in APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              notarization_missing+=("${name}")
+            fi
+          done
+
+          if ((${#signing_missing[@]} > 0)); then
+            echo "::error::macOS publish mode requires signing secrets: ${signing_missing[*]}."
+            failed=true
+          fi
+          if ((${#notarization_missing[@]} > 0)); then
+            echo "::error::macOS publish mode requires Apple ID notarization secrets: ${notarization_missing[*]}."
+            failed=true
+          fi
+          if [[ "${failed}" == "true" ]]; then
+            exit 1
+          fi
+          echo "macOS signing and notarization secret preflight passed."
+
       - uses: pnpm/action-setup@v6
         with:
           version: 10.12.4
@@ -310,8 +348,33 @@ jobs:
           }
           NODE
 
-      - name: Build and upload Tauri desktop package
-        if: needs.release.outputs.upload_release_assets == 'true'
+      - name: Build and upload Tauri desktop package (macOS)
+        if: needs.release.outputs.upload_release_assets == 'true' && runner.os == 'macOS'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PNPM_HOME: ${{ env.PNPM_HOME }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: ${{ needs.release.outputs.tag }}
+          releaseName: Skenion Studio v${{ needs.release.outputs.version }}
+          releaseBody: |
+            Skenion Studio desktop package for ${{ matrix.target }}.
+
+            Runtime sidecar release asset: ${{ steps.package_runtime_sidecar.outputs.asset_name }}.
+            Signing/notarization/updater status is tracked in docs/ci-release-policy.md.
+          includeUpdaterJson: false
+          projectPath: .
+          tauriScript: pnpm tauri
+          args: --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json ${{ matrix.tauri_bundle_args }}
+
+      - name: Build and upload Tauri desktop package (non-macOS)
+        if: needs.release.outputs.upload_release_assets == 'true' && runner.os != 'macOS'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ github.token }}
