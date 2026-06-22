@@ -308,12 +308,12 @@ jobs:
               local access_status
 
               set +e
-              access_output="$(npm access public "${package_name}" --registry "${NPM_REGISTRY}" 2>&1)"
+              access_output="$(npm access set status=public "${package_name}" --registry "${NPM_REGISTRY}" 2>&1)"
               access_status=$?
               set -e
 
               if [[ "${access_status}" -eq 0 ]]; then
-                echo "npm access public accepted for ${package_name}."
+                echo "npm access set status=public accepted for ${package_name}."
                 return
               fi
 
@@ -324,7 +324,7 @@ jobs:
               fi
 
               if [[ "${attempt}" -lt "${attempts}" ]]; then
-                echo "::notice::npm access public ${package_name} failed on attempt ${attempt}/${attempts}; retrying in 10 seconds."
+                echo "::notice::npm access set status=public ${package_name} failed on attempt ${attempt}/${attempts}; retrying in 10 seconds."
                 printf '%s\n' "${access_output}" | sed 's/^/npm access: /'
                 sleep 10
                 continue
