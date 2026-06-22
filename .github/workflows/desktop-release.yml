@@ -299,6 +299,18 @@ jobs:
             console.error("::error::Release Tauri bundle.externalBin must include binaries/skenion-runtime.");
             process.exit(1);
           }
+          if (target.includes("windows")) {
+            const iconPath = "src-tauri/icons/icon.ico";
+            if (!fs.existsSync(iconPath)) {
+              console.error("::error::Windows desktop releases require src-tauri/icons/icon.ico for the Tauri Windows resource file.");
+              process.exit(1);
+            }
+            const iconHeader = fs.readFileSync(iconPath).subarray(0, 4);
+            if (iconHeader[0] !== 0 || iconHeader[1] !== 0 || iconHeader[2] !== 1 || iconHeader[3] !== 0) {
+              console.error("::error::src-tauri/icons/icon.ico must be a valid ICO file.");
+              process.exit(1);
+            }
+          }
           const isLinux = target.endsWith("-unknown-linux-gnu");
           if (isLinux && bundleArgs !== "--bundles deb,rpm") {
             console.error(`::error::Linux desktop releases must currently scope Tauri bundles to deb,rpm; got '${bundleArgs}'.`);
