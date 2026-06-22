@@ -191,6 +191,50 @@ jobs:
         with:
           ref: ${{ needs.release.outputs.tag_ref }}
 
+      - name: Preflight macOS signing and notarization secrets
+        if: needs.release.outputs.upload_release_assets == 'true' && runner.os == 'macOS' && matrix.release_blocking == true
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          failed=false
+          missing=()
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("${name}")
+            fi
+          done
+
+          has_api_key_credentials=false
+          if [[ -n "${APPLE_API_KEY:-}" && -n "${APPLE_API_ISSUER:-}" ]]; then
+            has_api_key_credentials=true
+          fi
+
+          has_apple_id_credentials=false
+          if [[ -n "${APPLE_ID:-}" && -n "${APPLE_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
+            has_apple_id_credentials=true
+          fi
+
+          if ((${#missing[@]} > 0)); then
+            echo "::error::macOS publish mode requires signing secrets: ${missing[*]}."
+            failed=true
+          fi
+          if [[ "${has_api_key_credentials}" != "true" && "${has_apple_id_credentials}" != "true" ]]; then
+            echo "::error::macOS publish mode requires notarization credentials via APPLE_API_KEY + APPLE_API_ISSUER or APPLE_ID + APPLE_PASSWORD + APPLE_TEAM_ID."
+            failed=true
+          fi
+          if [[ "${failed}" == "true" ]]; then
+            exit 1
+          fi
+          echo "macOS signing and notarization secret preflight passed."
+
       - uses: pnpm/action-setup@v6
         with:
           version: 10.12.4
@@ -316,6 +360,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PNPM_HOME: ${{ env.PNPM_HOME }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ needs.release.outputs.tag }}
           releaseName: Skenion Studio v${{ needs.release.outputs.version }}

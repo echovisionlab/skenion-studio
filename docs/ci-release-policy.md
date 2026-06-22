@@ -56,9 +56,22 @@ The desktop release workflow runs from `skenion-studio-vx.y.z` release tags or
 from conductor dispatch inputs that name the same lockstep train version. The
 workflow packages these targets:
 
-- release-blocking: `aarch64-apple-darwin`, `x86_64-apple-darwin`,
-  `x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu`.
+- release-blocking macOS arm64 / Apple Silicon: `aarch64-apple-darwin`.
+- release-blocking macOS x64 / Intel: `x86_64-apple-darwin`.
+- release-blocking Windows x64: `x86_64-pc-windows-msvc`.
+- release-blocking Linux x64: `x86_64-unknown-linux-gnu`.
 - preview: `aarch64-pc-windows-msvc`, `aarch64-unknown-linux-gnu`.
+
+The workflow produces two different artifact classes:
+
+- Studio desktop packages are the user-facing Tauri app distribution artifacts
+  for each OS, such as signed/notarized macOS App/DMG output, Windows MSI or
+  NSIS `-setup.exe` installers, and Linux package output.
+- Runtime sidecar archives are same-train Runtime transport assets consumed by
+  Studio desktop packaging and release-train verification. They are not desktop
+  installers, standalone app downloads, or Windows installer substitutes, and
+  must be named as sidecar archives or sidecar assets in release manifests,
+  package manifests, and release evidence.
 
 Before Tauri packaging, `scripts/stage-runtime-sidecar.mjs` downloads the
 matching `skenion-runtime-vx.y.z-<target>.tar.gz` asset from the same-train
@@ -69,7 +82,12 @@ closed when the Runtime asset or checksum is missing or mismatched.
 Studio release sidecar asset expected by the train manifest:
 `skenion-runtime-sidecar-<target>.tar.gz` for macOS/Linux and
 `skenion-runtime-sidecar-<target>.zip` for Windows, with a sibling `.sha256`
-file. Publish mode uploads those sidecar assets to the Studio GitHub Release.
+file. Windows sidecars use ZIP because the transported payload is a `.exe` and
+Windows tooling handles ZIP natively; that ZIP is internal release-train
+transport only, not the Studio Windows installer. macOS and Linux sidecars use
+`tar.gz` so Unix executable mode and path semantics survive archive creation,
+upload, and extraction. Publish mode uploads those sidecar assets to the Studio
+GitHub Release.
 
 Desktop release packaging consumes `@skenion/contracts` from npm, not from a
 sibling checkout. The release tag must declare `@skenion/contracts` as the exact
@@ -85,10 +103,18 @@ Web Studio release behavior remains remote-runtime compatible: Vite builds do
 not require the sidecar, and browser deployments continue to use explicit
 Runtime URLs.
 
-Signing, notarization, and full desktop auto-updater rollout are not blockers
-for this v0 packaging foundation. The workflow uses Tauri packaging without
-project signing secrets; signed and notarized packages, updater signing keys,
-and updater feed publication should be added when the release environment owns
-those credentials. Missing full-app updater support must be reported with the
-desktop assets, but it must not block v0 while same-train sidecar packages are
-available and checksummed.
+macOS desktop distribution is release-complete only when the release-blocking
+macOS arm64 (`aarch64-apple-darwin`) and macOS x64 (`x86_64-apple-darwin`)
+publish jobs produce signed and notarized Tauri App/DMG artifacts. Unsigned
+macOS artifacts are useful build or preview evidence, but they do not satisfy
+the desktop release-completion gate. Publish mode fails closed before Tauri
+packaging if `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, and
+`APPLE_SIGNING_IDENTITY` are absent, or if notarization credentials are absent.
+Notarization may use either `APPLE_API_KEY` with `APPLE_API_ISSUER` or
+`APPLE_ID` with `APPLE_PASSWORD` and `APPLE_TEAM_ID`.
+
+Full application auto-updater rollout remains out of v0 scope. Missing updater
+feed publication or updater signing keys must be reported with the desktop
+assets, but they must not block v0 while same-train Studio desktop packages and
+Runtime sidecar archives are available, checksummed, and otherwise satisfy the
+release train gates.
