@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { NodeDefinitionManifestV01 } from "@skenion/contracts";
 import type { Connection, Edge } from "@xyflow/react";
 import { nodeRegistry } from "../data/registry";
 import {
@@ -18,7 +19,6 @@ import {
   findPort,
   graphSummary,
   isValidSkenionConnection,
-  normalizeLegacyGraphTypes,
   portKey,
   toSkenionPatch,
   typeKey,
@@ -26,6 +26,7 @@ import {
   validateGraph
 } from "./skenionGraph";
 import { UNRESOLVED_OBJECT_NODE_KIND } from "./objectTextNode";
+import { displayGraphToContractGraph } from "./patchLibrary";
 
 describe("skenion graph helpers", () => {
   it("formats type and port keys", () => {
@@ -33,6 +34,7 @@ describe("skenion graph helpers", () => {
 
     expect(typeLabel(type)).toBe("value<number.float>");
     expect(typeKey(type)).toBe('value:number.float:"float32"');
+    expect(typeKey({ flow: "event", dataKind: "event.bang" })).toBe("event:event.bang:null");
     expect(portKey("node", "out")).toBe("node:out");
   });
 
@@ -46,19 +48,46 @@ describe("skenion graph helpers", () => {
       { ...first, id: "float_2" }
     ]);
     const fallback = createGraphNodeFromDefinition({ ...definition!, id: "" }, []);
+    const groupedDefinition = {
+      ...definition!,
+      portGroups: [
+        {
+          id: "inputs",
+          direction: "input",
+          type: "number.float",
+          minPorts: 1,
+          label: "Inputs"
+        }
+      ]
+    } satisfies NodeDefinitionManifestV01;
+    const grouped = createGraphNodeFromDefinition(groupedDefinition, []);
 
     expect(first.id).toBe("float_1");
     expect(second.id).toBe("float_2");
     expect(skipped.id).toBe("float_3");
     expect(fallback.id).toBe("node_1");
     expect(second.ports[0]).not.toBe(definition!.ports[0]);
+    expect(grouped.portGroups).toEqual(groupedDefinition.portGroups);
+    expect(grouped.portGroups?.[0]).not.toBe(groupedDefinition.portGroups[0]);
   });
 
   it("summarizes and validates graphs", () => {
+    const contractGraph = displayGraphToContractGraph(renderSampleGraph);
+    const contractResult = validateGraph(contractGraph);
+
     expect(graphSummary(sampleGraph)).toBe("8 nodes · 5 edges · rev 1");
     expect(validateGraph(sampleGraph).ok).toBe(true);
     expect(graphSummary(renderSampleGraph)).toBe("2 nodes · 1 edges · rev 1");
     expect(validateGraph(renderSampleGraph).ok).toBe(true);
+    expect(contractResult.ok).toBe(true);
+    expect(contractResult.ok ? contractResult.value.nodes.map((node) => node.id) : []).toEqual(
+      renderSampleGraph.nodes.map((node) => node.id)
+    );
+    expect(contractResult.ok ? contractResult.value.edges[0] : null).toEqual({
+      id: "edge_shader_1_out_output_1_in",
+      from: { node: "shader_1", port: "out" },
+      to: { node: "output_1", port: "in" }
+    });
     expect(graphSummary(shaderUniformSampleGraph)).toBe("3 nodes · 2 edges · rev 1");
     expect(validateGraph(shaderUniformSampleGraph).ok).toBe(true);
     expect(graphSummary(shaderMultiUniformSampleGraph)).toBe("5 nodes · 4 edges · rev 1");
@@ -72,7 +101,7 @@ describe("skenion graph helpers", () => {
     expect(validateGraph({}).ok).toBe(false);
   });
 
-  it("reports v0.2 display graph validation errors", () => {
+  it("reports current 0.1 display graph validation errors", () => {
     const activeDisplayGraph = {
       schema: "skenion.graph",
       schemaVersion: "0.1.0",
@@ -89,7 +118,7 @@ describe("skenion graph helpers", () => {
               id: "out",
               direction: "output",
               type: { flow: "value", dataKind: "number.float" },
-              description: "Preserved v0.2 port help text."
+              description: "Preserved current port help text."
             }
           ]
         }
@@ -126,10 +155,6 @@ describe("skenion graph helpers", () => {
     expect(result.ok ? [] : result.errors).toEqual([
       "missing-required-input: input collector_1:in requires at least 1 connection(s)"
     ]);
-  });
-
-  it("does not silently normalize legacy semantic type names", () => {
-    expect(normalizeLegacyGraphTypes(sampleGraph)).toBe(sampleGraph);
   });
 
   it("converts React Flow connections and edges to Skenion patches", () => {
