@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.1](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.31.0...skenion-studio-v0.31.1) (2026-06-22)
+
+
+### Bug Fixes
+
+* **runtime:** use explicit default session path ([#100](https://github.com/echovisionlab/skenion-studio/issues/100)) ([405afe1](https://github.com/echovisionlab/skenion-studio/commit/405afe174a557372096556c235c17084964b803d))
+
 ## [0.31.0](https://github.com/echovisionlab/skenion-studio/compare/skenion-studio-v0.30.0...skenion-studio-v0.31.0) (2026-06-21)
 
 
