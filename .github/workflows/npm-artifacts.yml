@@ -99,6 +99,7 @@ jobs:
 
           const releaseTag = process.env.RELEASE_TAG;
           const version = process.env.VERSION;
+          const studioRepoUrl = "https://github.com/echovisionlab/skenion-studio";
           const failures = [];
           const missingFiles = new Set();
           const requiredFiles = [
@@ -161,6 +162,11 @@ jobs:
               packageJson.publishConfig?.access,
               "public",
               `${packageJsonPath} publishConfig.access`
+            );
+            expectEqual(
+              packageJson.repository?.url,
+              studioRepoUrl,
+              `${packageJsonPath} repository.url`
             );
 
             if (packageJson.private === true) {

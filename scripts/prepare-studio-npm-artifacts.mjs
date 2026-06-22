@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const rootDir = fileURLToPath(new URL("..", import.meta.url));
 const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const studioRepo = "echovisionlab/skenion-studio";
+const studioRepoUrl = `https://github.com/${studioRepo}`;
 const runtimeRepo = "echovisionlab/skenion-runtime";
 const packageDefinitions = [
   {
@@ -132,6 +133,11 @@ async function validatePackageVersions(expectedVersion, rootPackageJson) {
       packageJson.publishConfig?.access,
       "public",
       `${definition.directory}/package.json publishConfig.access`
+    );
+    assertEqual(
+      packageJson.repository?.url,
+      studioRepoUrl,
+      `${definition.directory}/package.json repository.url`
     );
     if (!packageJson.files?.includes(definition.manifestFile)) {
       fail(`${definition.directory}/package.json files must include ${definition.manifestFile}.`);
