@@ -3,6 +3,10 @@
   "version": "0.43.0",
   "description": "Versioned Skenion Studio desktop release metadata",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/echovisionlab/skenion-studio"
+  },
   "type": "module",
   "sideEffects": false,
   "peerDependencies": {
