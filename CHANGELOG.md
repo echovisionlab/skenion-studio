@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.44.0](https://github.com/skenion/skenion-studio/compare/skenion-studio-v0.43.0...skenion-studio-v0.44.0) (2026-06-23)
+
+
+### Features
+
+* **studio:** add skenion brand assets ([#128](https://github.com/skenion/skenion-studio/issues/128)) ([0efdc3f](https://github.com/skenion/skenion-studio/commit/0efdc3f8789ebf6ea3068005daee13e3edf75421))
+* **studio:** use contracts line runtime evidence ([#134](https://github.com/skenion/skenion-studio/issues/134)) ([406f3f4](https://github.com/skenion/skenion-studio/commit/406f3f4bcd704208c1ce29ed3871a06c042de130))
+
+
+### Bug Fixes
+
+* **ci:** emit kebab-case Studio release manifests ([#127](https://github.com/skenion/skenion-studio/issues/127)) ([54b8e7d](https://github.com/skenion/skenion-studio/commit/54b8e7df1e4c76cc42cf241a5620341b118dce5b))
+
 ## [0.43.0](https://github.com/skenion/skenion-studio/compare/skenion-studio-v0.31.0...skenion-studio-v0.43.0) (2026-06-22)
 
 
