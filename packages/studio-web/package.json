@@ -1,6 +1,6 @@
 {
   "name": "@skenion/studio-web",
-  "version": "0.43.0",
+  "version": "0.44.0",
   "description": "Release metadata for the skenion studio web bundle artifact",
   "license": "Apache-2.0",
   "repository": {
@@ -11,7 +11,7 @@
   "private": true,
   "sideEffects": false,
   "peerDependencies": {
-    "@skenion/contracts": "0.43.0"
+    "@skenion/contracts": "0.44.0"
   },
   "peerDependenciesMeta": {
     "@skenion/contracts": {
