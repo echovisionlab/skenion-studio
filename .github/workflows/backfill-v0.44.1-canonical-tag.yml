@@ -1,0 +1,59 @@
+name: Backfill v0.44.1 Canonical Tag
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  backfill:
+    name: create canonical tag ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create canonical Studio tag ref
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          LEGACY_REF: refs/tags/skenion-studio-v0.44.1
+          CANONICAL_REF: refs/tags/v0.44.1
+          EXPECTED_SHA: 1d31a61ccd58104d4a5ea990daaa323ef656a039
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::GH_TOKEN is required to create ${CANONICAL_REF}."
+            exit 1
+          fi
+
+          legacy_sha="$(gh api "repos/${REPOSITORY}/git/ref/${LEGACY_REF#refs/}" --jq '.object.sha')"
+          if [[ "${legacy_sha}" != "${EXPECTED_SHA}" ]]; then
+            echo "::error::${LEGACY_REF} points at ${legacy_sha}, expected ${EXPECTED_SHA}."
+            exit 1
+          fi
+
+          canonical_error="$(mktemp)"
+          trap 'rm -f "${canonical_error}"' EXIT
+          if canonical_sha="$(gh api "repos/${REPOSITORY}/git/ref/${CANONICAL_REF#refs/}" --jq '.object.sha' 2>"${canonical_error}")"; then
+            if [[ "${canonical_sha}" != "${EXPECTED_SHA}" ]]; then
+              echo "::error::${CANONICAL_REF} already points at ${canonical_sha}, expected ${EXPECTED_SHA}."
+              exit 1
+            fi
+            echo "${CANONICAL_REF} already exists at ${EXPECTED_SHA}."
+            exit 0
+          fi
+
+          if ! grep -q "HTTP 404" "${canonical_error}" && ! grep -q "Not Found" "${canonical_error}"; then
+            cat "${canonical_error}" >&2
+            exit 1
+          fi
+
+          gh api \
+            --method POST \
+            "repos/${REPOSITORY}/git/refs" \
+            -f "ref=${CANONICAL_REF}" \
+            -f "sha=${EXPECTED_SHA}" \
+            >/dev/null
+
+          echo "Created ${CANONICAL_REF} at ${EXPECTED_SHA}."
