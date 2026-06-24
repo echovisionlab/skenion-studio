@@ -2,8 +2,8 @@
 
 Release metadata for the skenion studio web bundle.
 
-This private workspace package is used only by GitHub Actions from a
-`skenion-studio-vx.y.z` release tag. It stages the Vite static build under
+This private workspace package is used only by GitHub Actions from a canonical
+`vx.y.z` Studio release tag. It stages the Vite static build under
 `dist/` and a generated `studio-web-manifest.json` that records the Studio
 release tag, `@skenion/contracts` compatibility line/range, web-bundle
 tarball name, and web-bundle checksum asset used for the build.

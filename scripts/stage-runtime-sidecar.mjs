@@ -125,9 +125,9 @@ function requireOption(value, name) {
 }
 
 function runtimeVersionFromTag(tag) {
-  const match = tag.match(/^skenion-runtime-v(.+)$/);
+  const match = tag.match(/^v(.+)$/);
   if (!match || !semverPattern.test(match[1])) {
-    fail(`--runtime-tag must use skenion-runtime-vx.y.z form; got '${tag}'.`);
+    fail(`--runtime-tag must use vx.y.z form; got '${tag}'.`);
   }
   return match[1];
 }

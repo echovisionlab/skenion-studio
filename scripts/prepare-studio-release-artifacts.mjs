@@ -60,7 +60,7 @@ const desktopTargets = [
 const options = parseArgs(process.argv.slice(2));
 const rootPackage = await readJson("package.json");
 const version = options.version ?? rootPackage.version;
-const releaseTag = options.tag ?? `skenion-studio-v${version}`;
+const releaseTag = options.tag ?? `v${version}`;
 const runtimeTag = requireOption(options.runtimeTag, "--runtime-tag");
 const runtimeVersion = runtimeVersionFromTag(runtimeTag);
 const checkOnly = Boolean(options.check);
@@ -157,8 +157,8 @@ function validateReleaseInputs(expectedVersion, releaseTagValue) {
   if (!semverPattern.test(expectedVersion)) {
     fail(`version must use x.y.z SemVer form; got '${expectedVersion}'.`);
   }
-  if (releaseTagValue !== `skenion-studio-v${expectedVersion}`) {
-    fail(`release tag ${releaseTagValue} must match skenion-studio-v${expectedVersion}.`);
+  if (releaseTagValue !== `v${expectedVersion}`) {
+    fail(`release tag ${releaseTagValue} must match v${expectedVersion}.`);
   }
 }
 
@@ -279,9 +279,9 @@ function requireOption(value, name) {
 }
 
 function runtimeVersionFromTag(tag) {
-  const match = tag.match(/^skenion-runtime-v(.+)$/);
+  const match = tag.match(/^v(.+)$/);
   if (!match || !semverPattern.test(match[1])) {
-    fail(`--runtime-tag must use skenion-runtime-vx.y.z form; got '${tag}'.`);
+    fail(`--runtime-tag must use vx.y.z form; got '${tag}'.`);
   }
   return match[1];
 }

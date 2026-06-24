@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 
-const semverTagPattern = /^skenion-studio-v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const semverTagPattern = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const statusStart = "<!-- skenion-studio-release-status:start -->";
 const statusEnd = "<!-- skenion-studio-release-status:end -->";
 const studioRepo = process.env.GITHUB_REPOSITORY || "skenion/skenion-studio";
@@ -115,7 +115,7 @@ function webArtifactsPublishedStatus(release) {
     fail(`cannot mark ${releaseTag} as web-artifact evidence; missing assets: ${missing.join(", ")}`);
   }
 
-  const runtimeTag = requireOption(options.runtimeTag, "--runtime-tag");
+  const runtimeTag = validateRuntimeTag(requireOption(options.runtimeTag, "--runtime-tag"));
   return {
     title: `skenion-studio: v${version} (web artifacts published)`,
     prerelease: true,
@@ -148,7 +148,7 @@ function desktopArtifactsPublishedStatus(release) {
   const missingWeb = missingAssets(release, expectedWebAssets(version));
   const hasReleaseCompleteSigning = signingMode !== "unsigned-preview";
   const releaseCompleteAssets = missingWeb.length === 0 && hasReleaseCompleteSigning;
-  const runtimeTag = requireOption(options.runtimeTag, "--runtime-tag");
+  const runtimeTag = validateRuntimeTag(requireOption(options.runtimeTag, "--runtime-tag"));
 
   if (releaseCompleteAssets) {
     return {
@@ -251,9 +251,16 @@ function stripStatusBlock(body) {
 function versionFromTag(tag) {
   const match = tag.match(semverTagPattern);
   if (!match) {
-    fail(`--tag must be skenion-studio-vx.y.z; got '${tag}'.`);
+    fail(`--tag must be vx.y.z; got '${tag}'.`);
   }
-  return tag.slice("skenion-studio-v".length);
+  return tag.slice("v".length);
+}
+
+function validateRuntimeTag(tag) {
+  if (!semverTagPattern.test(tag)) {
+    fail(`--runtime-tag must use vx.y.z; got '${tag}'.`);
+  }
+  return tag;
 }
 
 function parseArgs(args) {
