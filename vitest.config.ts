@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
+    setupFiles: ["src/test/setupReactActEnvironment.ts"],
     coverage: {
       exclude: ["src/runtime/types.ts"],
       include: ["src/graph/**/*.ts", "src/runtime/**/*.ts"],
