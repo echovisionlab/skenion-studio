@@ -5,7 +5,7 @@
 
 ### Bug Fixes
 
-* **ci:** use binary hashes for desktop uploads ([13f2fc3](https://github.com/skenion/skenion-studio/commit/13f2fc376a84391ac513722386729e15ebf6655c)), closes [#116](https://github.com/skenion/skenion-studio/issues/116)
+* **ci:** use binary hashes for desktop uploads ([13f2fc3](https://github.com/skenion/skenion-studio/commit/13f2fc376a84391ac513722386729e15ebf6655c)), refs [#116](https://github.com/skenion/skenion-studio/issues/116)
 
 ## [0.44.16](https://github.com/skenion/skenion-studio/compare/v0.44.15...v0.44.16) (2026-06-25)
 
