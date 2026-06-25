@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.4](https://github.com/skenion/skenion-studio/compare/v0.44.3...v0.44.4) (2026-06-25)
+
+
+### Bug Fixes
+
+* **ci:** tolerate missing studio s3 metadata ([3400ef9](https://github.com/skenion/skenion-studio/commit/3400ef9fe9402a0f058124468f0c616173391e36))
+
 ## [0.44.3](https://github.com/skenion/skenion-studio/compare/v0.44.2...v0.44.3) (2026-06-25)
 
 
