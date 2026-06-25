@@ -438,7 +438,102 @@ else
   }
   trap cleanup_head EXIT
 
-  object_exists_with_same_content() {
+  read_s3_head_field() {
+    local field="$1"
+    local path="$2"
+
+    "${python_bin}" - "${field}" "${path}" <<'PY'
+import json
+import sys
+
+field = sys.argv[1]
+with open(sys.argv[2], encoding="utf-8") as fh:
+    head = json.load(fh)
+
+metadata = head.get("Metadata") or {}
+
+if field in {"sha256", "component", "artifact-set", "studio-version", "source-tag", "source-commit"}:
+    print(metadata.get(field, ""))
+elif field == "size":
+    print(head.get("ContentLength", ""))
+else:
+    raise SystemExit(f"unsupported head field: {field}")
+PY
+  }
+
+  s3_head_metadata_matches_expected() {
+    local key="$1"
+    local expected_sha="$2"
+    local expected_size="$3"
+    local label="$4"
+    local actual_sha
+    local actual_size
+    local actual_component
+    local actual_artifact_set
+    local actual_version
+    local actual_tag
+    local actual_commit
+
+    actual_sha="$(read_s3_head_field sha256 "${head_json}")"
+    actual_size="$(read_s3_head_field size "${head_json}")"
+    actual_component="$(read_s3_head_field component "${head_json}")"
+    actual_artifact_set="$(read_s3_head_field artifact-set "${head_json}")"
+    actual_version="$(read_s3_head_field studio-version "${head_json}")"
+    actual_tag="$(read_s3_head_field source-tag "${head_json}")"
+    actual_commit="$(read_s3_head_field source-commit "${head_json}")"
+
+    if [[ "${actual_sha}" == "${expected_sha}" \
+      && "${actual_size}" == "${expected_size}" \
+      && "${actual_component}" == "skenion-studio" \
+      && "${actual_artifact_set}" == "web" \
+      && "${actual_version}" == "${version}" \
+      && "${actual_tag}" == "${release_tag}" \
+      && "${actual_commit}" == "${source_commit}" ]]; then
+      return 0
+    fi
+
+    echo "Studio release ${label} S3 metadata does not match expected immutable artifact: s3://${SKENION_RELEASE_S3_BUCKET}/${key}" >&2
+    echo "expected sha256=${expected_sha} size=${expected_size} component=skenion-studio artifact-set=web studio-version=${version} source-tag=${release_tag} source-commit=${source_commit}" >&2
+    echo "actual sha256=${actual_sha:-<missing>} size=${actual_size:-<missing>} component=${actual_component:-<missing>} artifact-set=${actual_artifact_set:-<missing>} studio-version=${actual_version:-<missing>} source-tag=${actual_tag:-<missing>} source-commit=${actual_commit:-<missing>}" >&2
+    return 1
+  }
+
+  s3_existing_object_can_be_reused() {
+    local key="$1"
+    local expected_sha="$2"
+    local expected_size="$3"
+    local actual_sha
+    local actual_size
+    local actual_component
+    local actual_artifact_set
+    local actual_version
+    local actual_tag
+    local actual_commit
+
+    actual_sha="$(read_s3_head_field sha256 "${head_json}")"
+    actual_size="$(read_s3_head_field size "${head_json}")"
+    actual_component="$(read_s3_head_field component "${head_json}")"
+    actual_artifact_set="$(read_s3_head_field artifact-set "${head_json}")"
+    actual_version="$(read_s3_head_field studio-version "${head_json}")"
+    actual_tag="$(read_s3_head_field source-tag "${head_json}")"
+    actual_commit="$(read_s3_head_field source-commit "${head_json}")"
+
+    if [[ "${actual_size}" != "${expected_size}" ]]; then
+      echo "Studio release existing S3 object size does not match expected artifact: s3://${SKENION_RELEASE_S3_BUCKET}/${key}" >&2
+      echo "expected size=${expected_size}" >&2
+      echo "actual size=${actual_size:-<missing>}" >&2
+      return 1
+    fi
+
+    if [[ -z "${actual_sha}${actual_component}${actual_artifact_set}${actual_version}${actual_tag}${actual_commit}" ]]; then
+      echo "object already exists without immutable metadata and matching size: s3://${SKENION_RELEASE_S3_BUCKET}/${key}"
+      return 0
+    fi
+
+    s3_head_metadata_matches_expected "${key}" "${expected_sha}" "${expected_size}" "existing object"
+  }
+
+  object_exists_with_same_metadata() {
     local key="$1"
     local expected_sha="$2"
     local expected_size="$3"
@@ -446,31 +541,11 @@ else
     if aws --endpoint-url "${SKENION_RELEASE_S3_ENDPOINT}" s3api head-object \
       --bucket "${SKENION_RELEASE_S3_BUCKET}" \
       --key "${key}" >"${head_json}" 2>"${head_err}"; then
-      local actual_sha
-      local actual_size
-      actual_sha="$("${python_bin}" - "${head_json}" <<'PY'
-import json
-import sys
-with open(sys.argv[1], encoding="utf-8") as fh:
-    head = json.load(fh)
-print((head.get("Metadata") or {}).get("sha256", ""))
-PY
-)"
-      actual_size="$("${python_bin}" - "${head_json}" <<'PY'
-import json
-import sys
-with open(sys.argv[1], encoding="utf-8") as fh:
-    head = json.load(fh)
-print(head.get("ContentLength", ""))
-PY
-)"
-      if [[ "${actual_sha}" == "${expected_sha}" && "${actual_size}" == "${expected_size}" ]]; then
-        echo "object already exists with matching checksum and size: s3://${SKENION_RELEASE_S3_BUCKET}/${key}"
+      if s3_existing_object_can_be_reused "${key}" "${expected_sha}" "${expected_size}"; then
+        echo "object already exists and will not be overwritten: s3://${SKENION_RELEASE_S3_BUCKET}/${key}"
         return 0
       fi
       echo "refusing to overwrite existing Studio release artifact: s3://${SKENION_RELEASE_S3_BUCKET}/${key}" >&2
-      echo "expected sha256=${expected_sha} size=${expected_size}" >&2
-      echo "existing sha256=${actual_sha:-<missing>} size=${actual_size:-<missing>}" >&2
       exit 1
     fi
 
@@ -483,47 +558,6 @@ PY
     exit 1
   }
 
-  verify_s3_object_metadata() {
-    local key="$1"
-    local expected_sha="$2"
-    local expected_size="$3"
-    local label="$4"
-    local actual_sha
-    local actual_size
-
-    if ! aws --endpoint-url "${SKENION_RELEASE_S3_ENDPOINT}" s3api head-object \
-      --bucket "${SKENION_RELEASE_S3_BUCKET}" \
-      --key "${key}" >"${head_json}" 2>"${head_err}"; then
-      echo "failed to verify uploaded Studio release ${label}: s3://${SKENION_RELEASE_S3_BUCKET}/${key}" >&2
-      cat "${head_err}" >&2
-      exit 1
-    fi
-
-    actual_sha="$("${python_bin}" - "${head_json}" <<'PY'
-import json
-import sys
-with open(sys.argv[1], encoding="utf-8") as fh:
-    head = json.load(fh)
-print((head.get("Metadata") or {}).get("sha256", ""))
-PY
-)"
-    actual_size="$("${python_bin}" - "${head_json}" <<'PY'
-import json
-import sys
-with open(sys.argv[1], encoding="utf-8") as fh:
-    head = json.load(fh)
-print(head.get("ContentLength", ""))
-PY
-)"
-
-    if [[ "${actual_sha}" != "${expected_sha}" || "${actual_size}" != "${expected_size}" ]]; then
-      echo "uploaded Studio release ${label} metadata does not match local file: s3://${SKENION_RELEASE_S3_BUCKET}/${key}" >&2
-      echo "expected sha256=${expected_sha} size=${expected_size}" >&2
-      echo "actual sha256=${actual_sha:-<missing>} size=${actual_size:-<missing>}" >&2
-      exit 1
-    fi
-  }
-
   upload_object() {
     local path="$1"
     local key="$2"
@@ -531,16 +565,23 @@ PY
     local size="$4"
     local content_type="$5"
 
-    if object_exists_with_same_content "${key}" "${sha}" "${size}"; then
+    if object_exists_with_same_metadata "${key}" "${sha}" "${size}"; then
       return 0
     fi
 
-    aws --endpoint-url "${SKENION_RELEASE_S3_ENDPOINT}" s3 cp "${path}" "s3://${SKENION_RELEASE_S3_BUCKET}/${key}" \
-      --no-progress \
+    if ! aws --endpoint-url "${SKENION_RELEASE_S3_ENDPOINT}" s3api put-object \
+      --bucket "${SKENION_RELEASE_S3_BUCKET}" \
+      --key "${key}" \
+      --body "${path}" \
       --content-type "${content_type}" \
-      --metadata "sha256=${sha},component=skenion-studio,artifact-set=web,studio-version=${version},source-tag=${release_tag},source-commit=${source_commit}"
+      --metadata "sha256=${sha},component=skenion-studio,artifact-set=web,studio-version=${version},source-tag=${release_tag},source-commit=${source_commit}" \
+      --if-none-match '*' >/dev/null 2>"${head_err}"; then
+      echo "failed to conditionally upload Studio release artifact without overwriting: s3://${SKENION_RELEASE_S3_BUCKET}/${key}" >&2
+      cat "${head_err}" >&2
+      exit 1
+    fi
 
-    verify_s3_object_metadata "${key}" "${sha}" "${size}" "$(basename "${path}")"
+    echo "uploaded Studio release object: s3://${SKENION_RELEASE_S3_BUCKET}/${key}"
   }
 
   verify_public_content_length() {
