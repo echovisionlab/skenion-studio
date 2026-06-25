@@ -35,6 +35,20 @@ write_checksum() {
   fi
 }
 
+write_stub_metadata() {
+  local object_path="$1"
+  local sha="$2"
+
+  cat >"${object_path}.stub-metadata" <<EOF
+sha256=${sha}
+component=skenion-studio
+artifact-set=web
+studio-version=${version}
+source-tag=${release_tag}
+source-commit=1111111111111111111111111111111111111111
+EOF
+}
+
 install_stubs() {
   local bin_dir="$1"
   mkdir -p "${bin_dir}"
@@ -50,11 +64,38 @@ size_of() {
   wc -c <"$1" | tr -d '[:space:]'
 }
 
-metadata_sha_of() {
+metadata_json_of() {
   local path="$1"
-  if [[ -f "${path}.stub-sha256" ]]; then
-    sed -n '1p' "${path}.stub-sha256"
-  fi
+  python3 - "${path}.stub-metadata" <<'PY'
+import json
+import os
+import sys
+
+metadata_path = sys.argv[1]
+metadata = {}
+if os.path.isfile(metadata_path):
+    with open(metadata_path, encoding="utf-8") as fh:
+        for line in fh:
+            key, _, value = line.rstrip("\n").partition("=")
+            if key:
+                metadata[key] = value
+if os.environ.get("STUB_AWS_CORRUPT_SHA_ON_HEAD") == "1":
+    metadata["sha256"] = "0000000000000000000000000000000000000000000000000000000000000000"
+print(json.dumps(metadata, sort_keys=True))
+PY
+}
+
+write_metadata_file() {
+  local path="$1"
+  local metadata="$2"
+
+  : >"${path}.stub-metadata"
+  IFS=',' read -r -a pairs <<<"${metadata}"
+  for pair in "${pairs[@]}"; do
+    if [[ -n "${pair}" ]]; then
+      printf '%s\n' "${pair}" >>"${path}.stub-metadata"
+    fi
+  done
 }
 
 if [[ "${1:-}" == "configure" ]]; then
@@ -73,88 +114,101 @@ case "${command_name}" in
   s3api)
     subcommand="${1:-}"
     shift || true
-    if [[ "${subcommand}" != "head-object" ]]; then
-      echo "unsupported aws s3api subcommand: ${subcommand}" >&2
-      exit 2
-    fi
 
-    bucket=""
-    key=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --bucket)
-          bucket="$2"
-          shift 2
-          ;;
-        --key)
-          key="$2"
-          shift 2
-          ;;
-        *)
-          shift
-          ;;
-      esac
-    done
+    case "${subcommand}" in
+      head-object)
+        bucket=""
+        key=""
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --bucket)
+              bucket="$2"
+              shift 2
+              ;;
+            --key)
+              key="$2"
+              shift 2
+              ;;
+            *)
+              shift
+              ;;
+          esac
+        done
 
-    echo "head ${bucket}/${key}" >>"${log}"
-    path="${root}/${bucket}/${key}"
-    if [[ ! -f "${path}" ]]; then
-      echo "An error occurred (404) when calling the HeadObject operation: Not Found" >&2
-      exit 255
-    fi
+        echo "head ${bucket}/${key}" >>"${log}"
+        path="${root}/${bucket}/${key}"
+        if [[ ! -f "${path}" ]]; then
+          echo "An error occurred (404) when calling the HeadObject operation: Not Found" >&2
+          exit 255
+        fi
 
-    sha="$(metadata_sha_of "${path}")"
-    if [[ "${STUB_AWS_CORRUPT_SHA_ON_HEAD:-}" == "1" ]]; then
-      sha="0000000000000000000000000000000000000000000000000000000000000000"
-    fi
-    printf '{"ContentLength":%s,"Metadata":{"sha256":"%s"}}\n' "$(size_of "${path}")" "${sha}"
+        printf '{"ContentLength":%s,"Metadata":%s}\n' "$(size_of "${path}")" "$(metadata_json_of "${path}")"
+        ;;
+      put-object)
+        bucket=""
+        key=""
+        body=""
+        metadata=""
+        if_none_match=""
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --bucket)
+              bucket="$2"
+              shift 2
+              ;;
+            --key)
+              key="$2"
+              shift 2
+              ;;
+            --body)
+              body="$2"
+              shift 2
+              ;;
+            --metadata)
+              metadata="$2"
+              shift 2
+              ;;
+            --if-none-match)
+              if_none_match="$2"
+              shift 2
+              ;;
+            --content-type)
+              shift 2
+              ;;
+            *)
+              shift
+              ;;
+          esac
+        done
+
+        if [[ "${if_none_match}" != "*" ]]; then
+          echo "put-object missing required --if-none-match '*'" >&2
+          exit 2
+        fi
+
+        path="${root}/${bucket}/${key}"
+        if [[ -f "${path}" ]]; then
+          echo "An error occurred (PreconditionFailed) when calling the PutObject operation: At least one precondition failed" >&2
+          exit 255
+        fi
+
+        mkdir -p "$(dirname "${path}")"
+        command cp "${body}" "${path}"
+        rm -f "${path}.stub-metadata"
+        if [[ "${STUB_AWS_DROP_METADATA_ON_PUT:-}" != "1" ]]; then
+          write_metadata_file "${path}" "${metadata}"
+        fi
+        echo "put ${bucket}/${key}" >>"${log}"
+        ;;
+      *)
+        echo "unsupported aws s3api subcommand: ${subcommand}" >&2
+        exit 2
+        ;;
+    esac
     ;;
   s3)
-    subcommand="${1:-}"
-    shift || true
-    if [[ "${subcommand}" != "cp" ]]; then
-      echo "unsupported aws s3 subcommand: ${subcommand}" >&2
-      exit 2
-    fi
-
-    src="$1"
-    dest="$2"
-    shift 2
-    metadata=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --metadata)
-          metadata="$2"
-          shift 2
-          ;;
-        --content-type)
-          shift 2
-          ;;
-        --no-progress)
-          shift
-          ;;
-        *)
-          shift
-          ;;
-      esac
-    done
-
-    bucket_and_key="${dest#s3://}"
-    bucket="${bucket_and_key%%/*}"
-    key="${bucket_and_key#*/}"
-    path="${root}/${bucket}/${key}"
-    mkdir -p "$(dirname "${path}")"
-    command cp "${src}" "${path}"
-
-    sha=""
-    IFS=',' read -r -a pairs <<<"${metadata}"
-    for pair in "${pairs[@]}"; do
-      if [[ "${pair}" == sha256=* ]]; then
-        sha="${pair#sha256=}"
-      fi
-    done
-    printf '%s\n' "${sha}" >"${path}.stub-sha256"
-    echo "cp ${bucket}/${key}" >>"${log}"
+    echo "unsupported aws s3 command in Studio publisher" >&2
+    exit 2
     ;;
   *)
     echo "unsupported aws command: ${command_name}" >&2
@@ -401,14 +455,14 @@ import sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     events = [line.strip() for line in fh if line.strip()]
 
-cp_indexes = [
-    (index, event.removeprefix("cp "))
+put_indexes = [
+    (index, event.removeprefix("put "))
     for index, event in enumerate(events)
-    if event.startswith("cp ")
+    if event.startswith("put ")
 ]
-assert len(cp_indexes) == 6, events
-for index, key in cp_indexes:
-    assert any(event == f"head {key}" for event in events[index + 1 :]), (key, events)
+assert len(put_indexes) == 6, events
+for index, key in put_indexes:
+    assert any(event == f"head {key}" for event in events[:index]), (key, events)
 PY
 
   grep -q '^HEAD skenion-studio/v1.2.3/web/skenion-studio-web-bundle-v1.2.3\.tar\.gz$' "${case_dir}/curl.log"
@@ -483,7 +537,7 @@ assert_no_clobber_case() {
   existing="${case_dir}/s3/${bucket}/${prefix}/skenion-studio/${release_tag}/web/${web_asset_name}"
   mkdir -p "$(dirname "${existing}")"
   printf 'different existing asset\n' >"${existing}"
-  printf 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\n' >"${existing}.stub-sha256"
+  write_stub_metadata "${existing}" "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 
   if run_publisher "${case_dir}" >"${case_dir}/output.log" 2>&1; then
     echo "expected no-clobber publisher case to fail" >&2
@@ -491,22 +545,154 @@ assert_no_clobber_case() {
   fi
 
   grep -q 'refusing to overwrite existing Studio release artifact' "${case_dir}/output.log"
-  if grep -q '^cp ' "${case_dir}/aws.log"; then
+  if grep -q '^put ' "${case_dir}/aws.log"; then
     echo "publisher uploaded despite no-clobber refusal" >&2
     exit 1
   fi
 }
 
-assert_uploaded_metadata_failure_case() {
-  local case_dir="${tmp_root}/metadata-failure"
+assert_upload_missing_s3_metadata_is_not_a_failure_case() {
+  local case_dir="${tmp_root}/upload-missing-s3-metadata"
 
-  prepare_case "${case_dir}" "studio metadata failure artifact"
-  if run_publisher "${case_dir}" STUB_AWS_CORRUPT_SHA_ON_HEAD=1 >"${case_dir}/output.log" 2>&1; then
-    echo "expected uploaded metadata verification case to fail" >&2
+  prepare_case "${case_dir}" "studio upload missing s3 metadata artifact"
+  run_publisher "${case_dir}" STUB_AWS_DROP_METADATA_ON_PUT=1 >"${case_dir}/output.log" 2>&1
+
+  grep -q 'uploaded Studio release object' "${case_dir}/output.log"
+  if grep -q 'metadata does not match local file' "${case_dir}/output.log"; then
+    echo "publisher required uploaded S3 metadata to round-trip" >&2
+    exit 1
+  fi
+}
+
+assert_existing_matching_metadata_skips_upload_case() {
+  local case_dir="${tmp_root}/existing-matching-metadata"
+  local web_asset_path
+  local web_asset_name
+  local web_asset_key
+  local existing
+  local expected_sha
+
+  prepare_case "${case_dir}" "studio existing matching metadata artifact"
+  web_asset_path="$(web_asset_path_for "${case_dir}")"
+  web_asset_name="$(basename "${web_asset_path}")"
+  web_asset_key="${prefix}/skenion-studio/${release_tag}/web/${web_asset_name}"
+  existing="${case_dir}/s3/${bucket}/${web_asset_key}"
+  expected_sha="$(awk '{print $1; exit}' "${web_asset_path}.sha256")"
+  mkdir -p "$(dirname "${existing}")"
+  cp "${web_asset_path}" "${existing}"
+  write_stub_metadata "${existing}" "${expected_sha}"
+
+  run_publisher "${case_dir}" >"${case_dir}/output.log" 2>&1
+
+  grep -q 'object already exists and will not be overwritten' "${case_dir}/output.log"
+  if grep -q "^put ${bucket}/${web_asset_key}$" "${case_dir}/aws.log"; then
+    echo "publisher re-uploaded an existing object with matching metadata" >&2
+    exit 1
+  fi
+}
+
+assert_existing_missing_metadata_skips_matching_asset_case() {
+  local case_dir="${tmp_root}/existing-missing-metadata"
+  local web_asset_path
+  local web_asset_name
+  local web_asset_key
+  local existing
+
+  prepare_case "${case_dir}" "studio existing missing metadata artifact"
+  web_asset_path="$(web_asset_path_for "${case_dir}")"
+  web_asset_name="$(basename "${web_asset_path}")"
+  web_asset_key="${prefix}/skenion-studio/${release_tag}/web/${web_asset_name}"
+  existing="${case_dir}/s3/${bucket}/${web_asset_key}"
+  mkdir -p "$(dirname "${existing}")"
+  cp "${web_asset_path}" "${existing}"
+
+  run_publisher "${case_dir}" >"${case_dir}/output.log" 2>&1
+
+  grep -q 'object already exists without immutable metadata and matching size' "${case_dir}/output.log"
+  if grep -q "^put ${bucket}/${web_asset_key}$" "${case_dir}/aws.log"; then
+    echo "publisher re-uploaded an existing metadata-free object with matching size" >&2
+    exit 1
+  fi
+}
+
+assert_existing_missing_metadata_mismatched_size_case() {
+  local case_dir="${tmp_root}/existing-missing-metadata-size-mismatch"
+  local web_asset_path
+  local web_asset_name
+  local existing
+
+  prepare_case "${case_dir}" "studio existing missing metadata size mismatch artifact"
+  web_asset_path="$(web_asset_path_for "${case_dir}")"
+  web_asset_name="$(basename "${web_asset_path}")"
+  existing="${case_dir}/s3/${bucket}/${prefix}/skenion-studio/${release_tag}/web/${web_asset_name}"
+  mkdir -p "$(dirname "${existing}")"
+  printf 'size mismatch\n' >"${existing}"
+
+  if run_publisher "${case_dir}" >"${case_dir}/output.log" 2>&1; then
+    echo "expected existing missing metadata size mismatch case to fail" >&2
     exit 1
   fi
 
-  grep -q 'uploaded Studio release .* metadata does not match local file' "${case_dir}/output.log"
+  grep -q 'existing S3 object size does not match expected artifact' "${case_dir}/output.log"
+  if grep -q '^put ' "${case_dir}/aws.log"; then
+    echo "publisher uploaded despite existing metadata-free size mismatch" >&2
+    exit 1
+  fi
+}
+
+assert_existing_mismatched_metadata_fails_case() {
+  local case_dir="${tmp_root}/existing-mismatched-metadata"
+  local web_asset_path
+  local web_asset_name
+  local existing
+
+  prepare_case "${case_dir}" "studio existing mismatched metadata artifact"
+  web_asset_path="$(web_asset_path_for "${case_dir}")"
+  web_asset_name="$(basename "${web_asset_path}")"
+  existing="${case_dir}/s3/${bucket}/${prefix}/skenion-studio/${release_tag}/web/${web_asset_name}"
+  mkdir -p "$(dirname "${existing}")"
+  cp "${web_asset_path}" "${existing}"
+  write_stub_metadata "${existing}" "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+
+  if run_publisher "${case_dir}" >"${case_dir}/output.log" 2>&1; then
+    echo "expected existing mismatched metadata case to fail" >&2
+    exit 1
+  fi
+
+  grep -q 'S3 metadata does not match expected immutable artifact' "${case_dir}/output.log"
+  if grep -q '^put ' "${case_dir}/aws.log"; then
+    echo "publisher uploaded despite existing mismatched metadata" >&2
+    exit 1
+  fi
+}
+
+assert_existing_missing_metadata_mismatched_content_case() {
+  local case_dir="${tmp_root}/existing-missing-metadata-content-mismatch"
+  local web_asset_path
+  local web_asset_name
+  local web_asset_key
+  local existing
+
+  prepare_case "${case_dir}" "studio existing missing metadata content mismatch artifact"
+  web_asset_path="$(web_asset_path_for "${case_dir}")"
+  web_asset_name="$(basename "${web_asset_path}")"
+  web_asset_key="${prefix}/skenion-studio/${release_tag}/web/${web_asset_name}"
+  existing="${case_dir}/s3/${bucket}/${web_asset_key}"
+  mkdir -p "$(dirname "${existing}")"
+  cp "${web_asset_path}" "${existing}"
+  printf 'X' | dd of="${existing}" bs=1 count=1 conv=notrunc >/dev/null 2>&1
+
+  if run_publisher "${case_dir}" >"${case_dir}/output.log" 2>&1; then
+    echo "expected existing missing metadata content mismatch case to fail" >&2
+    exit 1
+  fi
+
+  grep -q 'object already exists without immutable metadata and matching size' "${case_dir}/output.log"
+  grep -q 'public Studio release .*web bundle.* content does not match local file' "${case_dir}/output.log"
+  if grep -q "^put ${bucket}/${web_asset_key}$" "${case_dir}/aws.log"; then
+    echo "publisher overwrote metadata-free same-size object before public content verification" >&2
+    exit 1
+  fi
 }
 
 assert_public_content_failure_case() {
@@ -526,7 +712,12 @@ assert_github_actions_guard_case
 assert_success_case
 assert_secretless_dry_run_defaults_case
 assert_no_clobber_case
-assert_uploaded_metadata_failure_case
+assert_upload_missing_s3_metadata_is_not_a_failure_case
+assert_existing_matching_metadata_skips_upload_case
+assert_existing_missing_metadata_skips_matching_asset_case
+assert_existing_missing_metadata_mismatched_size_case
+assert_existing_mismatched_metadata_fails_case
+assert_existing_missing_metadata_mismatched_content_case
 assert_public_content_failure_case
 
 echo "Studio DSUB S3 publisher validation passed."
