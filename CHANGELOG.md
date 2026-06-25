@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.19](https://github.com/skenion/skenion-studio/compare/v0.44.18...v0.44.19) (2026-06-25)
+
+
+### Bug Fixes
+
+* **ci:** trust recorded Studio web artifact evidence ([d70cd07](https://github.com/skenion/skenion-studio/commit/d70cd079dd70b9cdab39d06b45b8c38d0187cff8)), closes [#116](https://github.com/skenion/skenion-studio/issues/116)
+
 ## [0.44.18](https://github.com/skenion/skenion-studio/compare/v0.44.17...v0.44.18) (2026-06-25)
 
 
