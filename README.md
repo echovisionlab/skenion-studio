@@ -22,10 +22,11 @@ React Flow is only the visual interaction layer. `skenion graph v0.1` remains th
 
 ## Development
 
-Default installs, CI, builds, tests, and release workflows consume the committed
-registry dependency for `@skenion/contracts`. A local Contracts checkout is only
-used when you run the explicit integration command below; simply cloning into
-`.deps` does not change Studio's dependency resolution.
+Default installs, CI, builds, tests, and release workflows consume committed
+registry dependencies for `@skenion/contracts` and `@skenion/sdk`. Local
+Contracts or SDK checkouts are only used when you run the explicit integration
+commands below; simply cloning into `.deps` does not change Studio's dependency
+resolution.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -52,6 +53,27 @@ checkout, pass `--contracts-package <path>` or set
 `dist/index.js`, Studio's declared version ranges, git branch/commit evidence
 where available, and then temporarily redirects `node_modules/@skenion/contracts`
 only for the validation run.
+
+Studio consumes `@skenion/sdk` as an external helper library. Framework-agnostic
+graph-fragment clipboard envelope helpers come from the SDK; Studio keeps
+React, React Flow, keyboard shortcut, paste availability, Runtime connection,
+and view reconciliation code in this repository. To validate an unreleased SDK
+checkout explicitly, build the SDK package first, then run:
+
+```sh
+pnpm --dir ../Skenion-sdk install --frozen-lockfile
+pnpm --dir ../Skenion-sdk run build
+pnpm run check-local-sdk-integration -- --sdk-package ../Skenion-sdk
+```
+
+The SDK command defaults to `.deps/skenion-sdk` and the sibling
+`../Skenion-sdk` checkout. To use a different package root, pass
+`--sdk-package <path>` or set `SKENION_SDK_PACKAGE`. The command verifies the
+local package metadata, `dist/index.js`, `dist/index.d.ts`, Studio's declared
+SDK dependency, the SDK's Contracts peer range against Studio's registry
+Contracts dependency, git branch/commit/dirty evidence where available, and
+then temporarily redirects `node_modules/@skenion/sdk` only for a lightweight
+import check or for the command passed after `--`.
 
 Local Runtime integration is also explicit. To validate a local-managed desktop
 sidecar binary, pass the binary path or opt into the sibling debug Runtime

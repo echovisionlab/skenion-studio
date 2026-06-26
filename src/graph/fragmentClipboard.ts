@@ -8,6 +8,11 @@ import {
   type GraphFragmentV01,
   type ViewStateV01
 } from "@skenion/contracts";
+export {
+  SKENION_GRAPH_FRAGMENT_CLIPBOARD_TYPE,
+  parseGraphFragmentClipboard,
+  serializeGraphFragmentClipboard
+} from "@skenion/sdk";
 import {
   CURRENT_CONTRACT_SCHEMA_VERSION,
   displayEdgeToEdgeSpec,
@@ -15,8 +20,6 @@ import {
   type DisplayGraphDocumentV01
 } from "./patchLibrary";
 import { edgeId } from "./portSemantics";
-
-export const SKENION_GRAPH_FRAGMENT_CLIPBOARD_TYPE = "application/vnd.skenion.graph-fragment+json";
 
 export interface GraphSelection {
   edgeIds: string[];
@@ -159,29 +162,6 @@ export function createGraphFragmentFromSelection(
   };
 }
 
-export function serializeGraphFragmentClipboard(fragment: GraphFragmentV01): string {
-  return JSON.stringify({
-    type: SKENION_GRAPH_FRAGMENT_CLIPBOARD_TYPE,
-    fragment
-  });
-}
-
-export function parseGraphFragmentClipboard(text: string): GraphFragmentV01 | null {
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch {
-    return null;
-  }
-
-  const candidate =
-    isRecord(value) && value.type === SKENION_GRAPH_FRAGMENT_CLIPBOARD_TYPE
-      ? value.fragment
-      : value;
-  const result = validateGraphFragmentV01(candidate, { outsideEndpointPolicy: "omit" });
-  return result.ok ? result.value : null;
-}
-
 function fragmentNodeViews(
   viewState: ViewStateV01,
   nodeIds: string[]
@@ -192,10 +172,6 @@ function fragmentNodeViews(
       return view ? [[nodeId, clone(view)]] : [];
     })
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function clone<T>(value: T): T {
