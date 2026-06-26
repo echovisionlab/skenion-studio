@@ -3,6 +3,7 @@ packages:
 
 minimumReleaseAgeExclude:
   - "@skenion/contracts"
+  - "@skenion/sdk"
 
 allowBuilds:
   esbuild: set this to true or false

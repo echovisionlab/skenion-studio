@@ -38,10 +38,10 @@ app build. `pnpm run visual-gate` is the explicit visual QA command and should
 be run when a graph editor change needs screenshot review.
 
 Studio preserves pnpm's minimum-release-age policy for third-party
-dependencies. The only workspace-level age-policy exclusion is the first-party
-`@skenion/contracts` package, so PR CI can validate against freshly published
-Contracts patches while still building the sibling Contracts checkout used for
-integration checks.
+dependencies. The only workspace-level age-policy exclusions are first-party
+`@skenion/contracts` and `@skenion/sdk`, so PR CI can validate against freshly
+published Contracts and SDK patches while keeping local source integration
+behind explicit evidence commands.
 
 ## Release Hygiene
 
@@ -169,18 +169,29 @@ binary path, version, and checkout branch/commit/dirty evidence where
 available, but default CI and release workflows do not invoke it and must not
 use its local override environment variables.
 
+Local SDK development evidence also lives outside the release path in
+`pnpm run check-local-sdk-integration`. That command validates a local
+`@skenion/sdk` package root, records path plus branch/commit/dirty evidence,
+temporarily redirects `node_modules/@skenion/sdk`, and runs either a lightweight
+graph-fragment clipboard import check or a command supplied after `--`. Default
+CI and release workflows consume the committed registry dependency and must not
+set `SKENION_SDK_PACKAGE`, `SKENION_SDK_PACKAGE_PATH`,
+`SKENION_LOCAL_SDK_INTEGRATION`, pass `--sdk-package`, or invoke the local SDK
+integration script.
+
 Windows studio distribution is installer-based. The primary v0 user-facing
 Windows artifact family is the Tauri NSIS setup executable ending in
 `-setup.exe`; MSI output may be published as an additional installer when it is
 stable. Runtime manifest evidence is not a Windows studio installer and is not
 uploaded as a Studio-owned Windows release asset.
 
-Desktop release packaging consumes `@skenion/contracts` from npm, not from a
-sibling checkout. Studio currently targets Contracts line `0.49`, expressed as
-`>=0.49.0 <0.50.0`; app builds may pin a concrete released patch such as
-`0.49.0`, and release metadata records the compatibility range. The selected
-package must already exist on npm, and the installed package line is verified
-before Tauri packaging starts.
+Desktop release packaging consumes `@skenion/contracts` and `@skenion/sdk`
+from npm, not from sibling checkouts. Studio currently targets Contracts line
+`0.49`, expressed as `>=0.49.0 <0.50.0`; app builds may pin a concrete
+released Contracts patch such as `0.49.0`, and release metadata records the
+compatibility range. The SDK dependency is also a concrete released registry
+version. The selected packages must already exist on npm, and the installed
+Contracts package line is verified before Tauri packaging starts.
 
 Release Please remains responsible for versioning and GitHub release creation.
 Desktop packaging uploads artifacts only from GitHub Actions publish mode.

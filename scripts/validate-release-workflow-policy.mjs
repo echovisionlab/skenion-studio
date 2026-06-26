@@ -24,6 +24,7 @@ const ciPolicyPath = "docs/ci-release-policy.md";
 const rootPackagePath = "package.json";
 const desktopPackagePath = "packages/studio-desktop/package.json";
 const webPackagePath = "packages/studio-web/package.json";
+const pnpmWorkspacePath = "pnpm-workspace.yaml";
 
 const workflowPaths = fs
   .readdirSync(workflowDir)
@@ -48,7 +49,9 @@ const ciPolicy = readRequired(ciPolicyPath);
 const rootPackage = readJsonRequired(rootPackagePath);
 const desktopPackage = readJsonRequired(desktopPackagePath);
 const webPackage = readJsonRequired(webPackagePath);
+const pnpmWorkspace = readRequired(pnpmWorkspacePath);
 const contractsPackageName = "@skenion/contracts";
+const sdkPackageName = "@skenion/sdk";
 const expectedContractsVersion = rootPackage.dependencies?.[contractsPackageName];
 const expectedContractsLine = isExactSemver(expectedContractsVersion)
   ? expectedContractsVersion.split(".").slice(0, 2).join(".")
@@ -63,8 +66,13 @@ const localRuntimeOverrideTokenPattern =
   /\b(?:SKENION_RUNTIME_BIN|SKENION_RUNTIME_USE_SIBLING_DEBUG|SKENION_LOCAL_RUNTIME_INTEGRATION|SKENION_LOCAL_SHARED_RUNTIME_URL|SKENION_RUNTIME_LOCAL_SHARED_URL|check-local-runtime-integration)\b/;
 const localRuntimeOverrideFlagPattern =
   /(?<![\w-])(?:--runtime-bin|--sibling-debug-runtime|--use-sibling-debug-runtime|--local-shared-url|--runtime-url)(?=$|[=\s"'`),])/m;
+const localSdkOverrideTokenPattern =
+  /\b(?:SKENION_SDK_PACKAGE|SKENION_SDK_PACKAGE_PATH|SKENION_LOCAL_SDK_INTEGRATION|check-local-sdk-integration)\b/;
+const localSdkOverrideFlagPattern =
+  /(?<![\w-])(?:--sdk-package|--sdk-package-path)(?=$|[=\s"'`),])/m;
 
 checkLocalRuntimeOverridePatternCoverage();
+checkLocalSdkOverridePatternCoverage();
 
 for (const workflowPath of workflowPaths) {
   const workflow = readRequired(workflowPath);
@@ -73,6 +81,7 @@ for (const workflowPath of workflowPaths) {
   checkNoReleaseActionBypass(workflowPath, workflow);
   if (isDefaultOrReleaseWorkflow(workflowPath)) {
     checkNoLocalContractsOverride(workflowPath, workflow);
+    checkNoLocalSdkOverride(workflowPath, workflow);
     checkNoLocalRuntimeOverride(workflowPath, workflow);
   }
 }
@@ -91,6 +100,7 @@ checkReleaseStatusPolicy();
 checkRuntimeReleasePinPolicy();
 checkDocsPolicy();
 checkContractsDependencyPolicy();
+checkSdkDependencyPolicy();
 checkReleaseContractsVersionPolicy();
 
 if (failures.length > 0) {
@@ -166,6 +176,21 @@ function localRuntimeOverrideMatch(content) {
   return localRuntimeOverrideTokenPattern.exec(content) ?? localRuntimeOverrideFlagPattern.exec(content);
 }
 
+function checkNoLocalSdkOverride(relativePath, content) {
+  const match = localSdkOverrideMatch(content);
+  if (match) {
+    fail(
+      relativePath,
+      lineForIndex(content, match.index),
+      "release and default CI workflows must not use local SDK overrides"
+    );
+  }
+}
+
+function localSdkOverrideMatch(content) {
+  return localSdkOverrideTokenPattern.exec(content) ?? localSdkOverrideFlagPattern.exec(content);
+}
+
 function checkLocalRuntimeOverridePatternCoverage() {
   const positiveSamples = [
     "pnpm run check-local-runtime-integration",
@@ -211,10 +236,104 @@ function checkLocalRuntimeOverridePatternCoverage() {
   }
 }
 
+function checkLocalSdkOverridePatternCoverage() {
+  const positiveSamples = [
+    "pnpm run check-local-sdk-integration",
+    "node scripts/check-local-sdk-integration.mjs",
+    "env:\n  SKENION_SDK_PACKAGE: /tmp/skenion-sdk",
+    "env:\n  SKENION_SDK_PACKAGE_PATH: /tmp/skenion-sdk",
+    "SKENION_LOCAL_SDK_INTEGRATION=1",
+    "--sdk-package",
+    "pnpm run check-local-sdk-integration -- --sdk-package /tmp/skenion-sdk",
+    "pnpm run check-local-sdk-integration -- --sdk-package=/tmp/skenion-sdk",
+    "--sdk-package-path",
+    "--sdk-package-path=/tmp/skenion-sdk"
+  ];
+  const negativeSamples = [
+    "SKENION_SDK_PACKAGE_REGISTRY=true",
+    "prefix--sdk-package",
+    "---sdk-package",
+    "--sdk-package-name @skenion/sdk",
+    "--sdk-packageish",
+    "check-local-sdk-integrations"
+  ];
+
+  for (const sample of positiveSamples) {
+    if (!localSdkOverrideMatch(sample)) {
+      fail(
+        "scripts/validate-release-workflow-policy.mjs",
+        1,
+        `local SDK override guard must match sample ${JSON.stringify(sample)}`
+      );
+    }
+  }
+  for (const sample of negativeSamples) {
+    if (localSdkOverrideMatch(sample)) {
+      fail(
+        "scripts/validate-release-workflow-policy.mjs",
+        1,
+        `local SDK override guard must not match sample ${JSON.stringify(sample)}`
+      );
+    }
+  }
+}
+
 function isDefaultOrReleaseWorkflow(relativePath) {
   return /(?:^|\/)(?:ci|release-please|studio-release-artifacts|desktop-release|backfill-v0\.44\.1-canonical-tag)\.ya?ml$/.test(
     relativePath
   );
+}
+
+function checkSdkDependencyPolicy() {
+  const rootDependency = rootPackage.dependencies?.[sdkPackageName];
+  if (!isExactSemver(rootDependency)) {
+    fail(rootPackagePath, 1, "root @skenion/sdk dependency must be an exact registry SemVer version");
+    return;
+  }
+
+  for (const [relativePath, packageJson] of [
+    [rootPackagePath, rootPackage],
+    [desktopPackagePath, desktopPackage],
+    [webPackagePath, webPackage]
+  ]) {
+    checkNoLocalPackageSpecifier(relativePath, packageJson, sdkPackageName);
+  }
+
+  rejectPattern(
+    pnpmWorkspacePath,
+    pnpmWorkspace,
+    /@skenion\/sdk[^\n]*(?:file:|link:|workspace:|github:|https?:|git\+)/,
+    "pnpm workspace must not configure @skenion/sdk through a local or Git dependency override"
+  );
+  expectIncludes(
+    pnpmWorkspacePath,
+    pnpmWorkspace,
+    '- "@skenion/sdk"',
+    "pnpm minimum-release-age exclusions must include first-party @skenion/sdk"
+  );
+}
+
+function checkNoLocalPackageSpecifier(relativePath, packageJson, packageName) {
+  for (const section of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
+    const specifier = packageJson[section]?.[packageName];
+    if (specifier !== undefined && !isRegistryRange(specifier)) {
+      fail(relativePath, 1, `${section}.${packageName} must use a registry SemVer specifier`);
+    }
+  }
+
+  for (const [section, overrides] of [
+    ["overrides", packageJson.overrides],
+    ["pnpm.overrides", packageJson.pnpm?.overrides]
+  ]) {
+    if (!overrides || typeof overrides !== "object") {
+      continue;
+    }
+    for (const [key, value] of Object.entries(overrides)) {
+      if (key.includes(packageName) && typeof value === "string" && !isRegistryRange(value)) {
+        fail(relativePath, 1, `${section}.${key} must not point ${packageName} at a local or Git source`);
+      }
+    }
+  }
 }
 
 function checkContractsDependencyPolicy() {
