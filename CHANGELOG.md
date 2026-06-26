@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.45.0](https://github.com/skenion/skenion-studio/compare/v0.44.20...v0.45.0) (2026-06-26)
+
+
+### Features
+
+* **studio:** add local runtime integration evidence ([86d6e16](https://github.com/skenion/skenion-studio/commit/86d6e1677002666c3932ab92dca7594ae350ab41))
+* **studio:** consume sdk clipboard helpers ([420d862](https://github.com/skenion/skenion-studio/commit/420d86225dbe50e6c021c98df79a49534991fe15))
+
+
+### Bug Fixes
+
+* **studio:** align contracts integration modes ([5e7a8f3](https://github.com/skenion/skenion-studio/commit/5e7a8f3640a7b8fbc5b0fe069fc4457522217ee2))
+
 ## [0.44.20](https://github.com/skenion/skenion-studio/compare/v0.44.19...v0.44.20) (2026-06-25)
 
 
