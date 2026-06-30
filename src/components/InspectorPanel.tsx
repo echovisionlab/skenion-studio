@@ -1,7 +1,7 @@
 import { Stack, Text } from "@mantine/core";
 import { useState } from "react";
-import { getBuiltinNodeHelp, getBuiltinNodeHelpGraph } from "@skenion/contracts";
 import type { GraphFragmentV01, ShaderDiagnosticV01 } from "@skenion/contracts";
+import { getStudioBuiltinNodeHelp, getStudioBuiltinNodeHelpGraph } from "../data/studioBuiltins";
 import { ConnectionDiagnosticsPanel } from "./inspector/ConnectionDiagnosticsPanel";
 import { EdgeInspector } from "./inspector/EdgeInspector";
 import { FeedbackPolicyDialog } from "./inspector/FeedbackPolicyDialog";
@@ -68,8 +68,8 @@ export function InspectorPanel({
   const selectedEdgeDiagnostics = edge
     ? semanticDiagnostics.filter((diagnostic) => diagnostic.edgeId === edge.id)
     : [];
-  const paletteHelp = helpNodeId ? getBuiltinNodeHelp(helpNodeId) : undefined;
-  const paletteHelpGraph = helpNodeId ? getBuiltinNodeHelpGraph(helpNodeId) : undefined;
+  const paletteHelp = helpNodeId ? getStudioBuiltinNodeHelp(helpNodeId) : undefined;
+  const paletteHelpGraph = helpNodeId ? getStudioBuiltinNodeHelpGraph(helpNodeId) : undefined;
 
   return (
     <InspectorShell edgeCount={graph.edges.length} nodeCount={graph.nodes.length}>

@@ -140,12 +140,23 @@ export function logLinesFromRuntimeState({
         result.receivedAt
       )
     );
-    result.response.diagnostics.forEach((diagnostic: { severity: LogLevel; message: string }, index: number) => {
-      lines.push(runtimeLine(`result-diagnostic-${index}`, diagnostic.severity, diagnostic.message, result.receivedAt));
+    result.response.diagnostics.forEach((diagnostic, index: number) => {
+      lines.push(
+        runtimeLine(
+          `result-diagnostic-${index}`,
+          logLevelFromSeverity(diagnostic.severity),
+          diagnostic.message,
+          result.receivedAt
+        )
+      );
     });
   }
 
   return lines;
+}
+
+function logLevelFromSeverity(severity: string): LogLevel {
+  return severity === "warning" || severity === "error" ? severity : "info";
 }
 
 export function mergeLogLines(lines: LogLine[]): LogLine[] {

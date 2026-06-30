@@ -1,4 +1,4 @@
-import type { RuntimeMutationRequest, RuntimeViewPatchOperation } from "@skenion/contracts";
+import type { RuntimeMutationRequest, RuntimeViewPatchOperation } from "./types";
 
 export interface RuntimeViewMutationRequestInput {
   baseViewRevision: number;

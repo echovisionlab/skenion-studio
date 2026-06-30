@@ -128,7 +128,7 @@ describe("fragmentClipboard", () => {
               id: "out",
               direction: "output",
               label: "Out",
-              type: { flow: "value", dataKind: "number.float", format: "f32" },
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
               accepts: ["number.int"],
               description: "Preserved output description.",
               fanOutPolicy: "allow",
@@ -152,7 +152,7 @@ describe("fragmentClipboard", () => {
               id: "in",
               direction: "input",
               label: "In",
-              type: { flow: "value", dataKind: "number.float", format: "f32" },
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
               defaultValue: 0.25,
               description: "Preserved input description.",
               latch: true,
@@ -397,7 +397,7 @@ const portFlowGraph: GraphDocumentV01 = {
           id: "latched_in",
           direction: "input",
           label: "Latched",
-          type: { flow: "value", dataKind: "number.float", format: "f32" },
+          type: { flow: "control", dataKind: "number.float", format: "f32" },
           activation: "latched"
         }
       ]
@@ -443,7 +443,7 @@ function node(id: string, label: string, ports: "input" | "output" | "both"): Gr
               id: "in",
               direction: "input" as const,
               label: "In",
-              type: { flow: "value" as const, dataKind: "number.float", format: "f32" }
+              type: { flow: "control" as const, dataKind: "number.float", format: "f32" }
             }
           ]
         : []),
@@ -453,7 +453,7 @@ function node(id: string, label: string, ports: "input" | "output" | "both"): Gr
               id: "out",
               direction: "output" as const,
               label: "Out",
-              type: { flow: "value" as const, dataKind: "number.float", format: "f32" }
+              type: { flow: "control" as const, dataKind: "number.float", format: "f32" }
             }
           ]
         : [])
@@ -466,8 +466,8 @@ function coreNode(node: {
   objectId: string;
   objectSpec: string;
   params: Record<string, unknown>;
-  ports: GraphDocumentV01["nodes"][number]["ports"];
-  portGroups?: GraphDocumentV01["nodes"][number]["portGroups"];
+  ports: unknown[];
+  portGroups?: unknown[];
 }): GraphDocumentV01["nodes"][number] {
   return {
     id: node.id,

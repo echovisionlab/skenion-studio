@@ -3,7 +3,7 @@ import type {
   RuntimeConnectionProfileMode,
   RuntimeEndpointMetadata,
   RuntimeOwnershipMode
-} from "@skenion/contracts";
+} from "../runtime/types";
 import { DEFAULT_RUNTIME_URL, normalizeRuntimeUrl } from "../runtime/client";
 import type { RuntimeSidecarStartupResponse } from "./sidecarTypes";
 

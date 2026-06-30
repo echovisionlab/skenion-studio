@@ -244,7 +244,7 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
 
     const controlOrValue = cycleEdges.every((edge) => {
       const source = findNodePort(graph, edge.from.node, edge.from.port)!;
-      return ["value", "event"].includes(source.port.type.flow);
+      return ["control", "event"].includes(source.port.type.flow);
     });
     diagnostics.push({
       severity: "error",
@@ -300,6 +300,9 @@ function artistFacingType(node: DisplayGraphNodeV01, port: PortV01): string {
   if (port.type.flow === "signal" && port.type.dataKind.startsWith("signal.")) {
     return port.type.dataKind;
   }
+  if (port.type.flow === "control") {
+    return `value.${artistFacingDataKind(port.type.dataKind)}`;
+  }
   return `${port.type.flow}.${port.type.dataKind}`;
 }
 
@@ -308,6 +311,25 @@ function semanticDataTypeForPort(node: DisplayGraphNodeV01, port: PortV01): Data
     return {
       flow: "resource",
       dataKind: "render.frame"
+    };
+  }
+  if (port.type.flow === "event" && port.type.dataKind === "event.bang") {
+    return {
+      flow: "control",
+      dataKind: "value.core.bang"
+    };
+  }
+  if (port.type.flow === "event" && port.type.dataKind === "message.any") {
+    return {
+      flow: "control",
+      dataKind: "value.core.message"
+    };
+  }
+  if (port.type.flow === "control") {
+    return {
+      ...port.type,
+      flow: "control",
+      dataKind: canonicalValueDataKind(port.type)
     };
   }
   return port.type;
@@ -324,14 +346,17 @@ function defaultRate(type: string, port: PortV01): string {
   if (type === "gpu.texture2d") {
     return "gpu";
   }
-  if (port.type.flow === "event" || port.type.flow === "value") {
+  if (port.type.flow === "event" || port.type.flow === "control") {
     return "control";
   }
   return port.type.flow;
 }
 
 function storedTypeLabel(type: DataTypeV01): string {
-  return `${type.flow}<${type.dataKind}>`;
+  if (type.flow === "control") {
+    return `value<${artistFacingDataKind(type.dataKind)}>`;
+  }
+  return `${type.flow}<${artistFacingDataKind(type.dataKind)}>`;
 }
 
 function conversionPreview(plan: ConversionPlanV01): EdgeConversionPreview | null {
@@ -339,8 +364,8 @@ function conversionPreview(plan: ConversionPlanV01): EdgeConversionPreview | nul
     return null;
   }
   return {
-    source: `${plan.source.dataKind}/${plan.source.representation}`,
-    target: `${plan.target.dataKind}/${plan.target.representation}`,
+    source: `${conversionDataKindLabel(String(plan.source.dataKind))}/${plan.source.representation}`,
+    target: `${conversionDataKindLabel(String(plan.target.dataKind))}/${plan.target.representation}`,
     lossy: plan.lossy,
     policies: plan.steps.map((step) => [
       step.policy,
@@ -352,6 +377,73 @@ function conversionPreview(plan: ConversionPlanV01): EdgeConversionPreview | nul
     diagnostics: plan.diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
   };
 }
+
+function artistFacingDataKind(dataKind: string): string {
+  switch (dataKind) {
+    case "value.core.float8":
+    case "value.core.float16":
+    case "value.core.float32":
+    case "value.core.float64":
+      return "number.float";
+    case "value.core.int8":
+    case "value.core.int16":
+    case "value.core.int32":
+    case "value.core.int64":
+      return "number.int";
+    case "value.core.uint8":
+    case "value.core.uint16":
+    case "value.core.uint32":
+    case "value.core.uint64":
+      return "number.uint";
+    case "value.core.bool":
+      return "boolean";
+    case "value.core.color":
+      return "color";
+    case "value.core.message":
+      return "message.any";
+    case "value.core.string":
+      return "string";
+    default:
+      return dataKind;
+  }
+}
+
+function canonicalValueDataKind(type: DataTypeV01): string {
+  switch (type.dataKind) {
+    case "number.float":
+      return valueCoreKindForFormat("float", type.format, "32");
+    case "number.int":
+      return valueCoreKindForFormat("int", type.format, "32");
+    case "number.uint":
+      return valueCoreKindForFormat("uint", type.format, "32");
+    case "boolean":
+      return "value.core.bool";
+    case "color":
+      return "value.core.color";
+    case "message.any":
+      return "value.core.message";
+    case "string":
+      return "value.core.string";
+    default:
+      return type.dataKind;
+  }
+}
+
+function valueCoreKindForFormat(
+  family: "float" | "int" | "uint",
+  format: DataTypeV01["format"],
+  fallbackBits: string
+): string {
+  const text = typeof format === "string" ? format : "";
+  const match = text.match(/^(?:u?float|[fiu])([0-9]+)(?:\\.|$)/u);
+  const bits = match?.[1] ?? fallbackBits;
+  return `value.core.${family}${bits}`;
+}
+
+function conversionDataKindLabel(dataKind: string): string {
+  return artistFacingDataKind(dataKind);
+}
+
 
 function findDirectedCycles(graph: DisplayGraphDocumentV01): DisplayEdgeV01[][] {
   const adjacency = new Map<string, DisplayEdgeV01[]>();

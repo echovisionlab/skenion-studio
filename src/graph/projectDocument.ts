@@ -141,13 +141,15 @@ export function updateViewStateViewport(
 export function createProjectDocument(
   graph: DisplayGraphDocumentV01,
   viewState: ViewStateV01,
-  now = new Date()
+  now = new Date(),
+  documentId = createDocumentId()
 ): ProjectDocumentV01 {
   const timestamp = now.toISOString();
   return {
     schema: "skenion.project",
     schemaVersion: CURRENT_CONTRACT_SCHEMA_VERSION,
     id: graph.id,
+    documentId,
     revision: graph.revision,
     metadata: {
       title: graph.id,
@@ -164,7 +166,8 @@ export function createProjectDocument(
 export function createProjectDocumentFromContractGraph(
   graph: GraphDocumentV01,
   viewState?: ViewStateV01,
-  now = new Date()
+  now = new Date(),
+  documentId = createDocumentId()
 ): ProjectDocumentV01 {
   const displayGraph = contractGraphToDisplayGraph(graph);
   const timestamp = now.toISOString();
@@ -172,6 +175,7 @@ export function createProjectDocumentFromContractGraph(
     schema: "skenion.project",
     schemaVersion: CURRENT_CONTRACT_SCHEMA_VERSION,
     id: graph.id,
+    documentId,
     revision: graph.revision,
     metadata: {
       title: graph.id,
@@ -304,4 +308,8 @@ function contractDocumentDiagnostic(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function createDocumentId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? "00000000-0000-4000-8000-000000000000";
 }

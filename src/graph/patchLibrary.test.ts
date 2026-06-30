@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ObjectImplementationRefV01 } from "@skenion/contracts";
 import type { PatchDefinitionV01 } from "./patchLibrary";
 import {
   createPatchLibrary,
@@ -219,7 +220,7 @@ describe("patchLibrary", () => {
             {
               id: "custom",
               direction: "input",
-              type: { flow: "value", dataKind: "custom.scalar" }
+              type: { flow: "control", dataKind: "custom.scalar" }
             }
           ]
         }
@@ -237,7 +238,7 @@ describe("patchLibrary", () => {
       graphPortToPortSpec({
         id: "fallback-default",
         direction: "input",
-        type: { flow: "value", dataKind: "number.float", format: "f32" },
+        type: { flow: "control", dataKind: "number.float", format: "f32" },
         defaultValue: 0.5
       } as Parameters<typeof graphPortToPortSpec>[0] & { defaultValue: number }).defaultValue
     ).toBe(0.5);
@@ -245,7 +246,7 @@ describe("patchLibrary", () => {
       graphPortToPortSpec({
         id: "legacy-default",
         direction: "input",
-        type: { flow: "value", dataKind: "number.float", format: "f32" },
+        type: { flow: "control", dataKind: "number.float", format: "f32" },
         default: 0.75
       }).defaultValue
     ).toBe(0.75);
@@ -253,7 +254,7 @@ describe("patchLibrary", () => {
       graphPortToPortSpec({
         id: "canonical-float",
         direction: "input",
-        type: { flow: "value", dataKind: "number.float", format: "f32" }
+        type: { flow: "control", dataKind: "number.float", format: "f32" }
       }).type
     ).toBe("value.core.float32");
   });
@@ -496,12 +497,12 @@ function coreNodeIdentity(objectId: string, objectSpec: string) {
     provider: { kind: "core" },
     objectId,
     version: "0.1.0"
-  };
+  } satisfies ObjectImplementationRefV01;
   return {
     implementation,
     objectSpec,
     objectResolution: {
-      status: "resolved",
+      status: "resolved" as const,
       selectedSpec: objectSpec,
       candidates: [
         {

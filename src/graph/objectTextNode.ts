@@ -1,15 +1,19 @@
-import { parseObjectTextV01 } from "@skenion/contracts";
 import type {
   DataFlow,
   DataTypeV01,
   NodeDefinitionManifestV01,
-  ObjectTextAtomV01,
-  ObjectTextDiagnosticV01,
-  ObjectTextParseResultV01,
-  ObjectTextPortV01,
   PortActivation,
   PortV01
 } from "@skenion/contracts";
+import {
+  OBJECT_TEXT_SCHEMA,
+  OBJECT_TEXT_SCHEMA_VERSION,
+  parseObjectTextV01,
+  type ObjectTextAtomV01,
+  type ObjectTextDiagnosticV01,
+  type ObjectTextParseResultV01,
+  type ObjectTextPortV01
+} from "./objectTextParser";
 import {
   createSubpatchNodeFromDefinition,
   CURRENT_CONTRACT_SCHEMA_VERSION,
@@ -24,8 +28,6 @@ import {
 
 export const UNRESOLVED_OBJECT_NODE_KIND = "core.unresolved-object";
 
-const OBJECT_TEXT_SCHEMA = "skenion.object-text.parse-result" as const;
-const OBJECT_TEXT_SCHEMA_VERSION = "0.1.0" as const;
 const NATIVE_OBJECT_ALIASES = new Map<string, string>([
   ["decode", "core.video-decode"],
   ["upload", "core.gpu-upload"],
@@ -93,13 +95,23 @@ export function createGraphNodeFromObjectText(
       true,
       []
     );
+    const subpatchNode = createSubpatchNodeFromDefinition(patchDefinition, existingNodes, {
+      nodeId: options.nodeId,
+      objectText: displayText
+    });
 
     return {
       ok: true,
-      node: createSubpatchNodeFromDefinition(patchDefinition, existingNodes, {
-        nodeId: options.nodeId,
-        objectText: displayText
-      }),
+      node: {
+        ...subpatchNode,
+        params: {
+          ...subpatchNode.params,
+          objectText: displayText
+        },
+        ports: subpatchBoundaryPorts(patchDefinition)
+          .map(patchPortSpecToObjectTextPort)
+          .map(objectTextPortToGraphPort)
+      },
       parseResult: subpatchParseResult,
       diagnostics: []
     };
@@ -485,10 +497,64 @@ function parseResultForSubpatch(
     resolvedKind: ok ? SUBPATCH_NODE_KIND : null,
     resolvedKindVersion: ok ? CURRENT_CONTRACT_SCHEMA_VERSION : null,
     params: patchId ? { patchId } : {},
-    instancePorts: definition ? patchDefinitionBoundaryPorts(definition).map(patchPortSpecToObjectTextPort) : [],
+    instancePorts: definition ? subpatchBoundaryPorts(definition).map(patchPortSpecToObjectTextPort) : [],
     displayText,
     diagnostics
   };
+}
+
+type SubpatchBoundaryPortSpec = Parameters<typeof portSpecToGraphPort>[0];
+type LegacyPatchGraphNode = PatchDefinitionV01["graph"]["nodes"][number] & { kind?: unknown };
+
+function subpatchBoundaryPorts(definition: PatchDefinitionV01): SubpatchBoundaryPortSpec[] {
+  const contractPorts = patchDefinitionBoundaryPorts(definition);
+  if (contractPorts.length > 0) {
+    return contractPorts;
+  }
+
+  return definition.graph.nodes.flatMap((node) => {
+    const legacyNode = node as LegacyPatchGraphNode;
+    if (legacyNode.kind === "core.inlet" || legacyNode.kind === "object.core.inlet") {
+      return legacyBoundaryPorts(legacyNode, "output", "input");
+    }
+    if (legacyNode.kind === "core.outlet" || legacyNode.kind === "object.core.outlet") {
+      return legacyBoundaryPorts(legacyNode, "input", "output");
+    }
+    return [];
+  });
+}
+
+function legacyBoundaryPorts(
+  node: LegacyPatchGraphNode,
+  internalDirection: SubpatchBoundaryPortSpec["direction"],
+  externalDirection: SubpatchBoundaryPortSpec["direction"]
+): SubpatchBoundaryPortSpec[] {
+  const ports = node.ports.filter((port) => port.direction === internalDirection);
+  return ports.map((port) => ({
+    ...port,
+    id: legacyBoundaryPortId(node, port, ports.length),
+    direction: externalDirection,
+    label: port.label ?? legacyStringParam(node, "label"),
+    boundaryNodeId: node.id,
+    boundaryPortId: port.id
+  }));
+}
+
+function legacyBoundaryPortId(
+  node: LegacyPatchGraphNode,
+  port: SubpatchBoundaryPortSpec,
+  eligiblePortCount: number
+): string {
+  return (
+    legacyStringParam(node, "portId") ??
+    legacyStringParam(node, "externalPortId") ??
+    (eligiblePortCount === 1 ? node.id : port.id)
+  );
+}
+
+function legacyStringParam(node: LegacyPatchGraphNode, key: string): string | undefined {
+  const value = node.params[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function patchPortSpecToObjectTextPort(port: Parameters<typeof portSpecToGraphPort>[0]): ObjectTextPortV01 {
@@ -530,7 +596,7 @@ function flowForObjectTextType(type: string): DataFlow {
   if (type === "asset.video" || type === "gpu.texture2d") {
     return "resource";
   }
-  return "value";
+  return "control";
 }
 
 function defaultFormatForObjectTextType(type: string): string | undefined {

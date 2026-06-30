@@ -1,4 +1,3 @@
-import { builtinNodeDefinitionsV01 } from "@skenion/contracts";
 import { describe, expect, it } from "vitest";
 import { CLEAR_COLOR_NODE_KIND } from "../graph/clearColor";
 import { COLOR_NODE_KIND } from "../graph/colorRgba";
@@ -14,32 +13,53 @@ import {
 } from "./sampleGraph";
 
 describe("node registry", () => {
-  it("uses the contracts builtin node ids as the registry source", () => {
-    expect(nodeRegistry.map((definition) => definition.id)).toEqual(
-      builtinNodeDefinitionsV01.map((definition) => definition.id)
-    );
+  it("keeps Studio-owned fallback node ids explicit", () => {
+    expect(nodeRegistry.map((definition) => definition.id)).toEqual([
+      "core.float",
+      "core.int",
+      "core.uint",
+      "core.bool",
+      "core.color",
+      "core.string",
+      "core.message",
+      "core.bang",
+      "core.comment",
+      "core.panel",
+      "core.operator.add",
+      "audio.operator.mul",
+      "audio.osc",
+      "core.video-asset",
+      "core.video-decode",
+      "core.gpu-upload",
+      "core.preview",
+      "render.clear-color",
+      "render.fullscreen-shader",
+      "render.output"
+    ]);
   });
 
-  it("matches canonical contracts builtins for render definitions", () => {
-    expect(findStudioDefinition(FULLSCREEN_SHADER_NODE_KIND)?.ports).toEqual(
-      findContractsDefinition(FULLSCREEN_SHADER_NODE_KIND)?.ports
-    );
-    expect(findStudioDefinition("render.output")?.ports).toEqual(
-      findContractsDefinition("render.output")?.ports
-    );
-    expect(findStudioDefinition(CLEAR_COLOR_NODE_KIND)?.ports).toEqual(
-      findContractsDefinition(CLEAR_COLOR_NODE_KIND)?.ports
-    );
-    expect(findStudioDefinition(COLOR_NODE_KIND)?.ports).toEqual(
-      findContractsDefinition(COLOR_NODE_KIND)?.ports
-    );
+  it("keeps render fallback definitions aligned with Contracts 0.56 shader ports", () => {
+    expect(findStudioDefinition(FULLSCREEN_SHADER_NODE_KIND)?.ports.map((port) => [port.id, port.type])).toEqual([
+      ["out", "value.core.tensor"]
+    ]);
+    expect(findStudioDefinition("render.output")?.ports.map((port) => [port.id, port.type])).toEqual([
+      ["in", "value.core.tensor"]
+    ]);
+    expect(findStudioDefinition(CLEAR_COLOR_NODE_KIND)?.ports.map((port) => [port.id, port.type])).toEqual([
+      ["out", "gpu.texture2d"]
+    ]);
+    expect(findStudioDefinition(COLOR_NODE_KIND)?.ports.map((port) => [port.id, port.type])).toEqual([
+      ["in", "color"],
+      ["cold", "color"],
+      ["value", "color"]
+    ]);
   });
 
   it("does not expose non-canonical f32 dataKind values", () => {
     expect(findDataKinds(nodeRegistry)).not.toContain("f32");
     expect(shaderUniformSampleGraph.nodes.find((node) => node.id === "shader_1")?.ports.find((port) => port.id === "speed")?.type).toMatchObject({
-      flow: "value",
-      dataKind: "number.float"
+      flow: "control",
+      dataKind: "value.core.float32"
     });
   });
 
@@ -118,10 +138,10 @@ describe("node registry", () => {
       ?.ports.find((port) => port.id === "tint");
 
     expect(valuePort?.type.dataKind).toBe("number.float");
-    expect(uniformPort?.type.dataKind).toBe("number.float");
-    expect(secondUniformPort?.type.dataKind).toBe("number.float");
+    expect(uniformPort?.type.dataKind).toBe("value.core.float32");
+    expect(secondUniformPort?.type.dataKind).toBe("value.core.float32");
     expect(colorPort?.type.dataKind).toBe("color");
-    expect(colorUniformPort?.type.dataKind).toBe("color");
+    expect(colorUniformPort?.type.dataKind).toBe("value.core.color");
     expect(
       findDataKinds([
         renderSampleGraph,
@@ -136,10 +156,6 @@ describe("node registry", () => {
 
 function findStudioDefinition(id: string) {
   return nodeRegistry.find((candidate) => candidate.id === id);
-}
-
-function findContractsDefinition(id: string) {
-  return builtinNodeDefinitionsV01.find((candidate) => candidate.id === id);
 }
 
 function removedKind(scope: string, name: string) {

@@ -382,6 +382,7 @@ export const runtimeSession: RuntimeSessionResponse = {
       schema: "skenion.project",
       schemaVersion: "0.1.0",
       id: storyGraph.id,
+      documentId: "66666666-6666-4666-8666-666666666666",
       revision: storyGraph.revision,
       graph: displayGraphToContractGraph(storyGraph),
       viewState: {

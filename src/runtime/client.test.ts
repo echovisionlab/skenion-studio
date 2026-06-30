@@ -40,6 +40,7 @@ const project = {
   schema: "skenion.project",
   schemaVersion: "0.1.0",
   id: "test",
+  documentId: "33333333-3333-4333-8333-333333333333",
   revision: "1",
   graph: {
     schema: "skenion.graph",
@@ -1655,6 +1656,7 @@ function sessionResponse(overrides: Partial<RuntimeSessionResponse> = {}): Runti
         schema: "skenion.project",
         schemaVersion: "0.1.0",
         id: "test",
+        documentId: "44444444-4444-4444-8444-444444444444",
         revision: "1",
         graph: {
           schema: "skenion.graph",
@@ -1664,8 +1666,12 @@ function sessionResponse(overrides: Partial<RuntimeSessionResponse> = {}): Runti
           nodes: [
             {
               id: "value_1",
-              kind: "core.float",
-              kindVersion: "0.1.0",
+              implementation: {
+                provider: { kind: "core" },
+                objectId: "float",
+                version: "0.1.0"
+              },
+              objectSpec: "float",
               params: { label: "Float" },
               ports: [
                 {
@@ -1755,8 +1761,12 @@ function pasteOperation(): RuntimeOperationEnvelope {
         nodes: [
           {
             id: "value_1",
-            kind: "core.float",
-            kindVersion: "0.1.0",
+            implementation: {
+              provider: { kind: "core" },
+              objectId: "float",
+              version: "0.1.0"
+            },
+            objectSpec: "float",
             params: { label: "Float" },
             ports: [
               {

@@ -1,6 +1,7 @@
 import { Badge, Group, Stack, Text } from "@mantine/core";
 import { ExternalLink } from "lucide-react";
-import type { BuiltinNodeHelpV01, GraphFragmentV01 } from "@skenion/contracts";
+import type { GraphFragmentV01 } from "@skenion/contracts";
+import type { StudioBuiltinNodeHelpV01 } from "../../data/studioBuiltins";
 import {
   isPatchDefinition,
   patchDescription,
@@ -13,7 +14,7 @@ import { HelpGraphViewer, type HelpGraphViewerDocument } from "../help/HelpGraph
 import { Button } from "../core/Button/Button";
 import type { GraphFragmentBuildResult } from "../../graph/fragmentClipboard";
 
-export type NodeHelpDocument = BuiltinNodeHelpV01 | PatchDefinitionV01;
+export type NodeHelpDocument = StudioBuiltinNodeHelpV01 | PatchDefinitionV01;
 
 export function NodeHelp({
   help,

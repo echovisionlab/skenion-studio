@@ -32,7 +32,7 @@ describe("port and edge semantics", () => {
       mergePolicy: "forbid",
       rate: "render",
       required: false,
-      storedType: "resource<gpu.texture2d>",
+      storedType: "resource<value.core.tensor>",
       triggerMode: "passive",
       type: "render.frame"
     });
@@ -139,7 +139,7 @@ describe("port and edge semantics", () => {
             {
               id: "value",
               direction: "output",
-              type: { flow: "value", dataKind: "number.float", format: "f32" }
+              type: { flow: "control", dataKind: "number.float", format: "f32" }
             }
           ]
         },
@@ -152,7 +152,7 @@ describe("port and edge semantics", () => {
             {
               id: "in",
               direction: "input",
-              type: { flow: "value", dataKind: "number.uint", format: "u8" },
+              type: { flow: "control", dataKind: "number.uint", format: "u8" },
               activation: "trigger"
             }
           ]
@@ -189,7 +189,7 @@ describe("port and edge semantics", () => {
             {
               id: "value",
               direction: "output",
-              type: { flow: "value", dataKind: "number.int", format: "i32" }
+              type: { flow: "control", dataKind: "number.int", format: "i32" }
             }
           ]
         },
@@ -202,7 +202,7 @@ describe("port and edge semantics", () => {
             {
               id: "in",
               direction: "input",
-              type: { flow: "value", dataKind: "number.uint", format: "u8" },
+              type: { flow: "control", dataKind: "number.uint", format: "u8" },
               activation: "trigger"
             }
           ]
@@ -216,7 +216,7 @@ describe("port and edge semantics", () => {
             {
               id: "value",
               direction: "output",
-              type: { flow: "value", dataKind: "color", format: "rgba32f" }
+              type: { flow: "control", dataKind: "color", format: "rgba32f" }
             }
           ]
         },
@@ -229,7 +229,7 @@ describe("port and edge semantics", () => {
             {
               id: "in",
               direction: "input",
-              type: { flow: "value", dataKind: "color", format: "rgba8unorm" },
+              type: { flow: "control", dataKind: "color", format: "rgba8unorm" },
               activation: "trigger"
             }
           ]
@@ -255,10 +255,7 @@ describe("port and edge semantics", () => {
       ...sampleGraph,
       edges: [
         sampleGraph.edges[0],
-        {
-          from: { node: "bang_1", port: "out" },
-          to: { node: "target_1", port: "in" }
-        }
+        sampleGraph.edges[0]
       ]
     };
 
@@ -270,7 +267,7 @@ describe("port and edge semantics", () => {
     expect(
       connectionSemanticCheck(sampleGraph, {
         type: "addEdge",
-        edge: duplicateTarget.edges[1]
+        edge: sampleGraph.edges[0]
       })
     ).toMatchObject({ code: "fan-in-forbidden" });
     expect(connectionSemanticCheck(sampleGraph, null)).toBeNull();
@@ -343,13 +340,13 @@ function twoNodeValueCycle(): GraphDocumentV01 {
     {
       id: "in",
       direction: "input",
-      type: { flow: "value", dataKind: "number.float" },
+      type: { flow: "control", dataKind: "number.float" },
       activation: "latched"
     },
     {
       id: "out",
       direction: "output",
-      type: { flow: "value", dataKind: "number.float" }
+      type: { flow: "control", dataKind: "number.float" }
     }
   ];
 

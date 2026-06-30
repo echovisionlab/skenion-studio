@@ -43,7 +43,7 @@ describe("object text graph node adapter", () => {
         id: "right",
         direction: "input",
         label: "Right",
-        type: { flow: "value", dataKind: "number.float", format: "f32" },
+        type: { flow: "control", dataKind: "number.float", format: "f32" },
         required: false,
         activation: "latched",
         default: 1
@@ -52,7 +52,7 @@ describe("object text graph node adapter", () => {
         id: "out",
         direction: "output",
         label: "Out",
-        type: { flow: "value", dataKind: "number.float", format: "f32" },
+        type: { flow: "control", dataKind: "number.float", format: "f32" },
         required: false
       }
     ]);
@@ -73,7 +73,7 @@ describe("object text graph node adapter", () => {
     });
     expect(result.node?.ports.map((port) => [port.id, port.type, port.default ?? null])).toEqual([
       ["in", { flow: "signal", dataKind: "signal.audio" }, null],
-      ["right", { flow: "value", dataKind: "number.float", format: "f32" }, 0.5],
+      ["right", { flow: "control", dataKind: "number.float", format: "f32" }, 0.5],
       ["out", { flow: "signal", dataKind: "signal.audio" }, null]
     ]);
   });
@@ -231,7 +231,7 @@ describe("object text graph node adapter", () => {
   });
 
   it("resolves p object text through the internal patch library", () => {
-    const patch: PatchDefinitionV01 = {
+    const patch = {
       id: "voice",
       revision: "1",
       metadata: {
@@ -279,7 +279,7 @@ describe("object text graph node adapter", () => {
         ],
         edges: []
       }
-    };
+    } as unknown as PatchDefinitionV01;
     const result = createGraphNodeFromObjectText("p voice", [], nodeRegistry, {
       patchLibrary: createPatchLibrary([patch])
     });
@@ -300,7 +300,7 @@ describe("object text graph node adapter", () => {
         {
           id: "pitch",
           direction: "input",
-          type: { flow: "value", dataKind: "number.float", format: "f32" },
+          type: { flow: "control", dataKind: "number.float", format: "f32" },
           activation: "latched",
           description: "Pitch in MIDI note numbers."
         },
@@ -333,7 +333,7 @@ describe("object text graph node adapter", () => {
   });
 
   it("keeps optional subpatch parse metadata absent for bare boundary ports", () => {
-    const patch: PatchDefinitionV01 = {
+    const patch = {
       id: "bare",
       revision: "1",
       graph: {
@@ -358,7 +358,7 @@ describe("object text graph node adapter", () => {
         ],
         edges: []
       }
-    };
+    } as unknown as PatchDefinitionV01;
     const result = createGraphNodeFromObjectText("p bare", [], nodeRegistry, {
       patchLibrary: createPatchLibrary([patch])
     });
@@ -423,9 +423,9 @@ describe("object text graph node adapter", () => {
     expect(objectTextTypeToGraphType("signal.audio")).toEqual({ flow: "signal", dataKind: "signal.audio" });
     expect(objectTextTypeToGraphType("asset.video")).toEqual({ flow: "resource", dataKind: "asset.video" });
     expect(objectTextTypeToGraphType("video.frame")).toEqual({ flow: "stream", dataKind: "video.frame" });
-    expect(objectTextTypeToGraphType("number.int")).toEqual({ flow: "value", dataKind: "number.int", format: "i32" });
-    expect(objectTextTypeToGraphType("number.uint")).toEqual({ flow: "value", dataKind: "number.uint", format: "u32" });
-    expect(objectTextTypeToGraphType("color")).toEqual({ flow: "value", dataKind: "color", format: "rgba32f" });
+    expect(objectTextTypeToGraphType("number.int")).toEqual({ flow: "control", dataKind: "number.int", format: "i32" });
+    expect(objectTextTypeToGraphType("number.uint")).toEqual({ flow: "control", dataKind: "number.uint", format: "u32" });
+    expect(objectTextTypeToGraphType("color")).toEqual({ flow: "control", dataKind: "color", format: "rgba32f" });
   });
 
   it("reports unavailable object kinds when registry lookup fails", () => {

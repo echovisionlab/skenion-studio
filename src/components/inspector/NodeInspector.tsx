@@ -1,8 +1,8 @@
 import { Divider, Group, Stack, Text } from "@mantine/core";
 import { BookOpen, Trash2 } from "lucide-react";
 import { Fragment, useState, type ReactNode } from "react";
-import { getBuiltinNodeHelp, getBuiltinNodeHelpGraph } from "@skenion/contracts";
 import type { GraphFragmentV01, ShaderDiagnosticV01 } from "@skenion/contracts";
+import { getStudioBuiltinNodeHelp, getStudioBuiltinNodeHelpGraph } from "../../data/studioBuiltins";
 import type { RuntimeGeneratedShaderResponse } from "../../runtime/types";
 import type { GraphFragmentBuildResult } from "../../graph/fragmentClipboard";
 import type { DisplayGraphNodeV01 } from "../../graph/patchLibrary";
@@ -144,8 +144,8 @@ export function NodeInspector({
   const shaderInterfaceSynced = shaderSource !== null
     ? fullscreenShaderPortsAreSynced(node.ports, shaderSource, shaderLanguage ?? "unsupported")
     : false;
-  const help = getBuiltinNodeHelp(node.kind);
-  const helpGraph = getBuiltinNodeHelpGraph(node.kind);
+  const help = getStudioBuiltinNodeHelp(node.kind);
+  const helpGraph = getStudioBuiltinNodeHelpGraph(node.kind);
   const hasRoutingSettings = isRoutingCapableObjectNode(node);
   const objectSettingBlocks: ReactNode[] = [];
   const addObjectSettingBlock = (key: string, content: ReactNode) => {

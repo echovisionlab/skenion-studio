@@ -1,7 +1,7 @@
 import type {
   RuntimeConnectionProfile,
   RuntimeEndpointMetadata
-} from "@skenion/contracts";
+} from "../runtime/types";
 
 export interface RuntimeSidecarDiagnostic {
   severity: "error" | "warning" | "info" | string;

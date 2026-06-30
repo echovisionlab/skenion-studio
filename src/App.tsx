@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppShell, Badge, Group, ScrollArea, Stack, Text } from "@mantine/core";
 import { CircleAlert, X } from "lucide-react";
 import {
-  getBuiltinNodeHelpGraph,
   type GraphFragmentV01,
   type GraphTargetRef,
   type NodeCatalogSnapshotV01,
@@ -23,6 +22,7 @@ import { Button as CoreButton } from "./components/core/Button/Button";
 import { IconButton } from "./components/core/IconButton/IconButton";
 import { clientLogLine, runtimeLogLineFromEvent, type LogLevel, type LogLine } from "./components/log/LogConsole";
 import { nodeRegistry } from "./data/registry";
+import { getStudioBuiltinNodeHelpGraph } from "./data/studioBuiltins";
 import {
   portDemoSampleGraph,
   portDemoSampleViewState,
@@ -1267,7 +1267,7 @@ export default function App() {
   }
 
   function openHelpGraphAsVolatileEditableCopy(definitionId: string) {
-    const helpGraph = getBuiltinNodeHelpGraph(definitionId);
+    const helpGraph = getStudioBuiltinNodeHelpGraph(definitionId);
     if (!helpGraph) {
       return;
     }

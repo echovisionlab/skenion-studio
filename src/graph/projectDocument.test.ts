@@ -97,13 +97,19 @@ describe("project document helpers", () => {
     const viewState = createViewStateFromPositions(sampleGraph, {
       value_1: { x: 32, y: 48 }
     });
-    const project = createProjectDocument(sampleGraph, viewState, new Date("2026-06-17T00:00:00.000Z"));
+    const project = createProjectDocument(
+      sampleGraph,
+      viewState,
+      new Date("2026-06-17T00:00:00.000Z"),
+      "11111111-1111-4111-8111-111111111111"
+    );
     const parsed = parseProjectDocument(project);
 
     expect(project).toMatchObject({
       schema: "skenion.project",
       schemaVersion: "0.1.0",
       id: sampleGraph.id,
+      documentId: "11111111-1111-4111-8111-111111111111",
       revision: sampleGraph.revision,
       metadata: {
         title: sampleGraph.id,
@@ -127,6 +133,7 @@ describe("project document helpers", () => {
       schema: "skenion.project",
       schemaVersion: "0.1.0",
       id: sampleGraph.id,
+      documentId: "22222222-2222-4222-8222-222222222222",
       revision: sampleGraph.revision,
       metadata: {
         title: "Legacy Project",

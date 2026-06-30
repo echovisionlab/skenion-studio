@@ -88,7 +88,7 @@ describe("nodeCardView", () => {
     const portView = toPortView(renderSampleGraph.nodes[0]!, outputPort);
 
     expect(portView.typeLabel).toBe("render.frame");
-    expect(portView.storedTypeLabel).toBe("resource<gpu.texture2d>");
+    expect(portView.storedTypeLabel).toBe("resource<value.core.tensor>");
     expect(portView.color).toBe("#d6336c");
   });
 
@@ -103,7 +103,7 @@ describe("nodeCardView", () => {
           id: "pitch",
           direction: "input",
           label: "Pitch",
-          type: { flow: "value", dataKind: "number.float", format: "f32" },
+          type: { flow: "control", dataKind: "number.float", format: "f32" },
           description: "Pitch in MIDI note numbers."
         } as GraphNodeV01["ports"][number]
       ]

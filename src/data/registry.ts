@@ -1,7 +1,7 @@
-import { builtinNodeDefinitionsV01 } from "@skenion/contracts";
 import type { NodeDefinitionManifestV01 } from "@skenion/contracts";
+import { studioBuiltinNodeDefinitionsV01 } from "./studioBuiltinRegistry";
 
-export const nodeRegistry: NodeDefinitionManifestV01[] = builtinNodeDefinitionsV01.map(cloneDefinition);
+export const nodeRegistry: NodeDefinitionManifestV01[] = studioBuiltinNodeDefinitionsV01.map(cloneDefinition);
 
 function cloneDefinition(definition: NodeDefinitionManifestV01): NodeDefinitionManifestV01 {
   return {

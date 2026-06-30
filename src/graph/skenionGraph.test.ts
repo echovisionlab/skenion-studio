@@ -30,7 +30,7 @@ import { displayGraphToContractGraph } from "./patchLibrary";
 
 describe("skenion graph helpers", () => {
   it("formats type and port keys", () => {
-    const type = { flow: "value", dataKind: "number.float", format: "float32" } as const;
+    const type = { flow: "control", dataKind: "number.float", format: "float32" } as const;
 
     expect(typeLabel(type)).toBe("value<number.float>");
     expect(typeKey(type)).toBe('value:number.float:"float32"');
@@ -117,7 +117,7 @@ describe("skenion graph helpers", () => {
             {
               id: "out",
               direction: "output",
-              type: { flow: "value", dataKind: "number.float" },
+              type: { flow: "control", dataKind: "number.float" },
               description: "Preserved current port help text."
             }
           ]
@@ -140,7 +140,7 @@ describe("skenion graph helpers", () => {
             {
               id: "in",
               direction: "input",
-              type: { flow: "value", dataKind: "number.float" },
+              type: { flow: "control", dataKind: "number.float" },
               required: true,
               description: "Requires an upstream value."
             }
@@ -349,7 +349,7 @@ describe("skenion graph helpers", () => {
       )
     ).toEqual({
       ok: true,
-      message: "value<number.float> connected to event<message.any>."
+      message: "value<number.float> connected to value<number.float>."
     });
     const secondBang = createGraphNodeFromDefinition(
       nodeRegistry.find((candidate) => candidate.id === "core.bang")!,
