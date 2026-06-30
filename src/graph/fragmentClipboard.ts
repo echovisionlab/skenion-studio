@@ -59,8 +59,8 @@ export function graphFragmentPasteAvailability(
   if (!input.sessionLoaded || !input.sessionSynced) {
     return { ok: false, reason: "Load and sync a Runtime session before pasting graph fragments." };
   }
-  if (!input.capabilities?.includes("session.operation")) {
-    return { ok: false, reason: "Runtime does not support session.operation graph fragment paste." };
+  if (!input.capabilities?.includes("session.graph.pasteFragment.realtime.v0.1")) {
+    return { ok: false, reason: "Runtime does not support realtime graph fragment paste." };
   }
   return { ok: true };
 }

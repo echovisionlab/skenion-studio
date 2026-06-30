@@ -96,6 +96,50 @@ describe("ObjectNodeRenderer interaction guards", () => {
     });
     container.remove();
   });
+
+  it("marks Runtime resolution diagnostics without requiring a legacy unresolved kind", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    let root: Root | null = createRoot(container);
+
+    await act(async () => {
+      root?.render(
+        createElement(ObjectNodeRenderer, {
+          card: genericCard(),
+          layoutEditable: true,
+          node: genericNode("object.external", {}, {
+            objectResolution: {
+              status: "ambiguous",
+              selectedSpec: "gain",
+              candidates: [],
+              diagnostics: [
+                {
+                  code: "runtime.object.ambiguous",
+                  message: "gain matched multiple objects",
+                  severity: "warning"
+                }
+              ]
+            },
+            objectSpec: "gain"
+          }),
+          onObjectTextCommit: () => undefined
+        })
+      );
+    });
+
+    const genericObject = Array.from(container.querySelectorAll("div")).find((element) =>
+      String(element.className).includes("genericObject")
+    );
+    expect(genericObject?.className).toContain("unresolvedObject");
+    expect(genericObject?.getAttribute("title")).toBe("gain matched multiple objects");
+    expect(container.textContent).toContain("gain");
+
+    await act(async () => {
+      root?.unmount();
+      root = null;
+    });
+    container.remove();
+  });
 });
 
 describe("generic object text", () => {
@@ -291,12 +335,17 @@ function genericCard(): NodeCardView {
   };
 }
 
-function genericNode(kind: string, params: Record<string, unknown>): GraphNodeV01 {
+function genericNode(
+  kind: string,
+  params: Record<string, unknown>,
+  extra: Record<string, unknown> = {}
+): GraphNodeV01 {
   return {
     id: "node_1",
     kind,
     kindVersion: "0.1.0",
     params,
-    ports: []
+    ports: [],
+    ...extra
   };
 }

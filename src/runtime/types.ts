@@ -5,14 +5,17 @@ import type {
   PasteGraphFragmentResponse,
   RuntimeProjectRequest,
   RuntimeMutationResponse,
+  NodeCatalogSnapshotV01,
   RuntimeSessionResponse
 } from "@skenion/contracts";
+import type { RuntimeGraphCommandResponse } from "./graphCommand";
 
 export type {
   ClockFieldV01,
   ClockStateV01,
   ClockTimeSignatureV01,
   ExtensionManifestV01,
+  NodeCatalogSnapshotV01,
   RuntimeApiResponse,
   RuntimeAsset,
   RuntimeAssetGetResponse,
@@ -105,6 +108,7 @@ export type RuntimeResultKind =
   | "planSession"
   | "runSession"
   | "mutateSession"
+  | "graphCommand"
   | "sessionOperation"
   | "undoPatch"
   | "redoPatch"
@@ -114,6 +118,7 @@ export type RuntimeResultKind =
 export type RuntimeActionResponse =
   | RuntimeApiResponse
   | RuntimePatchResponse
+  | RuntimeGraphCommandResponse
   | RuntimeSessionResponse
   | PasteGraphFragmentResponse
   | RuntimeControlEventResponse

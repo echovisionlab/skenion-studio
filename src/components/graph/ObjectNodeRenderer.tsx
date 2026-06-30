@@ -273,8 +273,12 @@ function GenericObjectBox({
   selected?: boolean;
 }) {
   const displayText = genericObjectTextForNode(node);
-  const unresolved = isUnresolvedObjectNode(node);
-  const diagnosticMessage = typeof node.params.diagnosticMessage === "string" ? node.params.diagnosticMessage : undefined;
+  const resolutionStatus = node.objectResolution?.status;
+  const unresolved = isUnresolvedObjectNode(node) || (resolutionStatus !== undefined && resolutionStatus !== "resolved");
+  const resolutionDiagnostic = node.objectResolution?.diagnostics?.[0];
+  const diagnosticMessage = typeof node.params.diagnosticMessage === "string"
+    ? node.params.diagnosticMessage
+    : resolutionDiagnostic?.message;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(displayText);
   const inputRef = useRef<HTMLInputElement | null>(null);

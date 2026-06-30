@@ -19,7 +19,9 @@ import {
   isRuntimeSessionResponse,
   isRuntimeTelemetrySnapshot
 } from "@skenion/contracts/runtime/http";
+import { validateNodeCatalogSnapshotV01 } from "@skenion/contracts";
 import type {
+  NodeCatalogSnapshotV01,
   RuntimeApiResponse,
   RuntimeAssetGetResponse,
   RuntimeAssetImportResponse,
@@ -66,6 +68,7 @@ export interface RuntimeClient {
   buildPlan: (project: RuntimeProjectPayload) => Promise<RuntimeApiResponse>;
   runProject: (project: RuntimeProjectPayload, frames: number) => Promise<RuntimeApiResponse>;
   getSessionInfo: () => Promise<RuntimeSessionInfoResponse>;
+  getNodeCatalog: () => Promise<NodeCatalogSnapshotV01>;
   getSession: () => Promise<RuntimeSessionResponse>;
   loadSession: (project: RuntimeProjectPayload) => Promise<RuntimeSessionResponse>;
   validateSession: () => Promise<RuntimeSessionResponse>;
@@ -145,6 +148,14 @@ export function createRuntimeClient(options: RuntimeClientOptions = {}): Runtime
         sessionPath("/info"),
         { method: "GET" },
         isRuntimeSessionInfoResponse
+      ),
+    getNodeCatalog: () =>
+      requestJson<NodeCatalogSnapshotV01>(
+        fetchImpl,
+        baseUrl,
+        sessionPath("/node-catalog"),
+        { method: "GET" },
+        isNodeCatalogSnapshot
       ),
     getSession: () =>
       requestJson<RuntimeSessionResponse>(fetchImpl, baseUrl, sessionPath(), { method: "GET" }, isRuntimeSessionResponse),
@@ -416,6 +427,10 @@ function isRuntimePatchResponse(value: unknown): value is RuntimePatchResponse {
     diagnostics: value.diagnostics,
     report: null
   });
+}
+
+function isNodeCatalogSnapshot(value: unknown): value is NodeCatalogSnapshotV01 {
+  return validateNodeCatalogSnapshotV01(value).ok;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

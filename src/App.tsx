@@ -3,12 +3,15 @@ import { Alert, AppShell, Badge, Group, ScrollArea, Stack, Text } from "@mantine
 import { CircleAlert, X } from "lucide-react";
 import {
   getBuiltinNodeHelpGraph,
-  validateRuntimeOperationEnvelope,
   type GraphFragmentV01,
+  type GraphTargetRef,
+  type NodeCatalogSnapshotV01,
+  type PasteGraphFragmentRequest,
   type ProjectDocumentV01,
-  type RuntimeOperationEnvelope,
   type ViewStateV01
 } from "@skenion/contracts";
+import { validatePasteGraphFragmentRequest } from "@skenion/contracts";
+import { objectSpecForCatalogEntry } from "@skenion/sdk";
 import { GraphCanvas } from "./components/GraphCanvas";
 import { DiagnosticsFooter } from "./components/DiagnosticsFooter";
 import { InspectorPanel } from "./components/InspectorPanel";
@@ -81,10 +84,12 @@ import {
   RuntimeClientError,
   type RuntimeClient
 } from "./runtime/client";
-import {
-  createRuntimeViewMutationRequest
-} from "./runtime/mutationRequest";
 import { createRuntimeProjectPayload } from "./runtime/payload";
+import {
+  createRuntimeGraphCommandClient,
+  type RuntimeGraphCommandClient,
+  type RuntimeGraphCommandResponse
+} from "./runtime/graphCommand";
 import {
   runtimeGraphFingerprint,
   runtimeSessionFingerprint,
@@ -94,14 +99,12 @@ import { runtimeControlValueEquals } from "./runtime/controlMessage";
 import type {
   RuntimeActionResult,
   RuntimeConnectionStatus,
-  RuntimeControlEventResponse,
   RuntimeControlEventRequest,
   RuntimeControlStateResponse,
   RuntimeControlValue,
   RuntimeGeneratedShaderResponse,
   RuntimeHistory,
   RuntimeInfo,
-  RuntimePatchResponse,
   RuntimeResultKind,
   RuntimePreviewStatus,
   RuntimeSessionEvent,
@@ -201,6 +204,7 @@ export default function App() {
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [runtimeFrames] = useState(2);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo | null>(null);
+  const [nodeCatalog, setNodeCatalog] = useState<NodeCatalogSnapshotV01 | null>(null);
   const [runtimeResult, setRuntimeResult] = useState<RuntimeActionResult | null>(null);
   const [runtimeSession, setRuntimeSession] = useState<RuntimeSessionResponse | null>(null);
   const [runtimeControlState, setRuntimeControlState] = useState<RuntimeControlStateResponse | null>(null);
@@ -597,9 +601,30 @@ export default function App() {
     return createRuntimeClient({ baseUrl, sessionId: runtimeSessionId });
   }
 
+  function createActiveRuntimeGraphCommandClient(baseUrl = runtimeUrl): RuntimeGraphCommandClient {
+    return createRuntimeGraphCommandClient({
+      baseUrl,
+      sessionId: runtimeSessionId,
+      windowId: studioWindowId
+    });
+  }
+
+  function recordRuntimeGraphCommandResult(response: RuntimeGraphCommandResponse) {
+    setRuntimeResult({
+      kind: "graphCommand",
+      response,
+      receivedAt: new Date().toISOString()
+    });
+  }
+
+  function currentRuntimeGraphRevision(): string | null {
+    return runtimeSession?.snapshot.project?.graph.revision ?? null;
+  }
+
   function resetRuntimeConnectionState() {
     setRuntimeStatus("disconnected");
     setRuntimeInfo(null);
+    setNodeCatalog(null);
     setRuntimeResult(null);
     setRuntimeSession(null);
     setRuntimeControlState(null);
@@ -704,18 +729,17 @@ export default function App() {
       return;
     }
 
-    const operation = createPasteGraphFragmentOperation(fragment, baseRevision);
-    setRuntimeBusyAction("sessionOperation");
+    const request = createPasteGraphFragmentRequest(fragment, baseRevision);
+    setRuntimeBusyAction("graphCommand");
     setRuntimeError(null);
     setPatchConflict(null);
     try {
       const client = createActiveRuntimeClient();
-      const response = await client.runSessionOperation(operation);
-      setRuntimeResult({
-        kind: "sessionOperation",
-        response,
-        receivedAt: new Date().toISOString()
+      const response = await createActiveRuntimeGraphCommandClient().sendGraphCommand({
+        kind: "graph.pasteFragment",
+        request
       });
+      recordRuntimeGraphCommandResult(response);
       if (!response.ok || !response.applied) {
         const message = response.diagnostics[0]?.message ?? "Runtime rejected graph fragment paste.";
         setRuntimeError(message);
@@ -756,124 +780,94 @@ export default function App() {
     );
   }
 
-  function addNode(definitionId: string, paramsOverride: Record<string, unknown> = {}) {
-    if (graphLocked) {
-      setRuntimeError("Unlock the graph before adding or moving objects.");
-      return;
-    }
-    const definition = nodeRegistry.find((candidate) => candidate.id === definitionId);
-    if (!definition) {
-      return;
-    }
-
-    const node = createGraphNodeFromDefinition(definition, graph.nodes, paramsOverride);
-    const patch = { type: "addNode", node } satisfies GraphPatch;
-    const nextGraph = applyPatch(graph, patch);
-    setActiveProject((currentProject) => applyActiveProjectPatches(currentProject, [patch]));
-    recordGraphPatches([patch]);
-    setViewState((currentViewState) =>
-      reconcileViewStateWithGraph(nextGraph, {
-        ...currentViewState,
-        canvas: {
-          ...currentViewState.canvas,
-          nodes: {
-            ...currentViewState.canvas.nodes,
-            [node.id]: {
-              x: 88 + (graph.nodes.length % 2) * 300,
-              y: 88 + Math.floor(graph.nodes.length / 2) * 180
-            }
-          }
-        }
-      })
-    );
-    selectSingleNode(node.id);
-    setActiveHelpNodeId(null);
-    openInspectSidePanel();
-    setConnectionCheck(null);
-    setRuntimeResult(null);
-  }
-
   function addNodeAtPosition(
     definitionId: string,
     position: { x: number; y: number },
     paramsOverride: Record<string, unknown> = {}
   ) {
-    if (graphLocked) {
-      setRuntimeError("Unlock the graph before adding or moving objects.");
-      return;
-    }
-    const definition = nodeRegistry.find((candidate) => candidate.id === definitionId);
-    if (!definition) {
+    const objectSpec = objectSpecForDefinitionId(definitionId, nodeCatalog);
+    if (!objectSpec) {
+      setRuntimeError("Runtime catalog entry is required before creating this object.");
       return;
     }
 
-    const node = createGraphNodeFromDefinition(definition, graph.nodes, paramsOverride);
-    const patch = { type: "addNode", node } satisfies GraphPatch;
-    const nextGraph = applyPatch(graph, patch);
-    setActiveProject((currentProject) => applyActiveProjectPatches(currentProject, [patch]));
-    recordGraphPatches([patch]);
-    setViewState((currentViewState) =>
-      reconcileViewStateWithGraph(nextGraph, {
-        ...currentViewState,
-        canvas: {
-          ...currentViewState.canvas,
-          nodes: {
-            ...currentViewState.canvas.nodes,
-            [node.id]: position
-          }
-        }
-      })
-    );
-    selectSingleNode(node.id);
-    setActiveHelpNodeId(null);
-    openInspectSidePanel();
-    setConnectionCheck(null);
-    setRuntimeResult(null);
-  }
-
-  function addObjectTextNode(objectText: string) {
-    if (graphLocked) {
-      setRuntimeError("Unlock the graph before adding or moving objects.");
-      return;
-    }
-
-    const result = createGraphNodeFromObjectText(objectText, graph.nodes, nodeRegistry, {
-      patchLibrary: activePatchLibrary
+    void createRuntimeObjectNode(objectSpec, {
+      params: paramsOverride,
+      position
     });
-    if (!result.node) {
-      setRuntimeError(result.diagnostics[0]?.message ?? "Object text could not be resolved.");
-      return;
-    }
-    appendObjectTextDiagnostics("object box create", result.diagnostics);
-    const node = result.node;
-
-    const patch = { type: "addNode", node } satisfies GraphPatch;
-    const nextGraph = applyPatch(graph, patch);
-    setActiveProject((currentProject) => applyActiveProjectPatches(currentProject, [patch]));
-    recordGraphPatches([patch]);
-    setViewState((currentViewState) =>
-      reconcileViewStateWithGraph(nextGraph, {
-        ...currentViewState,
-        canvas: {
-          ...currentViewState.canvas,
-          nodes: {
-            ...currentViewState.canvas.nodes,
-            [node.id]: {
-              x: 88 + (graph.nodes.length % 2) * 300,
-              y: 88 + Math.floor(graph.nodes.length / 2) * 180
-            }
-          }
-        }
-      })
-    );
-    selectSingleNode(node.id);
-    setActiveHelpNodeId(null);
-    openInspectSidePanel();
-    setConnectionCheck(null);
-    setRuntimeResult(null);
   }
 
-  function replaceObjectTextNode(nodeId: string, objectText: string) {
+  async function addObjectTextNode(objectText: string): Promise<boolean> {
+    const nodeId = await createRuntimeObjectNode(objectText, {
+      position: defaultObjectNodePosition(graph.nodes.length)
+    });
+    return nodeId !== null;
+  }
+
+  async function createRuntimeObjectNode(
+    objectText: string,
+    options: {
+      params?: Record<string, unknown>;
+      position: { x: number; y: number };
+    }
+  ): Promise<string | null> {
+    if (graphLocked) {
+      setRuntimeError("Unlock the graph before adding or moving objects.");
+      return null;
+    }
+    const objectSpec = objectText.trim();
+    const baseRevision = currentRuntimeGraphRevision();
+    if (!objectSpec) {
+      setRuntimeError("Enter an object spec before creating an object.");
+      return null;
+    }
+    if (runtimeStatus !== "connected" || !runtimeSessionSynced || !baseRevision) {
+      setRuntimeError("Runtime session is required before creating object boxes.");
+      return null;
+    }
+
+    setRuntimeBusyAction("graphCommand");
+    setRuntimeError(null);
+    setPatchConflict(null);
+    try {
+      const response = await createActiveRuntimeGraphCommandClient().sendGraphCommand({
+        kind: "node.create",
+        target: rootGraphTarget(baseRevision),
+        baseGraphRevision: baseRevision,
+        objectSpec,
+        view: options.position,
+        ...(options.params && Object.keys(options.params).length > 0 ? { params: options.params } : {}),
+        unresolvedPolicy: "materialize-diagnostic"
+      });
+      recordRuntimeGraphCommandResult(response);
+      const nodeId = graphCommandNodeId(response);
+      await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
+      if (!response.ok || !response.applied) {
+        const message = response.diagnostics[0]?.message ?? "Runtime rejected object box create.";
+        setRuntimeError(message);
+        appendClientLog(response.conflict ? "warning" : "error", message);
+        return null;
+      }
+      selectSingleNode(nodeId);
+      setActiveHelpNodeId(null);
+      openInspectSidePanel();
+      setConnectionCheck(null);
+      return nodeId;
+    } catch (error) {
+      setRuntimeStatus("error");
+      setRuntimeError(error instanceof Error ? error.message : "Runtime object box create failed.");
+      try {
+        await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
+      } catch {
+        // Keep the original create error visible.
+      }
+      return null;
+    } finally {
+      setRuntimeBusyAction(null);
+    }
+  }
+
+  async function replaceObjectTextNode(nodeId: string, objectText: string) {
     if (graphLocked) {
       setRuntimeError("Unlock the graph before editing object boxes.");
       return;
@@ -883,29 +877,52 @@ export default function App() {
       setRuntimeError(`${nodeId} no longer exists.`);
       return;
     }
-
-    const result = createGraphNodeFromObjectText(
-      objectText,
-      graph.nodes.filter((node) => node.id !== nodeId),
-      nodeRegistry,
-      { nodeId, patchLibrary: activePatchLibrary }
-    );
-    if (!result.node) {
+    const objectSpec = objectText.trim();
+    const baseRevision = currentRuntimeGraphRevision();
+    if (!objectSpec) {
+      setRuntimeError("Enter an object spec before editing an object.");
       return;
     }
-    appendObjectTextDiagnostics("object box edit", result.diagnostics);
+    if (runtimeStatus !== "connected" || !runtimeSessionSynced || !baseRevision) {
+      setRuntimeError("Runtime session is required before editing object boxes.");
+      return;
+    }
 
-    const patch = {
-      type: "replaceNode",
-      nodeId,
-      node: result.node,
-      edgePolicy: "removeInvalidEdges"
-    } satisfies GraphPatch;
-    const nextGraph = applyPatch(graph, patch);
-    updateGraph(nextGraph, [patch]);
-    selectSingleNode(nodeId);
-    setActiveHelpNodeId(null);
-    openInspectSidePanel();
+    setRuntimeBusyAction("graphCommand");
+    setRuntimeError(null);
+    setPatchConflict(null);
+    try {
+      const response = await createActiveRuntimeGraphCommandClient().sendGraphCommand({
+        kind: "node.replace",
+        target: rootGraphTarget(baseRevision),
+        baseGraphRevision: baseRevision,
+        nodeId,
+        objectSpec,
+        unresolvedPolicy: "materialize-diagnostic",
+        interfaceIncidentEdgePolicy: "drop"
+      });
+      recordRuntimeGraphCommandResult(response);
+      await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
+      if (!response.ok || !response.applied) {
+        const message = response.diagnostics[0]?.message ?? "Runtime rejected object box edit.";
+        setRuntimeError(message);
+        appendClientLog(response.conflict ? "warning" : "error", message);
+        return;
+      }
+      selectSingleNode(nodeId);
+      setActiveHelpNodeId(null);
+      openInspectSidePanel();
+    } catch (error) {
+      setRuntimeStatus("error");
+      setRuntimeError(error instanceof Error ? error.message : "Runtime object box edit failed.");
+      try {
+        await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
+      } catch {
+        // Keep the original edit error visible.
+      }
+    } finally {
+      setRuntimeBusyAction(null);
+    }
   }
 
   function updateGraph(nextGraph: DisplayGraphDocumentV01, patches: GraphPatch[] = []) {
@@ -958,35 +975,27 @@ export default function App() {
       return;
     }
 
-    setRuntimeBusyAction("mutateSession");
+    const baseGraphRevision = currentRuntimeGraphRevision();
+    setRuntimeBusyAction("graphCommand");
     setRuntimeError(null);
     setPatchConflict(null);
     try {
       const client = createActiveRuntimeClient();
-      const response = await client.mutateSession(
-        createRuntimeViewMutationRequest({
+      const response = await createActiveRuntimeGraphCommandClient().sendGraphCommand({
+        kind: "view.patch",
+        baseViewRevision,
+        ...(baseGraphRevision ? { baseGraphRevision } : {}),
+        viewPatch: {
           baseViewRevision,
-          description: "move object",
           ops
-        })
-      );
-      const nextSession = runtimeSessionFromMutation(response);
-      setRuntimeSession(nextSession);
-      setRuntimeHistory(response.history);
-      setRuntimeResult({
-        kind: "mutateSession",
-        response,
-        receivedAt: new Date().toISOString()
+        },
+        description: "move object"
       });
+      recordRuntimeGraphCommandResult(response);
       setRuntimeStatus("connected");
+      await refreshRuntimeProjectFromRuntime(client);
 
       if (response.ok && response.applied) {
-        const project = response.snapshot.project;
-        if (project) {
-          setActiveProject(parseProjectDocument(project));
-        } else {
-          setViewState(nextViewState);
-        }
         clearPendingPatch();
         return;
       }
@@ -1450,9 +1459,11 @@ export default function App() {
       const history = runtimeSupportsHistory(info) ? await client.getSessionHistory() : null;
       const previewStatus = runtimeSupportsPreview(info) ? await client.getPreviewStatus() : null;
       const telemetry = runtimeSupportsTelemetry(info) ? await client.getTelemetry() : null;
+      const catalog = await fetchRuntimeNodeCatalog(client, info);
       const controlState =
         runtimeSessionLoaded(session) && runtimeSupportsControlState(info) ? await client.getControlState() : null;
       setRuntimeInfo(info);
+      setNodeCatalog(catalog);
       setRuntimeSession(session);
       setRuntimeControlState(controlState);
       setRuntimeHistory(history);
@@ -1464,6 +1475,7 @@ export default function App() {
       setRuntimeStatus("connected");
     } catch (error) {
       setRuntimeInfo(null);
+      setNodeCatalog(null);
       setRuntimeSession(null);
       setRuntimeControlState(null);
       setRuntimeHistory(null);
@@ -1607,6 +1619,7 @@ export default function App() {
     const project = session.snapshot.project;
     if (!info || !project) {
       setRuntimeSession(session);
+      setNodeCatalog(null);
       setRuntimeControlState(null);
       setRuntimeHistory(null);
       setRuntimePreviewStatus(null);
@@ -1619,6 +1632,7 @@ export default function App() {
 
     acceptRuntimeProject(project);
     setRuntimeSession(session);
+    setNodeCatalog(await fetchRuntimeNodeCatalog(client, info));
     setRuntimeControlState(runtimeSupportsControlState(info) ? await client.getControlState() : null);
     await refreshRuntimeHistory(client, info);
     await refreshRuntimePreview(client);
@@ -1664,6 +1678,21 @@ export default function App() {
     const controlState = await client.getControlState();
     setRuntimeControlState(controlState);
     return controlState;
+  }
+
+  async function fetchRuntimeNodeCatalog(
+    client: RuntimeClient = createActiveRuntimeClient(),
+    info: RuntimeInfo | null = runtimeInfo
+  ): Promise<NodeCatalogSnapshotV01 | null> {
+    if (!runtimeSupportsNodeCatalog(info)) {
+      return null;
+    }
+    try {
+      return await client.getNodeCatalog();
+    } catch (error) {
+      appendClientLog("warning", error instanceof Error ? error.message : "Runtime node catalog request failed.");
+      return null;
+    }
   }
 
   async function restoreRuntimeControlStateAfterControlFailure(
@@ -1817,44 +1846,23 @@ export default function App() {
     setPatchConflict(null);
     try {
       const client = createActiveRuntimeClient();
-      const response = action === "undo" ? await client.undoSessionPatch() : await client.redoSessionPatch();
-      await applyRuntimeHistoryShortcutResponse(kind, response, client);
+      const response = await createActiveRuntimeGraphCommandClient().sendGraphCommand({
+        kind: action === "undo" ? "history.undo" : "history.redo",
+        scope: "client"
+      });
+      recordRuntimeGraphCommandResult(response);
+      await refreshRuntimeProjectFromRuntime(client);
+      if (!response.ok || !response.applied) {
+        const message = response.diagnostics[0]?.message ?? "Runtime rejected history command.";
+        setRuntimeError(message);
+        appendClientLog(response.conflict ? "warning" : "error", message);
+      }
     } catch (error) {
       setRuntimeStatus("error");
       setRuntimeError(error instanceof Error ? error.message : "Runtime request failed.");
     } finally {
       setRuntimeBusyAction(null);
     }
-  }
-
-  async function applyRuntimeHistoryShortcutResponse(
-    kind: "undoPatch" | "redoPatch",
-    response: RuntimePatchResponse,
-    client: RuntimeClient
-  ) {
-    const nextSession = runtimeSessionFromMutation(response);
-    setRuntimeSession(nextSession);
-    setRuntimeHistory(response.history);
-    setRuntimeResult({
-      kind,
-      response,
-      receivedAt: new Date().toISOString()
-    });
-    setRuntimeStatus("connected");
-
-    const project = response.snapshot.project;
-    if (response.ok && response.applied && project) {
-      acceptRuntimeProject(project);
-      clearPendingPatch();
-    }
-
-    if (runtimeSessionLoaded(nextSession) && runtimeSupportsControlState(runtimeInfo)) {
-      await refreshRuntimeControlState(client);
-    } else {
-      setRuntimeControlState(null);
-    }
-    await refreshRuntimePreview(client);
-    await refreshRuntimeTelemetry(client);
   }
 
   async function sendRuntimeControlEvent(request: RuntimeControlEventRequest) {
@@ -1866,30 +1874,28 @@ export default function App() {
     applyOptimisticRuntimeControlEvent(request);
     const client = createActiveRuntimeClient();
     try {
-      const response = await client.sendControlEvent(request);
-      recordRuntimeControlPulses(response);
+      const response = await createActiveRuntimeGraphCommandClient().sendGraphCommand({
+        kind: "node.input",
+        nodeId: request.nodeId,
+        portId: request.portId,
+        message: request.message
+      });
       setRuntimeResult({
-        kind: "controlEvent",
+        kind: "graphCommand",
         response,
         receivedAt: new Date().toISOString()
       });
       setRuntimeStatus("connected");
-      applyRuntimeControlEventResponse(response);
-      if (response.controlRevision !== null) {
-        setRuntimeSession((current) =>
-          current
-            ? {
-                ...current,
-                snapshot: {
-                  ...current.snapshot,
-                  controlRevision: response.controlRevision ?? current.snapshot.controlRevision
-                }
-              }
-            : current
-        );
-        setRuntimePreviewStatus((current) =>
-          current ? { ...current, controlRevision: response.controlRevision ?? current.controlRevision } : current
-        );
+      if (response.ok && response.applied) {
+        recordRuntimeControlPulseForRequest(request);
+      }
+      if (!response.ok || !response.applied) {
+        const message = response.diagnostics[0]?.message ?? "Runtime rejected node input.";
+        setRuntimeError(message);
+        appendClientLog(response.conflict ? "warning" : "error", message);
+      }
+      if (runtimeSupportsControlState(runtimeInfo)) {
+        await refreshRuntimeControlState(client);
       } else {
         await restoreRuntimeControlStateAfterControlFailure(client);
       }
@@ -1990,31 +1996,31 @@ export default function App() {
     const { request, sequence } = pendingRequest;
     try {
       const client = createRuntimeClient({ baseUrl: url, sessionId });
-      const response = await client.sendControlEvent(request);
+      const response = await createRuntimeGraphCommandClient({
+        baseUrl: url,
+        sessionId,
+        windowId: studioWindowId
+      }).sendGraphCommand({
+        kind: "node.input",
+        nodeId: request.nodeId,
+        portId: request.portId,
+        message: request.message
+      });
       const isCurrentLiveResponse = sequence === queue.latestSequence;
       if (isCurrentLiveResponse) {
-        recordRuntimeControlPulses(response);
         setRuntimeStatus("connected");
         setRuntimeError(null);
       }
-      if (response.controlRevision !== null) {
-        applyRuntimeControlEventResponse(response, { applyValues: isCurrentLiveResponse });
-        setRuntimeSession((current) =>
-          current
-            ? {
-                ...current,
-                snapshot: {
-                  ...current.snapshot,
-                  controlRevision: response.controlRevision ?? current.snapshot.controlRevision
-                }
-              }
-            : current
-        );
-        setRuntimePreviewStatus((current) =>
-          current ? { ...current, controlRevision: response.controlRevision ?? current.controlRevision } : current
-        );
-      } else if (isCurrentLiveResponse) {
-        await restoreRuntimeControlStateAfterControlFailure(client, info);
+      if (response.ok && response.applied && isCurrentLiveResponse) {
+        recordRuntimeControlPulseForRequest(request);
+      }
+      if (!response.ok && isCurrentLiveResponse) {
+        const message = response.diagnostics[0]?.message ?? "Runtime rejected node input.";
+        setRuntimeError(message);
+        appendClientLog(response.conflict ? "warning" : "error", message);
+      }
+      if (isCurrentLiveResponse) {
+        await refreshRuntimeControlState(client, info);
       }
     } catch (error) {
       if (sequence === queue.latestSequence) {
@@ -2030,53 +2036,16 @@ export default function App() {
     }
   }
 
-  function recordRuntimeControlPulses(response: RuntimeControlEventResponse) {
-    const pulseNodeIds = response.emitted
-      .filter((emission) => emission.message.selector === "bang")
-      .map((emission) => emission.nodeId);
-    if (pulseNodeIds.length === 0) {
+  function recordRuntimeControlPulseForRequest(request: RuntimeControlEventRequest) {
+    if (request.message.selector !== "bang") {
       return;
     }
     const pulseKey = runtimeControlPulseCounterRef.current + 1;
     runtimeControlPulseCounterRef.current = pulseKey;
-    setRuntimeControlPulses((current) => {
-      const next = { ...current };
-      for (const nodeId of pulseNodeIds) {
-        next[nodeId] = pulseKey;
-      }
-      return next;
-    });
-  }
-
-  function applyRuntimeControlEventResponse(
-    response: RuntimeControlEventResponse,
-    options: { applyValues?: boolean } = {}
-  ) {
-    if (response.controlRevision === null) {
-      return;
-    }
-    const applyValues = options.applyValues ?? true;
-    setRuntimeControlState((current) => {
-      if (!current) {
-        return current;
-      }
-      const values = applyValues ? { ...current.values } : current.values;
-      let changed = false;
-      if (applyValues) {
-        for (const emission of response.emitted) {
-          const atom = emission.message.atoms[0];
-          if (atom && emission.portId === "value") {
-            changed = setRuntimeControlValueIfChanged(values, emission.nodeId, atom) || changed;
-          }
-        }
-      }
-      const revisionChanged = response.controlRevision !== current.controlRevision;
-      return changed || revisionChanged ? {
-        ...current,
-        controlRevision: response.controlRevision ?? current.controlRevision,
-        values
-      } : current;
-    });
+    setRuntimeControlPulses((current) => ({
+      ...current,
+      [request.nodeId]: pulseKey
+    }));
   }
 
   function setRuntimeControlValueIfChanged(
@@ -2112,7 +2081,14 @@ export default function App() {
   }
 
   function runtimeSupportsControl(info: RuntimeInfo | null): boolean {
-    return info?.capabilities.includes("session.control.event") ?? false;
+    return info?.capabilities.includes("session.control.nodeInput.realtime.v0.1") ?? false;
+  }
+
+  function runtimeSupportsNodeCatalog(info: RuntimeInfo | null): boolean {
+    return (
+      info?.capabilities.includes("session.nodeCatalog.v0.1") ||
+      info?.capabilities.includes("session.nodeCatalog")
+    ) ?? false;
   }
 
   function runtimeSupportsControlState(info: RuntimeInfo | null): boolean {
@@ -2298,8 +2274,7 @@ export default function App() {
         {runtimeGraphAvailable ? (
           <PalettePanel
             addDisabled={graphLocked}
-            registry={nodeRegistry}
-            onAddNode={addNode}
+            catalogEntries={nodeCatalog?.entries ?? []}
             onAddObjectText={addObjectTextNode}
             onShowHelp={showNodeHelp}
           />
@@ -2520,33 +2495,87 @@ export default function App() {
   );
 }
 
-function createPasteGraphFragmentOperation(
+function createPasteGraphFragmentRequest(
   fragment: GraphFragmentV01,
   baseRevision: string
-): RuntimeOperationEnvelope {
-  const operation: RuntimeOperationEnvelope = {
-    schema: "skenion.runtime.operation",
-    schemaVersion: "0.1.0",
-    id: `operation_${Date.now()}`,
-    kind: "pasteGraphFragment",
-    request: {
-      target: {
-        path: { kind: "root" },
-        baseRevision
-      },
-      fragment,
-      options: {
-        idConflictPolicy: "remap",
-        outsideEndpointPolicy: "omit",
-        preserveRelativePositions: true
-      }
+): PasteGraphFragmentRequest {
+  const request: PasteGraphFragmentRequest = {
+    target: {
+      path: { kind: "root" },
+      baseRevision
+    },
+    fragment,
+    options: {
+      idConflictPolicy: "remap",
+      outsideEndpointPolicy: "omit",
+      preserveRelativePositions: true
     }
   };
-  const validation = validateRuntimeOperationEnvelope(operation);
+  const validation = validatePasteGraphFragmentRequest(request);
   if (!validation.ok) {
     throw new Error(validation.errors.join("; "));
   }
   return validation.value;
+}
+
+function rootGraphTarget(baseRevision: string): GraphTargetRef {
+  return {
+    path: { kind: "root" },
+    baseRevision
+  };
+}
+
+function graphCommandNodeId(response: RuntimeGraphCommandResponse): string | null {
+  const node = response.payload.node;
+  if (!node || typeof node !== "object" || Array.isArray(node)) {
+    return null;
+  }
+  const nodeId = (node as { nodeId?: unknown }).nodeId;
+  return typeof nodeId === "string" && nodeId.length > 0 ? nodeId : null;
+}
+
+const LEGACY_DEFINITION_OBJECT_SPEC: Record<string, string> = {
+  "audio.input": "adc~",
+  "audio.operator.mul": "*~",
+  "audio.osc": "osc~ 440",
+  "audio.output": "dac~",
+  "audio.sig": "sig~ 0",
+  "core.bang": "bang",
+  "core.bool": "bool",
+  "core.color": "color",
+  "core.comment": "comment",
+  "core.float": "float",
+  "core.int": "int",
+  "core.message": "message",
+  "core.operator.add": "+",
+  "core.operator.div": "/",
+  "core.operator.max": "max",
+  "core.operator.min": "min",
+  "core.operator.mul": "*",
+  "core.operator.pow": "pow",
+  "core.operator.sqrt": "sqrt",
+  "core.operator.sub": "-",
+  "core.panel": "panel",
+  "core.string": "symbol",
+  "core.uint": "uint",
+  "core.video-asset": "video-asset",
+  "render.clear-color": "clear-color",
+  "render.fullscreen-shader": "fullscreen-shader"
+};
+
+function objectSpecForDefinitionId(
+  definitionId: string,
+  catalog: NodeCatalogSnapshotV01 | null
+): string | null {
+  const catalogEntry = catalog?.entries.find((entry) => entry.definition.id === definitionId);
+  return catalogEntry ? objectSpecForCatalogEntry(catalogEntry) : LEGACY_DEFINITION_OBJECT_SPEC[definitionId] ?? null;
+}
+
+function defaultObjectNodePosition(nodeCount: number): { x: number; y: number } {
+  return {
+    x: 88 + (nodeCount % 2) * 300,
+    y: 88 + Math.floor(nodeCount / 2) * 180
+  };
 }
 
 function isHelpGraphViewerTarget(target: EventTarget | null): boolean {
@@ -2660,15 +2689,6 @@ async function readLocalVideoAssetMetadata(file: File): Promise<Record<string, u
 
 function runtimeSessionLoaded(session: RuntimeSessionResponse | null): boolean {
   return Boolean(session?.snapshot.project);
-}
-
-function runtimeSessionFromMutation(response: RuntimePatchResponse): RuntimeSessionResponse {
-  return {
-    ok: response.ok,
-    snapshot: response.snapshot,
-    diagnostics: response.diagnostics,
-    report: null
-  };
 }
 
 function runtimeSessionFromEvent(event: RuntimeSessionEvent): RuntimeSessionResponse {

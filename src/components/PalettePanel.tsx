@@ -1,54 +1,54 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Badge, Divider, Group, ScrollArea, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import { HelpCircle, Plus } from "lucide-react";
-import { type NodeDefinitionManifestV01 } from "@skenion/contracts";
-import { paletteDirectDefinitions } from "../data/palette";
+import { type NodeCatalogEntryV01 } from "@skenion/contracts";
+import { objectSpecForCatalogEntry } from "@skenion/sdk";
 import { dataTypeFromPortSpec } from "../graph/patchLibrary";
-import { flowColor, flowName } from "../graph/reactFlowAdapter";
-import { createGraphNodeFromObjectText, isUnresolvedObjectNode } from "../graph/objectTextNode";
+import { flowColor } from "../graph/reactFlowAdapter";
 import { Button } from "./core/Button/Button";
 import { IconButton } from "./core/IconButton/IconButton";
 
 interface PalettePanelProps {
   addDisabled?: boolean;
-  registry: NodeDefinitionManifestV01[];
-  onAddNode: (definitionId: string) => void;
-  onAddObjectText: (objectText: string) => void;
+  catalogEntries?: NodeCatalogEntryV01[];
+  onAddObjectText: (objectText: string) => boolean | Promise<boolean | void> | void;
   onShowHelp: (definitionId: string) => void;
 }
 
 export function PalettePanel({
   addDisabled = false,
-  registry,
-  onAddNode,
+  catalogEntries = [],
   onAddObjectText,
   onShowHelp
 }: PalettePanelProps) {
   const [objectText, setObjectText] = useState("");
-  const directDefinitions = useMemo(() => paletteDirectDefinitions(registry), [registry]);
-  const categories = Array.from(new Set(directDefinitions.map((definition) => definition.category)));
   const objectTextInput = objectText.trim();
-  const objectTextAnalysis = useMemo(
-    () => (objectTextInput ? createGraphNodeFromObjectText(objectTextInput, [], registry) : null),
-    [objectTextInput, registry]
+  const catalogMode = catalogEntries.length > 0;
+  const filteredCatalogEntries = useMemo(
+    () => filterCatalogEntries(catalogEntries, objectTextInput),
+    [catalogEntries, objectTextInput]
   );
-  const objectTextDiagnostic = objectTextAnalysis?.diagnostics.find((diagnostic) => diagnostic.severity === "error") ??
-    objectTextAnalysis?.diagnostics[0] ??
-    null;
   const objectTextCanCreate = objectTextInput.length > 0 && !addDisabled;
-  const objectTextBadge = objectTextAnalysis?.node
-    ? isUnresolvedObjectNode(objectTextAnalysis.node)
-      ? "unresolved"
-      : objectTextAnalysis.node.kind
+  const exactCatalogMatches = objectTextInput
+    ? catalogEntries.filter((entry) => catalogEntrySpecs(entry).some((spec) => normalizedSpec(spec) === normalizedSpec(objectTextInput)))
+    : [];
+  const objectTextBadge = objectTextInput
+    ? exactCatalogMatches.length === 1
+      ? "catalog match"
+      : exactCatalogMatches.length > 1
+        ? "ambiguous"
+        : "runtime resolve"
     : null;
 
-  function submitObjectText(event: FormEvent<HTMLFormElement>) {
+  async function submitObjectText(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!objectTextCanCreate) {
       return;
     }
-    onAddObjectText(objectTextInput);
-    setObjectText("");
+    const result = await onAddObjectText(objectTextInput);
+    if (result !== false) {
+      setObjectText("");
+    }
   }
 
   return (
@@ -58,7 +58,9 @@ export function PalettePanel({
           Objects
         </Text>
         <Text c="dimmed" size="xs">
-          {directDefinitions.length} direct · {registry.length - directDefinitions.length} text-only
+          {catalogMode
+            ? `${catalogEntries.length} Runtime catalog`
+            : "Runtime catalog unavailable"}
         </Text>
       </div>
 
@@ -77,15 +79,14 @@ export function PalettePanel({
           <TextInput
             aria-label="Object box text"
             disabled={addDisabled}
-            error={objectTextDiagnostic?.severity === "error" ? objectTextDiagnostic.message : undefined}
             onChange={(event) => setObjectText(event.currentTarget.value)}
             placeholder="+ 1, +~, osc~ 440"
             size="xs"
             value={objectText}
           />
-          {objectTextDiagnostic && objectTextDiagnostic.severity !== "error" ? (
+          {exactCatalogMatches.length > 1 ? (
             <Text c="dimmed" size="xs">
-              {objectTextDiagnostic.message}
+              Runtime will keep this text and return candidates.
             </Text>
           ) : null}
           <Button disabled={!objectTextCanCreate} fullWidth size="compact-sm" type="submit">
@@ -97,62 +98,88 @@ export function PalettePanel({
       <Divider />
 
       <ScrollArea className="palette-scroll" offsetScrollbars>
-        <Stack gap="md">
-          {categories.map((category) => (
-            <Stack gap="xs" key={category}>
-              <Group justify="space-between">
-                <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-                  {category}
-                </Text>
-                <Badge size="xs" variant="light">
-                  {directDefinitions.filter((definition) => definition.category === category).length}
-                </Badge>
-              </Group>
-              {directDefinitions
-                .filter((definition) => definition.category === category)
-                .map((definition) => {
-                  const primaryPort = definition.ports.find((port) => port.direction === "output") ?? definition.ports[0];
-                  const primaryType = primaryPort ? dataTypeFromPortSpec(primaryPort) : null;
-                  const swatchColor = primaryType ? flowColor(primaryType.flow, primaryType.dataKind) : "#868e96";
+        {catalogMode ? (
+          <Stack gap="xs">
+            <Group justify="space-between">
+              <Text c="dimmed" fw={700} size="xs" tt="uppercase">
+                Catalog
+              </Text>
+              <Badge size="xs" variant="light">
+                {filteredCatalogEntries.length}
+              </Badge>
+            </Group>
+            {filteredCatalogEntries.map((entry) => {
+              const primaryPort = entry.definition.ports.find((port) => port.direction === "output") ?? entry.definition.ports[0];
+              const primaryType = primaryPort ? dataTypeFromPortSpec(primaryPort) : null;
+              const swatchColor = primaryType ? flowColor(primaryType.flow, primaryType.dataKind) : "#868e96";
+              const primaryObjectSpec = objectSpecForCatalogEntry(entry);
 
-                  return (
-                    <Group gap={6} key={definition.id} wrap="nowrap">
-                      <Button
-                        className="palette-node"
-                        color="gray"
-                        disabled={addDisabled}
-                        fullWidth
-                        justify="space-between"
-                        leftSection={<span className="flow-swatch" style={{ background: swatchColor }} />}
-                        onClick={() => onAddNode(definition.id)}
-                        rightSection={<Plus size={15} />}
-                        size="compact-md"
-                      >
-                        <span>
-                          <Text component="span" fw={700} size="sm">
-                            {definition.displayName}
-                          </Text>
-                          <Text c="dimmed" component="span" display="block" size="xs">
-                            {primaryType ? flowName(primaryType.flow, primaryType.dataKind) : definition.execution.model}
-                          </Text>
-                        </span>
-                      </Button>
-                      <Tooltip label={`Help: ${definition.displayName}`}>
-                        <IconButton
-                          icon={<HelpCircle size={16} />}
-                          label={`Show help for ${definition.displayName}`}
-                          onClick={() => onShowHelp(definition.id)}
-                          size={34}
-                        />
-                      </Tooltip>
-                    </Group>
-                  );
-                })}
-              <Divider />
-            </Stack>
-          ))}
-        </Stack>
+              return (
+                <Group gap={6} key={entry.catalogId} wrap="nowrap">
+                  <Button
+                    className="palette-node"
+                    color="gray"
+                    disabled={addDisabled}
+                    fullWidth
+                    justify="space-between"
+                    leftSection={<span className="flow-swatch" style={{ background: swatchColor }} />}
+                    onClick={() => onAddObjectText(primaryObjectSpec)}
+                    rightSection={<Plus size={15} />}
+                    size="compact-md"
+                  >
+                    <span>
+                      <Text component="span" fw={700} size="sm">
+                        {primaryObjectSpec}
+                      </Text>
+                      <Text c="dimmed" component="span" display="block" size="xs">
+                        {entry.display.title}
+                      </Text>
+                    </span>
+                  </Button>
+                  <Tooltip label={`Help: ${entry.display.title}`}>
+                    <IconButton
+                      icon={<HelpCircle size={16} />}
+                      label={`Show help for ${entry.display.title}`}
+                      onClick={() => onShowHelp(entry.definition.id)}
+                      size={34}
+                    />
+                  </Tooltip>
+                </Group>
+              );
+            })}
+          </Stack>
+        ) : (
+          <Text c="dimmed" size="xs">
+            Runtime catalog unavailable.
+          </Text>
+        )}
       </ScrollArea>
     </Stack>
   );
+}
+
+function filterCatalogEntries(entries: NodeCatalogEntryV01[], query: string): NodeCatalogEntryV01[] {
+  const normalizedQuery = normalizedSpec(query);
+  if (!normalizedQuery) {
+    return entries;
+  }
+  return entries.filter((entry) => {
+    const haystack = [
+      entry.display.title,
+      entry.display.category,
+      entry.display.description,
+      ...catalogEntrySpecs(entry)
+    ]
+      .filter((value): value is string => typeof value === "string")
+      .map(normalizedSpec);
+    return haystack.some((value) => value.includes(normalizedQuery));
+  });
+}
+
+function catalogEntrySpecs(entry: NodeCatalogEntryV01): string[] {
+  return [entry.primaryObjectSpec, ...(entry.aliases ?? [])];
+}
+
+function normalizedSpec(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/gu, " ");
 }

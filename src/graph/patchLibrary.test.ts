@@ -41,9 +41,22 @@ describe("patchLibrary", () => {
       id: "voice_1",
       kind: SUBPATCH_NODE_KIND,
       kindVersion: "0.1.0",
+      objectSpec: "p voice",
+      implementation: {
+        provider: {
+          kind: "projectPatch",
+          patchId: "voice",
+          revision: "3"
+        },
+        objectId: "voice",
+        version: "3"
+      },
+      objectResolution: {
+        status: "resolved",
+        selectedSpec: "p voice"
+      },
       params: {
         label: "p voice",
-        objectText: "p voice",
         patchId: "voice",
         patchRevision: "3",
         description: "Simple reusable voice."
@@ -54,7 +67,7 @@ describe("patchLibrary", () => {
         id: "pitch",
         direction: "input",
         label: "Pitch",
-        type: { flow: "value", dataKind: "number.float", format: "f32" },
+        type: { flow: "control", dataKind: "number.float", format: "f32" },
         required: true,
         rate: "control",
         accepts: ["number.int"],
@@ -104,7 +117,7 @@ describe("patchLibrary", () => {
 
     expect(node.id).toBe("subpatch_1");
     expect(node.params.label).toBe("p ---");
-    expect(node.params.objectText).toBe("p ---");
+    expect(node.objectSpec).toBe("p ---");
   });
 
   it("maps standalone current 0.1 color ports through the v0.1 display adapter", () => {
@@ -117,7 +130,7 @@ describe("patchLibrary", () => {
       })
     ).toMatchObject({
       id: "tint",
-      type: { flow: "value", dataKind: "color", format: "rgba32f" }
+      type: { flow: "control", dataKind: "color", format: "rgba32f" }
     });
 
     expect(
@@ -127,7 +140,7 @@ describe("patchLibrary", () => {
         type: "number.int",
         rate: "control"
       }).type
-    ).toEqual({ flow: "value", dataKind: "number.int", format: "i32" });
+    ).toEqual({ flow: "control", dataKind: "number.int", format: "i32" });
     expect(
       portSpecToGraphPort({
         id: "index",
@@ -135,7 +148,7 @@ describe("patchLibrary", () => {
         type: "number.uint",
         rate: "control"
       }).type
-    ).toEqual({ flow: "value", dataKind: "number.uint", format: "u32" });
+    ).toEqual({ flow: "control", dataKind: "number.uint", format: "u32" });
     expect(
       portSpecToGraphPort({
         id: "asset",
@@ -157,7 +170,7 @@ describe("patchLibrary", () => {
         direction: "input",
         type: "value.velocity"
       }).type
-    ).toEqual({ flow: "value", dataKind: "velocity" });
+    ).toEqual({ flow: "control", dataKind: "velocity" });
     expect(
       portSpecToGraphPort({
         id: "depth",
@@ -215,7 +228,7 @@ describe("patchLibrary", () => {
     });
 
     expect(graph.nodes[0]?.ports.map((port) => ({ id: port.id, rate: port.rate, type: port.type }))).toEqual([
-      { id: "audio", rate: "audio", type: "signal.audio" },
+      { id: "audio", rate: "audio", type: "media.audio-stream" },
       { id: "buffer", rate: "resource", type: "resource.buffer.mesh" },
       { id: "frame", rate: "render", type: "render.frame" },
       { id: "custom", rate: "control", type: "value.custom.scalar" }
@@ -236,6 +249,13 @@ describe("patchLibrary", () => {
         default: 0.75
       }).defaultValue
     ).toBe(0.75);
+    expect(
+      graphPortToPortSpec({
+        id: "canonical-float",
+        direction: "input",
+        type: { flow: "value", dataKind: "number.float", format: "f32" }
+      }).type
+    ).toBe("value.core.float32");
   });
 
   it("converts current 0.1 graphs to readonly v0.1 display graphs", () => {
@@ -289,6 +309,70 @@ describe("patchLibrary", () => {
     expect(plainEdgeGraph.edges[0]).not.toHaveProperty("feedback");
   });
 
+  it("bridges Runtime implementation identity to display kinds without persisting legacy identity", () => {
+    const graph = contractGraphToDisplayGraph({
+      schema: "skenion.graph",
+      schemaVersion: "0.1.0",
+      id: "runtime-owned",
+      revision: "1",
+      nodes: [
+        {
+          id: "float_1",
+          implementation: {
+            provider: { kind: "core" },
+            objectId: "float",
+            version: "0.1.0"
+          },
+          objectSpec: "float",
+          objectResolution: {
+            status: "resolved",
+            selectedSpec: "float",
+            candidates: []
+          },
+          params: {},
+          ports: []
+        },
+        {
+          id: "package_1",
+          implementation: {
+            provider: { kind: "package", packageId: "example/package", version: "0.1.0" },
+            objectId: "gain",
+            version: "0.1.0"
+          },
+          objectSpec: "gain",
+          objectResolution: {
+            status: "resolved",
+            selectedSpec: "gain",
+            candidates: []
+          },
+          params: {},
+          ports: []
+        }
+      ],
+      edges: []
+    } as unknown as Parameters<typeof contractGraphToDisplayGraph>[0]);
+
+    expect(graph.nodes[0]).toMatchObject({
+      kind: "core.float",
+      objectSpec: "float"
+    });
+    expect(graph.nodes[1]).toMatchObject({
+      kind: "object.external",
+      objectSpec: "gain"
+    });
+
+    const contractGraph = displayGraphToContractGraph(graph);
+    expect(contractGraph.nodes[0]).not.toHaveProperty("kind");
+    expect(contractGraph.nodes[0]).not.toHaveProperty("kindVersion");
+    expect(contractGraph.nodes[0]).toMatchObject({
+      implementation: {
+        provider: { kind: "core" },
+        objectId: "float"
+      },
+      objectSpec: "float"
+    });
+  });
+
   it("converts display graphs back into active current 0.1 graphs without losing metadata", () => {
     const displayGraph = patchDefinitionToDisplayGraph(testPatchDefinition());
     const activeGraph = displayGraphToContractGraph(displayGraph);
@@ -296,13 +380,13 @@ describe("patchLibrary", () => {
     expect(activeGraph.schemaVersion).toBe("0.1.0");
     expect(activeGraph.nodes[1]?.ports[0]).toMatchObject({
       id: "bang",
-      type: "event.bang",
+      type: "value.core.bang",
       rate: "event",
       triggerMode: "trigger",
       description: "Start the envelope."
     });
     expect(activeGraph.nodes[1]?.portGroups).toEqual([
-      { id: "control", direction: "output", type: "event.bang", minPorts: 1, label: "Control" }
+      { id: "control", direction: "output", type: "value.core.bang", minPorts: 1, label: "Control" }
     ]);
     expect(activeGraph.edges[0]).toMatchObject({
       id: "edge_trigger_display",
@@ -331,16 +415,15 @@ function testPatchDefinition(): PatchDefinitionV01 {
       nodes: [
         {
           id: "pitch_in",
-          kind: "core.inlet",
-          kindVersion: "0.1.0",
+          ...coreNodeIdentity("inlet", "inlet"),
           params: { portId: "pitch", label: "Pitch" },
           ports: [
             {
               id: "out",
               direction: "output",
-              type: "number.float",
+              type: "value.core.float32",
               rate: "control",
-              accepts: ["number.int"],
+              accepts: ["value.core.int32"],
               minConnections: 1,
               maxConnections: 1,
               mergePolicy: "forbid",
@@ -351,15 +434,14 @@ function testPatchDefinition(): PatchDefinitionV01 {
         },
         {
           id: "trigger",
-          kind: "core.bang",
-          kindVersion: "0.1.0",
+          ...coreNodeIdentity("bang", "bang"),
           params: { label: "Trigger" },
-          portGroups: [{ id: "control", direction: "output", type: "event.bang", minPorts: 1, label: "Control" }],
+          portGroups: [{ id: "control", direction: "output", type: "value.core.bang", minPorts: 1, label: "Control" }],
           ports: [
             {
               id: "bang",
               direction: "output",
-              type: "event.bang",
+              type: "value.core.bang",
               rate: "event",
               triggerMode: "trigger",
               description: "Start the envelope."
@@ -368,8 +450,7 @@ function testPatchDefinition(): PatchDefinitionV01 {
         },
         {
           id: "audio_out",
-          kind: "core.outlet",
-          kindVersion: "0.1.0",
+          ...coreNodeIdentity("outlet", "outlet"),
           params: { portId: "audio", label: "Audio" },
           ports: [
             {
@@ -384,8 +465,7 @@ function testPatchDefinition(): PatchDefinitionV01 {
         },
         {
           id: "display",
-          kind: "render.output",
-          kindVersion: "0.1.0",
+          ...coreNodeIdentity("render.output", "render-output"),
           params: { label: "Output" },
           ports: [
             {
@@ -405,6 +485,28 @@ function testPatchDefinition(): PatchDefinitionV01 {
           target: { nodeId: "display", portId: "out" },
           feedback: { enabled: true, boundary: "render-frame" },
           label: "demo"
+        }
+      ]
+    }
+  };
+}
+
+function coreNodeIdentity(objectId: string, objectSpec: string) {
+  const implementation = {
+    provider: { kind: "core" },
+    objectId,
+    version: "0.1.0"
+  };
+  return {
+    implementation,
+    objectSpec,
+    objectResolution: {
+      status: "resolved",
+      selectedSpec: objectSpec,
+      candidates: [
+        {
+          implementation,
+          objectSpec
         }
       ]
     }

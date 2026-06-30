@@ -5,6 +5,7 @@ import type {
   FeedbackPolicyV01,
   GraphDocumentV01,
   GraphNodeV01 as ContractGraphNodeV01,
+  ObjectImplementationRefV01,
   PatchContractPortV01,
   PatchDefinitionV01,
   PortGroupSpecV01,
@@ -32,7 +33,9 @@ export interface DisplayEdgeV01 {
   description?: string;
 }
 
-export interface DisplayGraphNodeV01 extends Omit<ContractGraphNodeV01, "ports"> {
+export interface DisplayGraphNodeV01 extends Omit<ContractGraphNodeV01, "kind" | "kindVersion" | "ports"> {
+  kind: string;
+  kindVersion: string;
   ports: PortV01[];
   portGroups?: PortGroupSpecV01[];
 }
@@ -113,15 +116,38 @@ export function createSubpatchNodeFromDefinition(
   options: { nodeId?: string; objectText?: string } = {}
 ): DisplayGraphNodeV01 {
   const objectText = options.objectText ?? `p ${definition.id}`;
+  const objectSpec = objectText;
   const description = patchDescription(definition).trim();
+  const implementation = {
+    provider: {
+      kind: "projectPatch",
+      patchId: definition.id,
+      revision: definition.revision
+    },
+    objectId: definition.id,
+    version: definition.revision
+  } satisfies ObjectImplementationRefV01;
 
   return {
     id: options.nodeId ?? uniqueSubpatchNodeId(definition.id, existingNodes),
     kind: SUBPATCH_NODE_KIND,
     kindVersion: CURRENT_CONTRACT_SCHEMA_VERSION,
+    objectSpec,
+    implementation,
+    objectResolution: {
+      status: "resolved",
+      selectedSpec: objectSpec,
+      candidates: [
+        {
+          implementation,
+          objectSpec,
+          displayName: patchDisplayName(definition),
+          reason: "project-patch"
+        }
+      ]
+    },
     params: {
       label: objectText,
-      objectText,
       patchId: definition.id,
       patchRevision: definition.revision,
       ...(description ? { description } : {})
@@ -150,18 +176,20 @@ export function displayGraphToContractGraph(graph: DisplayGraphDocumentV01): Gra
 }
 
 export function displayNodeToContractNode(node: DisplayGraphNodeV01): GraphDocumentV01["nodes"][number] {
-  return {
+  return omitUndefined({
     id: node.id,
-    kind: node.kind,
-    kindVersion: node.kindVersion,
+    implementation: node.implementation ? clone(node.implementation) : undefined,
+    objectSpec: node.objectSpec,
+    objectResolution: node.objectResolution ? clone(node.objectResolution) : undefined,
+    bindingRef: node.bindingRef,
     params: { ...node.params },
     ports: node.ports.map(graphPortToPortSpec),
     ...("portGroups" in node && Array.isArray(node.portGroups)
       ? {
-          portGroups: node.portGroups.map((group) => ({ ...group }))
+          portGroups: node.portGroups.map(displayPortGroupToPortGroupSpec)
         }
       : {})
-  };
+  }) as GraphDocumentV01["nodes"][number];
 }
 
 export function contractGraphToDisplayGraph(graph: GraphDocumentV01): DisplayGraphDocumentV01 {
@@ -170,16 +198,101 @@ export function contractGraphToDisplayGraph(graph: GraphDocumentV01): DisplayGra
     schemaVersion: CURRENT_CONTRACT_SCHEMA_VERSION,
     id: graph.id,
     revision: graph.revision,
-    nodes: graph.nodes.map((node) => ({
-      id: node.id,
-      kind: node.kind,
-      kindVersion: node.kindVersion,
-      params: { ...node.params },
-      ports: node.ports.map(portSpecToGraphPort),
-      ...(node.portGroups ? { portGroups: node.portGroups.map((group) => ({ ...group })) } : {})
-    })),
+    nodes: graph.nodes.map(contractNodeToDisplayNode),
     edges: graph.edges.map(edgeSpecToDisplayEdge)
   };
+}
+
+function contractNodeToDisplayNode(node: ContractGraphNodeV01): DisplayGraphNodeV01 {
+  const legacyNode = node as ContractGraphNodeV01 & { kind?: unknown; kindVersion?: unknown };
+  const implementation = "implementation" in node ? node.implementation : undefined;
+
+  return omitUndefined({
+    id: node.id,
+    kind: displayKindForContractNode(legacyNode.kind, implementation),
+    kindVersion: displayKindVersionForContractNode(legacyNode.kindVersion, implementation),
+    implementation: implementation ? clone(implementation) : undefined,
+    objectSpec: "objectSpec" in node ? node.objectSpec : undefined,
+    objectResolution: "objectResolution" in node && node.objectResolution ? clone(node.objectResolution) : undefined,
+    bindingRef: "bindingRef" in node ? node.bindingRef : undefined,
+    params: { ...node.params },
+    ports: node.ports.map(portSpecToGraphPort),
+    ...(node.portGroups ? { portGroups: node.portGroups.map(portGroupSpecToDisplayPortGroup) } : {})
+  }) as DisplayGraphNodeV01;
+}
+
+function displayKindForContractNode(
+  legacyKind: unknown,
+  implementation?: ObjectImplementationRefV01
+): string {
+  if (typeof legacyKind === "string" && legacyKind.trim()) {
+    return displayKindForRuntimeKind(legacyKind);
+  }
+  if (!implementation) {
+    return "object.unresolved";
+  }
+  if (implementation.provider.kind === "core") {
+    return displayKindForCoreObjectId(implementation.objectId);
+  }
+  if (implementation.provider.kind === "projectPatch") {
+    return SUBPATCH_NODE_KIND;
+  }
+  return "object.external";
+}
+
+const CORE_OBJECT_DISPLAY_KIND_BY_OBJECT_ID: Record<string, string> = {
+  "audio.input": "audio.input",
+  "audio.operator.add": "audio.operator.add",
+  "audio.operator.mul": "audio.operator.mul",
+  "audio.osc": "audio.osc",
+  "audio.output": "audio.output",
+  "audio.sig": "audio.sig",
+  bang: "core.bang",
+  bool: "core.bool",
+  color: "core.color",
+  comment: "core.comment",
+  float: "core.float",
+  inlet: "core.inlet",
+  int: "core.int",
+  message: "core.message",
+  "operator.add": "core.operator.add",
+  "operator.div": "core.operator.div",
+  "operator.max": "core.operator.max",
+  "operator.min": "core.operator.min",
+  "operator.mul": "core.operator.mul",
+  "operator.pow": "core.operator.pow",
+  "operator.sqrt": "core.operator.sqrt",
+  "operator.sub": "core.operator.sub",
+  outlet: "core.outlet",
+  panel: "core.panel",
+  "render.clear-color": "render.clear-color",
+  "render.fullscreen-shader": "render.fullscreen-shader",
+  "render.output": "render.output",
+  string: "core.string",
+  subpatch: SUBPATCH_NODE_KIND,
+  uint: "core.uint",
+  "video-asset": "core.video-asset"
+};
+
+function displayKindForRuntimeKind(kind: string): string {
+  if (!kind.startsWith("object.core.")) {
+    return kind;
+  }
+  return displayKindForCoreObjectId(kind.slice("object.core.".length));
+}
+
+function displayKindForCoreObjectId(objectId: string): string {
+  return CORE_OBJECT_DISPLAY_KIND_BY_OBJECT_ID[objectId] ?? "object.core";
+}
+
+function displayKindVersionForContractNode(
+  legacyKindVersion: unknown,
+  implementation?: ObjectImplementationRefV01
+): string {
+  if (typeof legacyKindVersion === "string" && legacyKindVersion.trim()) {
+    return legacyKindVersion;
+  }
+  return implementation?.version ?? CURRENT_CONTRACT_SCHEMA_VERSION;
 }
 
 export function portSpecToGraphPort(port: PortSpecV01): PortV01 {
@@ -190,7 +303,7 @@ export function portSpecToGraphPort(port: PortSpecV01): PortV01 {
     type: dataTypeFromPortSpec(port),
     required: port.required ?? ((port.minConnections ?? 0) > 0),
     rate: port.rate,
-    accepts: port.accepts ? [...port.accepts] : undefined,
+    accepts: port.accepts ? port.accepts.map(displayPortTypeFromPortSpecType) : undefined,
     minConnections: port.minConnections,
     maxConnections: port.maxConnections,
     mergePolicy: port.mergePolicy,
@@ -222,7 +335,7 @@ export function graphPortToPortSpec(port: PortV01): PortSpecV01 {
     type: portSpecTypeFromGraphPort(port),
     label: port.label,
     rate: extras.rate ?? portRateFromGraphPort(port),
-    accepts: extras.accepts ? [...extras.accepts] : undefined,
+    accepts: extras.accepts ? extras.accepts.map(canonicalPortTypeFromDisplayType) : undefined,
     minConnections: extras.minConnections,
     maxConnections: extras.maxConnections,
     mergePolicy: extras.mergePolicy,
@@ -288,7 +401,7 @@ export function displayEdgeToEdgeSpec(edge: DisplayEdgeV01): EdgeSpecV01 {
       nodeId: edge.to.node,
       portId: edge.to.port
     },
-    resolvedType: extras.resolvedType,
+    resolvedType: extras.resolvedType ? canonicalPortTypeFromDisplayType(extras.resolvedType) : undefined,
     order: extras.order,
     enabled: extras.enabled,
     adapter: extras.adapter,
@@ -297,6 +410,20 @@ export function displayEdgeToEdgeSpec(edge: DisplayEdgeV01): EdgeSpecV01 {
     label: extras.label,
     description: extras.description
   });
+}
+
+function displayPortGroupToPortGroupSpec(group: PortGroupSpecV01): PortGroupSpecV01 {
+  return {
+    ...group,
+    type: canonicalPortTypeFromDisplayType(group.type)
+  };
+}
+
+function portGroupSpecToDisplayPortGroup(group: PortGroupSpecV01): PortGroupSpecV01 {
+  return {
+    ...group,
+    type: displayPortTypeFromPortSpecType(group.type)
+  };
 }
 
 function activationForPortSpec(port: PortSpecV01): PortV01["activation"] | undefined {
@@ -322,8 +449,38 @@ function normalizedPortSpecType(type: string): string {
 
 function portSpecTypeFromGraphPort(port: PortV01): string {
   const dataKind = port.type.dataKind;
+  if (port.type.flow === "event" && dataKind === "event.bang") {
+    return "value.core.bang";
+  }
+  if (isControlFlow(port.type.flow) && dataKind === "boolean") {
+    return "value.core.bool";
+  }
+  if (isControlFlow(port.type.flow) && dataKind === "color") {
+    return "value.core.color";
+  }
+  if (isControlFlow(port.type.flow) && dataKind === "message.any") {
+    return "value.core.message";
+  }
+  if (isControlFlow(port.type.flow) && dataKind === "number.float") {
+    return "value.core.float32";
+  }
+  if (isControlFlow(port.type.flow) && dataKind === "number.int") {
+    return "value.core.int32";
+  }
+  if (isControlFlow(port.type.flow) && dataKind === "number.uint") {
+    return "value.core.uint32";
+  }
+  if (isControlFlow(port.type.flow) && dataKind === "string") {
+    return "value.core.string";
+  }
+  if (port.type.flow === "signal" && dataKind === "signal.audio") {
+    return "media.audio-stream";
+  }
+  if (port.type.flow === "stream" && dataKind === "video.frame") {
+    return "media.video-frame";
+  }
   if (port.type.flow === "resource" && dataKind === "asset.video") {
-    return "asset.video";
+    return "resource.asset.video";
   }
   if (port.type.flow === "resource" && dataKind !== "gpu.texture2d" && dataKind !== "render.frame") {
     return `resource.${dataKind}`;
@@ -331,10 +488,39 @@ function portSpecTypeFromGraphPort(port: PortV01): string {
   if (port.type.flow === "stream" && !dataKind.startsWith("stream.")) {
     return `stream.${dataKind}`;
   }
-  if (port.type.flow === "value" && isGenericValueDataKind(dataKind)) {
+  if (isControlFlow(port.type.flow) && isGenericValueDataKind(dataKind)) {
     return `value.${dataKind}`;
   }
   return dataKind;
+}
+
+function canonicalPortTypeFromDisplayType(type: string): string {
+  switch (type) {
+    case "boolean":
+      return "value.core.bool";
+    case "color":
+      return "value.core.color";
+    case "event.bang":
+      return "value.core.bang";
+    case "message.any":
+      return "value.core.message";
+    case "number.float":
+      return "value.core.float32";
+    case "number.int":
+      return "value.core.int32";
+    case "number.uint":
+      return "value.core.uint32";
+    case "string":
+      return "value.core.string";
+    case "signal.audio":
+      return "media.audio-stream";
+    case "video.frame":
+      return "media.video-frame";
+    case "asset.video":
+      return "resource.asset.video";
+    default:
+      return type;
+  }
 }
 
 function isGenericValueDataKind(dataKind: string): boolean {
@@ -351,6 +537,9 @@ function isGenericValueDataKind(dataKind: string): boolean {
 }
 
 function portRateFromGraphPort(port: PortV01): PortSpecV01["rate"] | undefined {
+  if (isControlFlow(port.type.flow)) {
+    return "control";
+  }
   switch (port.type.flow) {
     case "event":
       return "event";
@@ -364,19 +553,17 @@ function portRateFromGraphPort(port: PortV01): PortSpecV01["rate"] | undefined {
           : "resource";
     case "stream":
       return undefined;
-    case "value":
-      return "control";
   }
 }
 
 function flowForPortSpecType(type: string, rate: PortSpecV01["rate"]): DataFlow {
-  if (type === "event.bang" || type === "message.any" || rate === "event") {
+  if (type === "event.bang" || type === "message.any" || type === "value.core.bang" || type === "value.core.message" || rate === "event") {
     return "event";
   }
-  if (type === "signal.audio" || rate === "audio") {
+  if (type === "signal.audio" || type === "media.audio-stream" || rate === "audio") {
     return "signal";
   }
-  if (type === "video.frame" || type.startsWith("stream.")) {
+  if (type === "video.frame" || type === "media.video-frame" || type.startsWith("stream.")) {
     return "stream";
   }
   if (
@@ -390,10 +577,47 @@ function flowForPortSpecType(type: string, rate: PortSpecV01["rate"]): DataFlow 
   ) {
     return "resource";
   }
-  return "value";
+  return "control";
+}
+
+function isControlFlow(flow: DataFlow | string): boolean {
+  return flow === "control" || flow === "value";
 }
 
 function dataKindForPortSpecType(type: string): string {
+  if (type === "media.audio-stream") {
+    return "signal.audio";
+  }
+  if (type === "media.video-frame") {
+    return "video.frame";
+  }
+  if (type === "resource.asset.video") {
+    return "asset.video";
+  }
+  if (type === "value.core.bang") {
+    return "event.bang";
+  }
+  if (type === "value.core.bool") {
+    return "boolean";
+  }
+  if (type === "value.core.color") {
+    return "color";
+  }
+  if (type === "value.core.message") {
+    return "message.any";
+  }
+  if (type.startsWith("value.core.float") || type.startsWith("value.core.ufloat")) {
+    return "number.float";
+  }
+  if (type.startsWith("value.core.int")) {
+    return "number.int";
+  }
+  if (type.startsWith("value.core.uint")) {
+    return "number.uint";
+  }
+  if (type === "value.core.string") {
+    return "string";
+  }
   if (type === "render.frame") {
     return "render.frame";
   }
@@ -407,6 +631,10 @@ function dataKindForPortSpecType(type: string): string {
     return type.slice("resource.".length);
   }
   return type;
+}
+
+function displayPortTypeFromPortSpecType(type: string): string {
+  return dataKindForPortSpecType(normalizedPortSpecType(type));
 }
 
 function defaultFormatForDataKind(dataKind: string): string | undefined {
@@ -462,4 +690,8 @@ function omitUndefined<T extends object>(value: T): T {
   return Object.fromEntries(
     Object.entries(value).filter(([, entryValue]) => entryValue !== undefined)
   ) as T;
+}
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
