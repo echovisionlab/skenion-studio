@@ -311,11 +311,12 @@ async function waitForRealtimeFrame(
   frames: RuntimeRealtimeEnvelope[],
   type: string,
   timeoutMs: number,
-  setPending: (resolve: () => void) => void,
+  setPending: (resolve: (() => void) | null) => void,
   commandId?: string,
   socketFailure?: () => string | null
 ): Promise<RuntimeRealtimeEnvelope> {
-  return waitForSocketProgress(timeoutMs, () => {
+  let matchedFrame: RuntimeRealtimeEnvelope | undefined;
+  await waitForSocketProgress(timeoutMs, () => {
     const socketFailureMessage = socketFailure?.();
     if (socketFailureMessage) {
       throw new RuntimeGraphCommandError(socketFailureMessage);
@@ -324,24 +325,20 @@ async function waitForRealtimeFrame(
     if (runtimeError) {
       throw realtimeError(runtimeError);
     }
-    return frames.some((frame) => frame.type === type && (!commandId || frame.commandId === commandId));
-  }, setPending).then(() => {
-    const frame = frames.find((candidate) => candidate.type === type && (!commandId || candidate.commandId === commandId));
-    if (!frame) {
-      throw new RuntimeGraphCommandError(`Runtime realtime did not return ${type}.`);
-    }
-    return frame;
-  });
+    matchedFrame = frames.find((frame) => frame.type === type && (!commandId || frame.commandId === commandId));
+    return matchedFrame !== undefined;
+  }, setPending);
+  return matchedFrame!;
 }
 
 function waitForSocketProgress(
   timeoutMs: number,
   condition: () => boolean,
-  setPending: (resolve: () => void) => void
+  setPending: (resolve: (() => void) | null) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = globalThis.setTimeout(() => {
-      setPending(() => undefined);
+    const timeoutId = globalThis.setTimeout(() => {
+      setPending(null);
       reject(new RuntimeGraphCommandError("Runtime realtime request timed out."));
     }, timeoutMs);
 
@@ -352,16 +349,11 @@ function waitForSocketProgress(
           return;
         }
       } catch (error) {
-        if (timeoutId !== null) {
-          globalThis.clearTimeout(timeoutId);
-        }
+        globalThis.clearTimeout(timeoutId);
         reject(error);
         return;
       }
-      if (timeoutId !== null) {
-        globalThis.clearTimeout(timeoutId);
-      }
-      timeoutId = null;
+      globalThis.clearTimeout(timeoutId);
       resolve();
     };
 

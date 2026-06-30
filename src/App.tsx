@@ -1840,7 +1840,7 @@ export default function App() {
       return;
     }
 
-    const kind = action === "undo" ? "undoPatch" : "redoPatch";
+    const kind = action === "undo" ? "historyUndo" : "historyRedo";
     setRuntimeBusyAction(kind);
     setRuntimeError(null);
     setPatchConflict(null);

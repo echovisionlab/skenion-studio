@@ -10,7 +10,6 @@ import {
   runtimeSessionEventsStreamUrl
 } from "./client";
 import type {
-  RuntimeOperationEnvelope,
   RuntimeAsset,
   RuntimeAssetGetResponse,
   RuntimeAssetImportResponse,
@@ -25,7 +24,8 @@ import type {
   RuntimeIoDeviceListResponse,
   RuntimeLogSnapshotResponse,
   RuntimeMutationRequest,
-  RuntimePatchResponse,
+  NodeCatalogSnapshotV01,
+  RuntimeOperationEnvelope,
   RuntimePreviewStatus,
   RuntimeProjectPayload,
   RuntimeSessionInfoResponse,
@@ -103,6 +103,17 @@ describe("runtime client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://runtime.local/v0/runtime/info", { method: "GET" });
   });
 
+  it("parses runtime node catalog snapshots", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(nodeCatalogResponse()));
+    const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
+
+    await expect(client.getNodeCatalog()).resolves.toMatchObject({
+      schema: "skenion.node-catalog.snapshot",
+      entries: []
+    });
+    expect(fetchMock).toHaveBeenCalledWith("http://runtime.local/v0/sessions/default/node-catalog", { method: "GET" });
+  });
+
   it("validates runtime session stream events without accepting legacy duplicate fields", () => {
     for (const kind of ["snapshot", "load", "clear", "mutate", "undo", "redo"] satisfies RuntimeSessionEventKind[]) {
       expect(isRuntimeSessionEvent(runtimeSessionEvent({ kind }))).toBe(true);
@@ -146,6 +157,23 @@ describe("runtime client", () => {
         })
       )
     ).toBe(false);
+    expect(
+      isRuntimeSessionEvent(
+        runtimeSessionEvent({
+          replay: {
+            cursor: "12",
+            previousCursor: "8",
+            replayed: true,
+            gap: {
+              expectedSequence: 9,
+              actualSequence: 12,
+              reason: "retention-overflow"
+            },
+            overflow: true
+          }
+        })
+      )
+    ).toBe(true);
   });
 
   it("uses the default runtime URL and global fetch when options are omitted", async () => {
@@ -192,10 +220,6 @@ describe("runtime client", () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
       String(_input).endsWith("/v0/sessions/default/history")
         ? jsonResponse(historyResponse())
-        : String(_input).endsWith("/v0/sessions/default/mutate") ||
-            String(_input).endsWith("/v0/sessions/default/undo") ||
-            String(_input).endsWith("/v0/sessions/default/redo")
-        ? jsonResponse(patchResponse())
         : jsonResponse(sessionResponse())
     );
     const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
@@ -205,20 +229,11 @@ describe("runtime client", () => {
     await client.validateSession();
     await client.planSession();
     await client.runSession(2);
-    await client.mutateSession(mutation);
-    await client.mutateSession({
-      viewPatch: {
-        baseViewRevision: 1,
-        ops: [{ op: "setNodeView", nodeId: "value_1", view: viewStateResponse().canvas.nodes.value_1 ?? { x: 0, y: 0 } }]
-      }
-    });
     await client.getSessionHistory();
-    await client.undoSessionPatch();
-    await client.redoSessionPatch();
     await client.clearSession();
 
     const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
     expect(calls[0]).toEqual(["http://runtime.local/v0/sessions/default", { method: "GET" }]);
     expect(calls[1][0]).toBe("http://runtime.local/v0/sessions/default/load");
     expect(JSON.parse(String(calls[1][1].body))).toEqual(project);
@@ -226,14 +241,8 @@ describe("runtime client", () => {
     expect(calls[3]).toEqual(["http://runtime.local/v0/sessions/default/plan", { method: "POST" }]);
     expect(calls[4][0]).toBe("http://runtime.local/v0/sessions/default/run");
     expect(JSON.parse(String(calls[4][1].body))).toEqual({ frames: 2 });
-    expect(calls[5][0]).toBe("http://runtime.local/v0/sessions/default/mutate");
-    expect(JSON.parse(String(calls[5][1].body))).toEqual(mutation);
-    expect(calls[6][0]).toBe("http://runtime.local/v0/sessions/default/mutate");
-    expect(JSON.parse(String(calls[6][1].body))).toMatchObject({ viewPatch: { baseViewRevision: 1 } });
-    expect(calls[7]).toEqual(["http://runtime.local/v0/sessions/default/history", { method: "GET" }]);
-    expect(calls[8]).toEqual(["http://runtime.local/v0/sessions/default/undo", { method: "POST" }]);
-    expect(calls[9]).toEqual(["http://runtime.local/v0/sessions/default/redo", { method: "POST" }]);
-    expect(calls[10]).toEqual(["http://runtime.local/v0/sessions/default", { method: "DELETE" }]);
+    expect(calls[5]).toEqual(["http://runtime.local/v0/sessions/default/history", { method: "GET" }]);
+    expect(calls[6]).toEqual(["http://runtime.local/v0/sessions/default", { method: "DELETE" }]);
   });
 
   it("targets explicit runtime session endpoints when a session id is provided", async () => {
@@ -280,21 +289,96 @@ describe("runtime client", () => {
     expect(calls[6]?.[1]).toEqual({ method: "DELETE" });
   });
 
-  it("posts paste operations to the runtime session.operation endpoint", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse(pasteOperationResponse()));
-    const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
-    const operation = pasteOperation();
-
-    await expect(client.runSessionOperation(operation)).resolves.toMatchObject({
-      ok: true,
-      applied: true,
-      revisionAfter: "2"
+  it("accepts runtime session info with managed process metadata", async () => {
+    const client = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          sessionInfoResponse({
+            profile: {
+              ...sessionInfoResponse().profile,
+              process: {
+                ownedByHost: true,
+                pid: 1234,
+                executablePath: "/Applications/Skenion Runtime",
+                workingDirectory: "/tmp/skenion",
+                startedAt: "2026-06-30T00:00:00.000Z",
+                ownerWindowId: "main",
+                platform: "darwin",
+                arch: "arm64"
+              }
+            }
+          })
+        )
+      ) as typeof fetch
     });
 
-    const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(calls[0][0]).toBe("http://runtime.local/v0/sessions/default/operation");
-    expect(JSON.parse(String(calls[0][1].body))).toEqual(operation);
+    await expect(client.getSessionInfo()).resolves.toMatchObject({
+      profile: {
+        process: {
+          ownedByHost: true,
+          pid: 1234
+        }
+      }
+    });
+  });
+
+  it("accepts local-shared and remote runtime session profiles", async () => {
+    const localSharedClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          sessionInfoResponse({
+            profile: {
+              displayName: "local shared runtime",
+              endpoint: {
+                url: "http://127.0.0.1:3761",
+                protocol: "http"
+              },
+              mode: "local-shared",
+              ownership: "external",
+              process: null
+            }
+          })
+        )
+      ) as typeof fetch
+    });
+    const remoteClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          sessionInfoResponse({
+            profile: {
+              displayName: "remote runtime",
+              endpoint: {
+                canonicalUrl: "https://runtime.example",
+                host: "runtime.example",
+                protocol: "https",
+                tls: true,
+                url: "https://runtime.example"
+              },
+              mode: "remote",
+              ownership: "remote",
+              process: null
+            }
+          })
+        )
+      ) as typeof fetch
+    });
+
+    await expect(localSharedClient.getSessionInfo()).resolves.toMatchObject({
+      profile: {
+        mode: "local-shared",
+        ownership: "external"
+      }
+    });
+    await expect(remoteClient.getSessionInfo()).resolves.toMatchObject({
+      profile: {
+        endpoint: { protocol: "https" },
+        mode: "remote",
+        ownership: "remote"
+      }
+    });
   });
 
   it("calls runtime control endpoints", async () => {
@@ -521,6 +605,32 @@ describe("runtime client", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith("http://runtime.local/v0/extensions", { method: "GET" });
+  });
+
+  it("accepts runtime extension descriptor kind and status variants", async () => {
+    const extension = runtimeExtensionListResponse().extensions[0]!;
+    const client = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          runtimeExtensionListResponse({
+            extensions: [
+              { ...extension, id: "skenion/native", kind: "native-runtime", status: "disabled" },
+              { ...extension, id: "skenion/codec", kind: "codec", status: "failed" },
+              { ...extension, id: "skenion/nodes", kind: "node-pack", status: "loaded" }
+            ]
+          })
+        )
+      ) as typeof fetch
+    });
+
+    await expect(client.listExtensions()).resolves.toMatchObject({
+      extensions: [
+        { kind: "native-runtime", status: "disabled" },
+        { kind: "codec", status: "failed" },
+        { kind: "node-pack", status: "loaded" }
+      ]
+    });
   });
 
   it("accepts runtime IO device responses", async () => {
@@ -772,41 +882,12 @@ describe("runtime client", () => {
     });
   });
 
-  it("accepts runtime patch responses", async () => {
+  it("accepts empty runtime history responses", async () => {
     const client = createRuntimeClient({
       baseUrl: "http://runtime.local",
-      fetchImpl: vi.fn(async () => jsonResponse(patchResponse())) as typeof fetch
+      fetchImpl: vi.fn(async () => jsonResponse(historyResponse({ canUndo: false, undoDepth: 0, entries: [] }))) as typeof fetch
     });
 
-    await expect(client.mutateSession(mutation)).resolves.toMatchObject({
-      ok: true,
-      applied: true,
-      conflict: false,
-      snapshot: {
-        project: {
-          graph: {
-            revision: "2"
-          }
-        },
-        sessionRevision: 2
-      },
-      history: {
-        undoDepth: 1
-      }
-    });
-  });
-
-  it("accepts empty patch events and runtime history responses", async () => {
-    const client = createRuntimeClient({
-      baseUrl: "http://runtime.local",
-      fetchImpl: vi.fn(async (_input: RequestInfo | URL) =>
-        String(_input).endsWith("/v0/sessions/default/history")
-          ? jsonResponse(historyResponse({ canUndo: false, undoDepth: 0, entries: [] }))
-          : jsonResponse(patchResponse())
-      ) as typeof fetch
-    });
-
-    await expect(client.mutateSession(mutation)).resolves.toMatchObject({ applied: true });
     await expect(client.getSessionHistory()).resolves.toMatchObject({
       canUndo: false,
       undoDepth: 0,
@@ -847,28 +928,24 @@ describe("runtime client", () => {
     };
     const fetchMock = vi.fn(async () =>
       jsonResponse(
-        patchResponse({
-          history: historyResponse({
-            entries: [
-              historyEntry({
-                mutation: moveMutation,
-                inverseMutation: inverseMoveMutation
-              })
-            ]
-          })
+        historyResponse({
+          entries: [
+            historyEntry({
+              mutation: moveMutation,
+              inverseMutation: inverseMoveMutation
+            })
+          ]
         })
       )
     );
     const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
 
-    await expect(client.mutateSession(moveMutation)).resolves.toMatchObject({
-      history: {
-        entries: [{ mutation: moveMutation }]
-      }
+    await expect(client.getSessionHistory()).resolves.toMatchObject({
+      entries: [{ mutation: moveMutation }]
     });
 
     const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
-    expect(JSON.parse(String(calls[0][1].body))).toEqual(moveMutation);
+    expect(calls[0]).toEqual(["http://runtime.local/v0/sessions/default/history", { method: "GET" }]);
   });
 
   it("accepts set node view runtime mutations in history responses", async () => {
@@ -888,22 +965,54 @@ describe("runtime client", () => {
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         jsonResponse(
-          patchResponse({
-            history: historyResponse({
-              entries: [
-                historyEntry({
-                  mutation: setViewMutation,
-                  inverseMutation: setViewMutation
-                })
-              ]
-            })
+          historyResponse({
+            entries: [
+              historyEntry({
+                mutation: setViewMutation,
+                inverseMutation: setViewMutation
+              })
+            ]
           })
         )
       ) as typeof fetch
     });
 
-    await expect(client.mutateSession(setViewMutation)).resolves.toMatchObject({
-      history: { entries: [{ mutation: setViewMutation }] }
+    await expect(client.getSessionHistory()).resolves.toMatchObject({
+      entries: [{ mutation: setViewMutation }]
+    });
+  });
+
+  it("accepts operation envelopes in runtime history responses", async () => {
+    const operationMutations: RuntimeMutationRequest[] = [
+      pasteMutation({ kind: "root" }),
+      pasteMutation({ kind: "project-patch-definition", patchId: "voice" }),
+      pasteMutation({ kind: "package-patch-definition", packageId: "example/package", patchId: "voice", version: "1.0.0" }),
+      pasteMutation({ kind: "embedded-patch-instance", ownerPath: ["voice_1"], nodeId: "nested" }),
+      pasteMutation({ kind: "help-working-copy", workingCopyId: "help_1", sourcePackageId: "example/package", sourcePatchId: "voice" })
+    ];
+    const client = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          historyResponse({
+            entries: operationMutations.map((mutation, index) =>
+              historyEntry({
+                id: `operation_${index}`,
+                sequence: index + 1,
+                mutation,
+                inverseMutation: mutation
+              })
+            )
+          })
+        )
+      ) as typeof fetch
+    });
+
+    const history = await client.getSessionHistory();
+    expect(history.entries).toHaveLength(5);
+    expect(history.entries[0]?.mutation.operation?.attribution).toMatchObject({
+      actorId: "artist",
+      clientId: "studio"
     });
   });
 
@@ -960,7 +1069,15 @@ describe("runtime client", () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({
         ok: true,
-        diagnostics: [],
+        diagnostics: [
+          {
+            severity: "info",
+            message: "structured details",
+            details: {
+              nested: [null, "x", true, 1, { ok: false }]
+            }
+          }
+        ],
         plan: { graphId: "test" },
         report: { graphId: "test", frameCount: 1 }
       })
@@ -1046,6 +1163,45 @@ describe("runtime client", () => {
       ) as typeof fetch
     });
     await expect(invalidDiagnosticClient.validateProject(project)).rejects.toThrow("unsupported response shape");
+
+    const invalidDiagnosticEntryClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({
+          ok: false,
+          diagnostics: [null],
+          plan: null,
+          report: null
+        })
+      ) as typeof fetch
+    });
+    await expect(invalidDiagnosticEntryClient.validateProject(project)).rejects.toThrow("unsupported response shape");
+
+    const invalidDiagnosticCodeClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({
+          ok: false,
+          diagnostics: [{ severity: "error", message: "bad code", code: 1 }],
+          plan: null,
+          report: null
+        })
+      ) as typeof fetch
+    });
+    await expect(invalidDiagnosticCodeClient.validateProject(project)).rejects.toThrow("unsupported response shape");
+
+    const invalidDetailsClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        objectResponse({
+          ok: false,
+          diagnostics: [{ severity: "error", message: "bad details", details: () => undefined }],
+          plan: null,
+          report: null
+        })
+      ) as typeof fetch
+    });
+    await expect(invalidDetailsClient.validateProject(project)).rejects.toThrow("unsupported response shape");
   });
 
   it("rejects unsupported runtime session response shapes", async () => {
@@ -1080,46 +1236,19 @@ describe("runtime client", () => {
     await expect(legacySessionClient.getSession()).rejects.toThrow("unsupported response shape");
   });
 
-  it("rejects unsupported runtime patch response shapes", async () => {
-    const invalidGraphClient = createRuntimeClient({
-      baseUrl: "http://runtime.local",
-      fetchImpl: vi.fn(async () =>
-        jsonResponse(
-          patchResponse({
-            snapshot: {
-              ...patchResponse().snapshot,
-              project: {
-                ...patchResponse().snapshot.project!,
-                graph: {
-                  schema: "skenion.graph",
-                  schemaVersion: "0.1.0",
-                  id: "test",
-                  revision: "2",
-                  nodes: []
-                } as unknown as NonNullable<RuntimePatchResponse["snapshot"]["project"]>["graph"]
-              }
-            }
-          })
-        )
-      ) as typeof fetch
-    });
-
-    await expect(invalidGraphClient.mutateSession(mutation)).rejects.toThrow("unsupported response shape");
-
+  it("rejects unsupported runtime history summary shapes", async () => {
     const invalidHistoryClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         jsonResponse(
-          patchResponse({
-            history: {
-              ...historyResponse(),
-              undoDepth: "1"
-            } as unknown as RuntimePatchResponse["history"]
-          })
+          {
+            ...historyResponse(),
+            undoDepth: "1"
+          } as unknown as RuntimeHistory
         )
       ) as typeof fetch
     });
-    await expect(invalidHistoryClient.mutateSession(mutation)).rejects.toThrow("unsupported response shape");
+    await expect(invalidHistoryClient.getSessionHistory()).rejects.toThrow("unsupported response shape");
   });
 
   it("rejects unsupported runtime control response shapes", async () => {
@@ -1413,21 +1542,19 @@ describe("runtime client", () => {
         baseUrl: "http://runtime.local",
         fetchImpl: vi.fn(async () =>
           jsonResponse(
-            patchResponse({
-              history: historyResponse({
-                entries: [
-                  historyEntry({
-                    mutation,
-                    inverseMutation: mutation
-                  })
-                ]
-              })
+            historyResponse({
+              entries: [
+                historyEntry({
+                  mutation,
+                  inverseMutation: mutation
+                })
+              ]
             })
           )
         ) as typeof fetch
       });
 
-      await expect(client.mutateSession(mutation)).rejects.toThrow("unsupported response shape");
+      await expect(client.getSessionHistory()).rejects.toThrow("unsupported response shape");
     }
   });
 
@@ -1452,16 +1579,14 @@ describe("runtime client", () => {
         baseUrl: "http://runtime.local",
         fetchImpl: vi.fn(async () =>
           jsonResponse(
-            patchResponse({
-              history: historyResponse({
-                entries: [entry as RuntimeHistoryEntry]
-              })
+            historyResponse({
+              entries: [entry as RuntimeHistoryEntry]
             })
           )
         ) as typeof fetch
       });
 
-      await expect(client.mutateSession(mutation)).rejects.toThrow("unsupported response shape");
+      await expect(client.getSessionHistory()).rejects.toThrow("unsupported response shape");
     }
   });
 
@@ -1645,6 +1770,21 @@ function sessionInfoResponse(overrides: Partial<RuntimeSessionInfoResponse> = {}
   };
 }
 
+function nodeCatalogResponse(overrides: Partial<NodeCatalogSnapshotV01> = {}): NodeCatalogSnapshotV01 {
+  return {
+    schema: "skenion.node-catalog.snapshot",
+    schemaVersion: "0.1.0",
+    catalogRevision: {
+      algorithm: "sha256",
+      value: "022032946669de7bd0c8d8f2224185a257c13e9e75567e12845de82a6c806e61"
+    },
+    entries: [],
+    diagnosticNodeDefinitions: [],
+    diagnostics: [],
+    ...overrides
+  };
+}
+
 function sessionResponse(overrides: Partial<RuntimeSessionResponse> = {}): RuntimeSessionResponse {
   return {
     ok: true,
@@ -1677,7 +1817,7 @@ function sessionResponse(overrides: Partial<RuntimeSessionResponse> = {}): Runti
                 {
                   id: "value",
                   direction: "output",
-                  type: "number.float",
+                  type: "value.core.float32",
                   rate: "control"
                 }
               ]
@@ -1718,97 +1858,6 @@ function runtimeSessionEvent(overrides: Partial<RuntimeSessionEvent> = {}): Runt
     diagnostics: [],
     createdAt: "unix-ms:0",
     ...overrides
-  };
-}
-
-function patchResponse(overrides: Partial<RuntimePatchResponse> = {}): RuntimePatchResponse {
-  return {
-    ok: true,
-    applied: true,
-    conflict: false,
-    snapshot: {
-      ...sessionResponse().snapshot,
-      sessionRevision: 2,
-      project: {
-        ...sessionResponse().snapshot.project!,
-        revision: "2",
-        graph: {
-          ...sessionResponse().snapshot.project!.graph,
-          revision: "2"
-        }
-      }
-    },
-    history: historyResponse(),
-    diagnostics: [],
-    ...overrides
-  };
-}
-
-function pasteOperation(): RuntimeOperationEnvelope {
-  return {
-    schema: "skenion.runtime.operation",
-    schemaVersion: "0.1.0",
-    id: "operation_1",
-    kind: "pasteGraphFragment",
-    request: {
-      target: {
-        path: { kind: "root" },
-        baseRevision: "1"
-      },
-      fragment: {
-        schema: "skenion.graph.fragment",
-        schemaVersion: "0.1.0",
-        nodes: [
-          {
-            id: "value_1",
-            implementation: {
-              provider: { kind: "core" },
-              objectId: "float",
-              version: "0.1.0"
-            },
-            objectSpec: "float",
-            params: { label: "Float" },
-            ports: [
-              {
-                id: "out",
-                direction: "output",
-                type: "number.float",
-                rate: "control"
-              }
-            ]
-          }
-        ],
-        edges: []
-      },
-      options: {
-        idConflictPolicy: "remap",
-        outsideEndpointPolicy: "omit",
-        preserveRelativePositions: true
-      }
-    }
-  };
-}
-
-function pasteOperationResponse() {
-  return {
-    schema: "skenion.runtime.paste-graph-fragment.response",
-    schemaVersion: "0.1.0",
-    ok: true,
-    applied: true,
-    conflict: false,
-    target: {
-      path: { kind: "root" },
-      baseRevision: "1"
-    },
-    revisionBefore: "1",
-    revisionAfter: "2",
-    historyEntryId: "history_1",
-    idRemap: {
-      nodeIdMap: { value_1: "value_2" },
-      edgeIdMap: {},
-      omittedEdgeIds: []
-    },
-    diagnostics: []
   };
 }
 
@@ -2090,6 +2139,56 @@ function historyEntry(overrides: Partial<RuntimeHistoryEntry> = {}): RuntimeHist
   };
 }
 
+function pasteMutation(path: RuntimeOperationEnvelope["request"]["target"]["path"]): RuntimeMutationRequest {
+  return {
+    operation: {
+      schema: "skenion.runtime.operation",
+      schemaVersion: "0.1.0",
+      id: "operation_1",
+      kind: "pasteGraphFragment",
+      request: {
+        target: {
+          path,
+          baseRevision: "1",
+          targetRevision: "2"
+        },
+        fragment: {
+          schema: "skenion.graph.fragment",
+          schemaVersion: "0.1.0",
+          nodes: [
+            {
+              id: "value_1",
+              implementation: {
+                provider: { kind: "core" },
+                objectId: "float",
+                version: "0.1.0"
+              },
+              objectSpec: "float",
+              params: { label: "Float" },
+              ports: [
+                {
+                  id: "out",
+                  direction: "output",
+                  type: "value.core.float32",
+                  rate: "control"
+                }
+              ]
+            }
+          ],
+          edges: []
+        }
+      },
+      attribution: {
+        actorId: "artist",
+        clientId: "studio",
+        label: "Paste"
+      },
+      correlationId: "paste-1",
+      createdAt: "2026-06-30T00:00:00.000Z"
+    }
+  };
+}
+
 function jsonResponse(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
     headers: {
@@ -2106,4 +2205,12 @@ function rawJsonResponse(value: string, status = 200): Response {
     },
     status
   });
+}
+
+function objectResponse(value: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => value
+  } as Response;
 }

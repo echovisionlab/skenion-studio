@@ -1,6 +1,7 @@
 import {
   validateNodeCatalogSnapshotV01,
-  validatePasteGraphFragmentRequest
+  validatePasteGraphFragmentRequest,
+  validateProjectDocumentV01
 } from "@skenion/contracts";
 import type {
   NodeCatalogSnapshotV01,
@@ -30,10 +31,6 @@ import type {
   RuntimeIoDiagnostic,
   RuntimeLogEvent,
   RuntimeMutationRequest,
-  RuntimeOperationEnvelope,
-  RuntimeOperationDiagnostic,
-  PasteGraphFragmentResponse,
-  RuntimePatchResponse,
   RuntimePreviewStartRequest,
   RuntimePreviewStatus,
   RuntimeProjectPayload,
@@ -70,11 +67,7 @@ export interface RuntimeClient {
   validateSession: () => Promise<RuntimeSessionResponse>;
   planSession: () => Promise<RuntimeSessionResponse>;
   runSession: (frames: number) => Promise<RuntimeSessionResponse>;
-  mutateSession: (mutation: RuntimeMutationRequest) => Promise<RuntimePatchResponse>;
-  runSessionOperation: (operation: RuntimeOperationEnvelope) => Promise<PasteGraphFragmentResponse>;
   getSessionHistory: () => Promise<RuntimeHistory>;
-  undoSessionPatch: () => Promise<RuntimePatchResponse>;
-  redoSessionPatch: () => Promise<RuntimePatchResponse>;
   sendControlEvent: (request: RuntimeControlEventRequest) => Promise<RuntimeControlEventResponse>;
   getControlState: () => Promise<RuntimeControlStateResponse>;
   readControl: (request: RuntimeControlReadRequest) => Promise<RuntimeControlReadResponse>;
@@ -173,9 +166,6 @@ export function createRuntimeClient(options: RuntimeClientOptions = {}): Runtime
         isRuntimeSessionResponse
       ),
     runSession: (frames) => postRuntimeSessionResponse(fetchImpl, baseUrl, sessionPath("/run"), { frames }),
-    mutateSession: (mutation) => postRuntimePatchResponse(fetchImpl, baseUrl, sessionPath("/mutate"), mutation),
-    runSessionOperation: (operation) =>
-      postRuntimeOperationResponse(fetchImpl, baseUrl, sessionPath("/operation"), operation),
     getSessionHistory: () =>
       requestJson<RuntimeHistory>(
         fetchImpl,
@@ -183,22 +173,6 @@ export function createRuntimeClient(options: RuntimeClientOptions = {}): Runtime
         sessionPath("/history"),
         { method: "GET" },
         isRuntimeHistory
-      ),
-    undoSessionPatch: () =>
-      requestJson<RuntimePatchResponse>(
-        fetchImpl,
-        baseUrl,
-        sessionPath("/undo"),
-        { method: "POST" },
-        isRuntimePatchResponse
-      ),
-    redoSessionPatch: () =>
-      requestJson<RuntimePatchResponse>(
-        fetchImpl,
-        baseUrl,
-        sessionPath("/redo"),
-        { method: "POST" },
-        isRuntimePatchResponse
       ),
     sendControlEvent: (request) =>
       postRuntimeControlEventResponse(fetchImpl, baseUrl, sessionPath("/control/event"), request),
@@ -353,24 +327,6 @@ const SHADER_DIAGNOSTIC_PHASES = new Set([
   "render-frame"
 ]);
 const SHADER_DIAGNOSTIC_SOURCES = new Set(["user", "generated", "runtime"]);
-const RUNTIME_OPERATION_DIAGNOSTIC_CODES = new Set([
-  "base-revision-mismatch",
-  "duplicate-edge-id",
-  "duplicate-node-id",
-  "duplicate-target-path",
-  "fragment-edge-outside-selection",
-  "id-conflict",
-  "interface-drift",
-  "invalid-incident-edge",
-  "invalid-target-path",
-  "operation-rebased",
-  "target-not-found",
-  "unsupported-operation"
-]);
-const INTERFACE_INCIDENT_EDGE_POLICIES = new Set(["drop", "preserve-diagnostic", "reject"]);
-const INTERFACE_RECOVERY_ACTION_IDS = new Set(["drop-edge", "reconnect", "restore-port", "replace-provider"]);
-const INTERFACE_MISSING_ENDPOINTS = new Set(["source-node", "source-port", "target-node", "target-port"]);
-const INTERFACE_CARDINALITY_REASONS = new Set(["fan-in", "fan-out", "merge-policy", "min-connections", "max-connections"]);
 const RUNTIME_SESSION_LIFECYCLE_STATES = new Set(["initializing", "ready", "closing", "closed", "error"]);
 const RUNTIME_CONNECTION_PROFILE_MODES = new Set(["local-managed", "local-shared", "remote"]);
 const RUNTIME_OWNERSHIP_MODES = new Set(["owned-child", "external", "remote"]);
@@ -476,7 +432,7 @@ function isRuntimeSessionInfoResponse(value: unknown): value is RuntimeSessionIn
   );
 }
 
-function isRuntimeOperationEnvelope(value: unknown): value is RuntimeOperationEnvelope {
+function isRuntimeOperationEnvelope(value: unknown): boolean {
   return (
     isRecord(value) &&
     value.schema === "skenion.runtime.operation" &&
@@ -487,24 +443,6 @@ function isRuntimeOperationEnvelope(value: unknown): value is RuntimeOperationEn
     (value.attribution === undefined || isRuntimeOperationAttribution(value.attribution)) &&
     (value.correlationId === undefined || typeof value.correlationId === "string") &&
     (value.createdAt === undefined || typeof value.createdAt === "string")
-  );
-}
-
-function isPasteGraphFragmentResponse(value: unknown): value is PasteGraphFragmentResponse {
-  return (
-    isRecord(value) &&
-    value.schema === "skenion.runtime.paste-graph-fragment.response" &&
-    value.schemaVersion === "0.1.0" &&
-    typeof value.ok === "boolean" &&
-    typeof value.applied === "boolean" &&
-    typeof value.conflict === "boolean" &&
-    isGraphTargetRef(value.target) &&
-    typeof value.revisionBefore === "string" &&
-    (typeof value.revisionAfter === "string" || value.revisionAfter === null) &&
-    (typeof value.historyEntryId === "string" || value.historyEntryId === null) &&
-    isIdRemapResult(value.idRemap) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeOperationDiagnostic)
   );
 }
 
@@ -750,46 +688,6 @@ async function postRuntimeSessionResponse(
   );
 }
 
-async function postRuntimePatchResponse(
-  fetchImpl: FetchLike,
-  baseUrl: string,
-  path: string,
-  body: unknown
-): Promise<RuntimePatchResponse> {
-  return requestJson<RuntimePatchResponse>(
-    fetchImpl,
-    baseUrl,
-    path,
-    {
-      body: JSON.stringify(body),
-      headers: {
-        "content-type": "application/json"
-      },
-      method: "POST"
-    },
-    isRuntimePatchResponse
-  );
-}
-
-function isRuntimePatchResponse(value: unknown): value is RuntimePatchResponse {
-  if (
-    !isRecord(value) ||
-    typeof value.ok !== "boolean" ||
-    typeof value.applied !== "boolean" ||
-    typeof value.conflict !== "boolean" ||
-    !isRuntimeHistory(value.history)
-  ) {
-    return false;
-  }
-
-  return isRuntimeSessionResponse({
-    ok: value.ok,
-    snapshot: value.snapshot,
-    diagnostics: value.diagnostics,
-    report: null
-  });
-}
-
 function isRuntimeSessionSnapshot(value: unknown): value is RuntimeSessionSnapshot {
   return (
     isRecord(value) &&
@@ -805,72 +703,7 @@ function isRuntimeSessionSnapshot(value: unknown): value is RuntimeSessionSnapsh
 }
 
 function isRuntimeProjectSnapshot(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    value.schema === "skenion.project" &&
-    value.schemaVersion === "0.1.0" &&
-    typeof value.id === "string" &&
-    (value.documentId === undefined || typeof value.documentId === "string") &&
-    typeof value.revision === "string" &&
-    isRuntimeGraphDocument(value.graph) &&
-    isRuntimeViewState(value.viewState) &&
-    Array.isArray(value.patchLibrary) &&
-    value.patchLibrary.every(isRuntimePatchLibraryEntry) &&
-    (value.objectBindings === undefined || (Array.isArray(value.objectBindings) && value.objectBindings.every(isRecord)))
-  );
-}
-
-function isRuntimeGraphDocument(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    value.schema === "skenion.graph" &&
-    value.schemaVersion === "0.1.0" &&
-    typeof value.id === "string" &&
-    typeof value.revision === "string" &&
-    Array.isArray(value.nodes) &&
-    value.nodes.every(isRuntimeGraphNode) &&
-    Array.isArray(value.edges) &&
-    value.edges.every(isRuntimeGraphEdge)
-  );
-}
-
-function isRuntimeGraphNode(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    isRecord(value.params) &&
-    Array.isArray(value.ports) &&
-    value.ports.every(isRuntimeGraphPort)
-  );
-}
-
-function isRuntimeGraphPort(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    (value.direction === "input" || value.direction === "output") &&
-    (typeof value.type === "string" || isRecord(value.type))
-  );
-}
-
-function isRuntimeGraphEdge(value: unknown): boolean {
-  return isRecord(value);
-}
-
-function isRuntimeViewState(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    value.schema === "skenion.view-state" &&
-    value.schemaVersion === "0.1.0" &&
-    isRecord(value.canvas) &&
-    isRecord(value.canvas.nodes) &&
-    Object.values(value.canvas.nodes).every(isCanvasNodeView) &&
-    (value.canvas.viewport === undefined || isCanvasViewport(value.canvas.viewport))
-  );
-}
-
-function isRuntimePatchLibraryEntry(value: unknown): boolean {
-  return isRecord(value) && typeof value.id === "string";
+  return validateProjectDocumentV01(value).ok;
 }
 
 function isRuntimeSessionLifecycleState(value: unknown): boolean {
@@ -994,114 +827,12 @@ function isRuntimeSessionEventKind(value: unknown): boolean {
   return value === "snapshot" || value === "load" || value === "clear" || value === "mutate" || value === "undo" || value === "redo";
 }
 
-function isGraphTargetRef(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    isPatchPath(value.path) &&
-    typeof value.baseRevision === "string" &&
-    (value.targetRevision === undefined || typeof value.targetRevision === "string")
-  );
-}
-
-function isPatchPath(value: unknown): boolean {
-  if (!isRecord(value)) {
-    return false;
-  }
-  if (value.kind === "root") {
-    return true;
-  }
-  if (value.kind === "project-patch-definition") {
-    return typeof value.patchId === "string";
-  }
-  if (value.kind === "package-patch-definition") {
-    return (
-      typeof value.packageId === "string" &&
-      typeof value.patchId === "string" &&
-      (value.version === undefined || typeof value.version === "string")
-    );
-  }
-  if (value.kind === "embedded-patch-instance") {
-    return Array.isArray(value.ownerPath) && value.ownerPath.every((entry) => typeof entry === "string") && typeof value.nodeId === "string";
-  }
-  if (value.kind === "help-working-copy") {
-    return (
-      typeof value.workingCopyId === "string" &&
-      (value.sourcePackageId === undefined || typeof value.sourcePackageId === "string") &&
-      (value.sourcePatchId === undefined || typeof value.sourcePatchId === "string")
-    );
-  }
-  return false;
-}
-
 function isRuntimeOperationAttribution(value: unknown): boolean {
   return (
     isRecord(value) &&
     (value.actorId === undefined || typeof value.actorId === "string") &&
     (value.clientId === undefined || typeof value.clientId === "string") &&
     (value.label === undefined || typeof value.label === "string")
-  );
-}
-
-function isIdRemapResult(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    isStringRecord(value.nodeIdMap) &&
-    isStringRecord(value.edgeIdMap) &&
-    Array.isArray(value.omittedEdgeIds) &&
-    value.omittedEdgeIds.every((entry) => typeof entry === "string")
-  );
-}
-
-function isRuntimeOperationDiagnostic(value: unknown): value is RuntimeOperationDiagnostic {
-  return (
-    isRecord(value) &&
-    isRuntimeDiagnosticSeverity(value.severity) &&
-    typeof value.code === "string" &&
-    RUNTIME_OPERATION_DIAGNOSTIC_CODES.has(value.code) &&
-    typeof value.message === "string" &&
-    (value.path === undefined || typeof value.path === "string") &&
-    (value.target === undefined || isGraphTargetRef(value.target)) &&
-    (value.expectedRevision === undefined || typeof value.expectedRevision === "string") &&
-    (value.actualRevision === undefined || typeof value.actualRevision === "string") &&
-    (value.duplicates === undefined || (Array.isArray(value.duplicates) && value.duplicates.every((entry) => typeof entry === "string"))) &&
-    (value.nodes === undefined || (Array.isArray(value.nodes) && value.nodes.every((entry) => typeof entry === "string"))) &&
-    (value.edges === undefined || (Array.isArray(value.edges) && value.edges.every((entry) => typeof entry === "string"))) &&
-    (value.interfacePolicy === undefined ||
-      (typeof value.interfacePolicy === "string" && INTERFACE_INCIDENT_EDGE_POLICIES.has(value.interfacePolicy))) &&
-    (value.interfaceDetail === undefined || isInterfaceDiagnosticDetail(value.interfaceDetail)) &&
-    ((value.code !== "interface-drift" && value.code !== "invalid-incident-edge") || value.interfaceDetail !== undefined)
-  );
-}
-
-function isInterfaceDiagnosticDetail(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.edgeId === "string" &&
-    typeof value.sourceNodeId === "string" &&
-    typeof value.sourcePortId === "string" &&
-    typeof value.targetNodeId === "string" &&
-    typeof value.targetPortId === "string" &&
-    (value.missingEndpoint === undefined ||
-      (typeof value.missingEndpoint === "string" && INTERFACE_MISSING_ENDPOINTS.has(value.missingEndpoint))) &&
-    (value.expectedDirection === undefined || value.expectedDirection === "input" || value.expectedDirection === "output") &&
-    (value.actualDirection === undefined || value.actualDirection === "input" || value.actualDirection === "output") &&
-    (value.expectedType === undefined || typeof value.expectedType === "string") &&
-    (value.actualType === undefined || typeof value.actualType === "string") &&
-    (value.cardinality === undefined || isInterfaceDiagnosticCardinality(value.cardinality)) &&
-    Array.isArray(value.recoveryActions) &&
-    value.recoveryActions.length > 0 &&
-    value.recoveryActions.every((entry) => typeof entry === "string" && INTERFACE_RECOVERY_ACTION_IDS.has(entry))
-  );
-}
-
-function isInterfaceDiagnosticCardinality(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.reason === "string" &&
-    INTERFACE_CARDINALITY_REASONS.has(value.reason) &&
-    (value.policy === undefined || typeof value.policy === "string") &&
-    (value.limit === undefined || value.limit === null || (typeof value.limit === "number" && Number.isInteger(value.limit) && value.limit >= 0)) &&
-    (value.actual === undefined || (typeof value.actual === "number" && Number.isInteger(value.actual) && value.actual >= 0))
   );
 }
 
@@ -1356,18 +1087,6 @@ function isCanvasNodeView(value: unknown): boolean {
   );
 }
 
-function isCanvasViewport(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.x === "number" &&
-    Number.isFinite(value.x) &&
-    typeof value.y === "number" &&
-    Number.isFinite(value.y) &&
-    typeof value.zoom === "number" &&
-    Number.isFinite(value.zoom)
-  );
-}
-
 function isRuntimeDiagnostic(value: unknown): value is RuntimeDiagnostic {
   return (
     isRecord(value) &&
@@ -1422,10 +1141,6 @@ function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
 
-function isStringRecord(value: unknown): boolean {
-  return isRecord(value) && Object.values(value).every((entry) => typeof entry === "string");
-}
-
 function hasOnlyKeys(value: Record<string, unknown>, keys: string[]): boolean {
   const allowed = new Set(keys);
   return Object.keys(value).every((key) => allowed.has(key));
@@ -1457,27 +1172,6 @@ function isNodeCatalogSnapshot(value: unknown): value is NodeCatalogSnapshotV01 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-async function postRuntimeOperationResponse(
-  fetchImpl: FetchLike,
-  baseUrl: string,
-  path: string,
-  body: RuntimeOperationEnvelope
-): Promise<PasteGraphFragmentResponse> {
-  return requestJson<PasteGraphFragmentResponse>(
-    fetchImpl,
-    baseUrl,
-    path,
-    {
-      body: JSON.stringify(body),
-      headers: {
-        "content-type": "application/json"
-      },
-      method: "POST"
-    },
-    isPasteGraphFragmentResponse
-  );
 }
 
 async function postRuntimePreviewStatus(

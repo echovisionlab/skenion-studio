@@ -35,6 +35,16 @@ describe("skenion graph helpers", () => {
     expect(typeLabel(type)).toBe("value<number.float>");
     expect(typeKey(type)).toBe('value:number.float:"float32"');
     expect(typeKey({ flow: "event", dataKind: "event.bang" })).toBe("event:event.bang:null");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.float32" })).toBe("value<number.float>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.float8" })).toBe("value<number.float>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.int32" })).toBe("value<number.int>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.int8" })).toBe("value<number.int>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.uint32" })).toBe("value<number.uint>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.uint8" })).toBe("value<number.uint>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.bool" })).toBe("value<boolean>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.color" })).toBe("value<color>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.message" })).toBe("value<message.any>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.string" })).toBe("value<string>");
     expect(portKey("node", "out")).toBe("node:out");
   });
 
@@ -151,6 +161,7 @@ describe("skenion graph helpers", () => {
     });
 
     expect(validateGraph(activeDisplayGraph)).toEqual({ ok: true, value: activeDisplayGraph });
+    expect(validateGraph({ ...activeDisplayGraph, edges: [null] }).ok).toBe(false);
     expect(result.ok).toBe(false);
     expect(result.ok ? [] : result.errors).toEqual([
       "missing-required-input: input collector_1:in requires at least 1 connection(s)"

@@ -125,6 +125,24 @@ describe("project document helpers", () => {
     expect(parsed.viewState.canvas.nodes.value_1).toEqual({ x: 32, y: 48 });
   });
 
+  it("creates a fallback document id when crypto randomUUID is unavailable", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: {}
+    });
+
+    try {
+      expect(createProjectDocument(sampleGraph, createViewStateFromPositions(sampleGraph, {})).documentId).toBe(
+        "00000000-0000-4000-8000-000000000000"
+      );
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(globalThis, "crypto", descriptor);
+      }
+    }
+  });
+
   it("accepts current 0.1 project documents without migration", () => {
     const viewState = createViewStateFromPositions(sampleGraph, {
       value_1: { x: 32, y: 48 }

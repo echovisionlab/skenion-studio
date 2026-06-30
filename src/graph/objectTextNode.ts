@@ -18,10 +18,8 @@ import {
   createSubpatchNodeFromDefinition,
   CURRENT_CONTRACT_SCHEMA_VERSION,
   findPatchDefinition,
-  patchDefinitionBoundaryPorts,
   portSpecToGraphPort,
   SUBPATCH_NODE_KIND,
-  type PatchDefinitionV01,
   type PatchLibrary,
   type DisplayGraphNodeV01
 } from "./patchLibrary";
@@ -33,6 +31,25 @@ const NATIVE_OBJECT_ALIASES = new Map<string, string>([
   ["upload", "core.gpu-upload"],
   ["preview", "core.preview"]
 ]);
+
+const OBJECT_TEXT_TYPE_BY_CORE_VALUE_DATA_KIND: Record<string, string> = {
+  "value.core.bool": "boolean",
+  "value.core.color": "color",
+  "value.core.float8": "number.float",
+  "value.core.float16": "number.float",
+  "value.core.float32": "number.float",
+  "value.core.float64": "number.float",
+  "value.core.int8": "number.int",
+  "value.core.int16": "number.int",
+  "value.core.int32": "number.int",
+  "value.core.int64": "number.int",
+  "value.core.message": "message.any",
+  "value.core.string": "string",
+  "value.core.uint8": "number.uint",
+  "value.core.uint16": "number.uint",
+  "value.core.uint32": "number.uint",
+  "value.core.uint64": "number.uint"
+};
 
 export interface ObjectTextNodeBuildResult {
   ok: boolean;
@@ -71,8 +88,8 @@ export function createGraphNodeFromObjectText(
         input,
         displayText,
         subpatchObject.patchId ?? "",
-        null,
         false,
+        [],
         diagnostics
       );
       return unresolvedObjectResult(
@@ -87,18 +104,18 @@ export function createGraphNodeFromObjectText(
     }
 
     const patchDefinition = findPatchDefinition(options.patchLibrary, subpatchObject.patchId)!;
-    const subpatchParseResult = parseResultForSubpatch(
-      input,
-      displayText,
-      subpatchObject.patchId,
-      patchDefinition,
-      true,
-      []
-    );
     const subpatchNode = createSubpatchNodeFromDefinition(patchDefinition, existingNodes, {
       nodeId: options.nodeId,
       objectText: displayText
     });
+    const subpatchParseResult = parseResultForSubpatch(
+      input,
+      displayText,
+      subpatchObject.patchId,
+      true,
+      subpatchNode.ports.map(graphPortToObjectTextPort),
+      []
+    );
 
     return {
       ok: true,
@@ -107,10 +124,7 @@ export function createGraphNodeFromObjectText(
         params: {
           ...subpatchNode.params,
           objectText: displayText
-        },
-        ports: subpatchBoundaryPorts(patchDefinition)
-          .map(patchPortSpecToObjectTextPort)
-          .map(objectTextPortToGraphPort)
+        }
       },
       parseResult: subpatchParseResult,
       diagnostics: []
@@ -385,6 +399,16 @@ function unresolvedObjectResult(
       id: nodeId ?? uniqueObjectNodeId(UNRESOLVED_OBJECT_NODE_KIND, existingNodes),
       kind: UNRESOLVED_OBJECT_NODE_KIND,
       kindVersion: OBJECT_TEXT_SCHEMA_VERSION,
+      objectSpec: displayText,
+      objectResolution: {
+        status: "unresolved",
+        selectedSpec: displayText,
+        diagnostics: diagnostics.map((diagnostic) => ({
+          severity: diagnostic.severity,
+          code: "resolution-unresolved",
+          message: diagnostic.message
+        }))
+      },
       params: {
         objectText: displayText,
         diagnosticMessage,
@@ -416,8 +440,8 @@ function diagnosticsForUnresolvedParse(
       return [
         {
           severity: "error",
-          code: "extension-namespace-required",
-          message: `Extension object "${classSymbol}" must include a namespace such as "user.${classSymbol}".`
+          code: "object-unresolved",
+          message: `Object "${classSymbol}" is not available in the current catalog.`
         }
       ];
     }
@@ -483,8 +507,8 @@ function parseResultForSubpatch(
   input: string,
   displayText: string,
   patchId: string,
-  definition: PatchDefinitionV01 | null,
   ok: boolean,
+  instancePorts: ObjectTextPortV01[],
   diagnostics: ObjectTextDiagnosticV01[]
 ): ObjectTextParseResultV01 {
   return {
@@ -497,72 +521,22 @@ function parseResultForSubpatch(
     resolvedKind: ok ? SUBPATCH_NODE_KIND : null,
     resolvedKindVersion: ok ? CURRENT_CONTRACT_SCHEMA_VERSION : null,
     params: patchId ? { patchId } : {},
-    instancePorts: definition ? subpatchBoundaryPorts(definition).map(patchPortSpecToObjectTextPort) : [],
+    instancePorts,
     displayText,
     diagnostics
   };
 }
 
-type SubpatchBoundaryPortSpec = Parameters<typeof portSpecToGraphPort>[0];
-type LegacyPatchGraphNode = PatchDefinitionV01["graph"]["nodes"][number] & { kind?: unknown };
-
-function subpatchBoundaryPorts(definition: PatchDefinitionV01): SubpatchBoundaryPortSpec[] {
-  const contractPorts = patchDefinitionBoundaryPorts(definition);
-  if (contractPorts.length > 0) {
-    return contractPorts;
-  }
-
-  return definition.graph.nodes.flatMap((node) => {
-    const legacyNode = node as LegacyPatchGraphNode;
-    if (legacyNode.kind === "core.inlet" || legacyNode.kind === "object.core.inlet") {
-      return legacyBoundaryPorts(legacyNode, "output", "input");
-    }
-    if (legacyNode.kind === "core.outlet" || legacyNode.kind === "object.core.outlet") {
-      return legacyBoundaryPorts(legacyNode, "input", "output");
-    }
-    return [];
-  });
-}
-
-function legacyBoundaryPorts(
-  node: LegacyPatchGraphNode,
-  internalDirection: SubpatchBoundaryPortSpec["direction"],
-  externalDirection: SubpatchBoundaryPortSpec["direction"]
-): SubpatchBoundaryPortSpec[] {
-  const ports = node.ports.filter((port) => port.direction === internalDirection);
-  return ports.map((port) => ({
-    ...port,
-    id: legacyBoundaryPortId(node, port, ports.length),
-    direction: externalDirection,
-    label: port.label ?? legacyStringParam(node, "label"),
-    boundaryNodeId: node.id,
-    boundaryPortId: port.id
-  }));
-}
-
-function legacyBoundaryPortId(
-  node: LegacyPatchGraphNode,
-  port: SubpatchBoundaryPortSpec,
-  eligiblePortCount: number
-): string {
-  return (
-    legacyStringParam(node, "portId") ??
-    legacyStringParam(node, "externalPortId") ??
-    (eligiblePortCount === 1 ? node.id : port.id)
-  );
-}
-
-function legacyStringParam(node: LegacyPatchGraphNode, key: string): string | undefined {
-  const value = node.params[key];
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function patchPortSpecToObjectTextPort(port: Parameters<typeof portSpecToGraphPort>[0]): ObjectTextPortV01 {
-  const graphPort = portSpecToGraphPort(port) as PortV01 & { rate?: ObjectTextPortV01["rate"]; description?: string };
+function graphPortToObjectTextPort(port: PortV01): ObjectTextPortV01 {
+  const graphPort = port as PortV01 & {
+    default?: unknown;
+    description?: string;
+    rate?: ObjectTextPortV01["rate"];
+  };
   const objectPort: ObjectTextPortV01 = {
     id: port.id,
     direction: port.direction,
-    type: graphPort.type.dataKind
+    type: objectTextTypeForGraphType(graphPort.type)
   };
   if (graphPort.rate) {
     objectPort.rate = graphPort.rate;
@@ -577,6 +551,12 @@ function patchPortSpecToObjectTextPort(port: Parameters<typeof portSpecToGraphPo
     objectPort.description = graphPort.description;
   }
   return objectPort;
+}
+
+function objectTextTypeForGraphType(type: DataTypeV01): string {
+  return type.flow === "control"
+    ? OBJECT_TEXT_TYPE_BY_CORE_VALUE_DATA_KIND[type.dataKind] ?? type.dataKind
+    : type.dataKind;
 }
 
 function graphActivation(activation: ObjectTextPortV01["activation"]): PortActivation | undefined {

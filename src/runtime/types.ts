@@ -5,13 +5,10 @@ import type {
   FloatRepresentationV01,
   GeneratedShaderSourceMapV01,
   GraphDocumentV01,
-  GraphFragmentV01,
   GraphNodeV01,
-  GraphTargetRef,
-  InterfaceDiagnosticDetailV01,
-  InterfaceIncidentEdgePolicyV01,
   IntRepresentationV01,
   PatchDefinitionV01,
+  PasteGraphFragmentRequest as ContractPasteGraphFragmentRequest,
   PortSpecV01,
   ProjectDocumentV01,
   ShaderDiagnosticV01,
@@ -203,8 +200,6 @@ export type RuntimeGraphEdge = EdgeSpecV01;
 
 export type RuntimeGraphDocument = GraphDocumentV01;
 
-export type RuntimeGraphFragment = GraphFragmentV01;
-
 export interface RuntimeViewStateDocument {
   schema: "skenion.view-state";
   schemaVersion: "0.1.0";
@@ -331,12 +326,7 @@ export interface RuntimeOperationAttribution {
   label?: string;
 }
 
-export interface PasteGraphFragmentRequest {
-  target: GraphTargetRef;
-  fragment: RuntimeGraphFragment;
-  placement?: Record<string, unknown>;
-  options?: Record<string, unknown>;
-}
+export type PasteGraphFragmentRequest = ContractPasteGraphFragmentRequest;
 
 export interface RuntimeOperationEnvelope {
   schema: "skenion.runtime.operation";
@@ -396,15 +386,6 @@ export interface RuntimeHistory {
   canRedo: boolean;
   undoDepth: number;
   redoDepth: number;
-}
-
-export interface RuntimeMutationResponse {
-  ok: boolean;
-  applied: boolean;
-  conflict: boolean;
-  snapshot: RuntimeSessionSnapshot;
-  history: RuntimeHistory;
-  diagnostics: RuntimeDiagnostic[];
 }
 
 export type RuntimeSessionEventKind = "snapshot" | "load" | "clear" | "mutate" | "undo" | "redo";
@@ -673,43 +654,6 @@ export interface RuntimeExtensionListResponse {
   diagnostics: RuntimeDiagnostic[];
 }
 
-export interface RuntimeOperationDiagnostic {
-  severity: "error" | "warning" | "info";
-  code: string;
-  message: string;
-  path?: string;
-  target?: GraphTargetRef;
-  expectedRevision?: string;
-  actualRevision?: string;
-  duplicates?: string[];
-  nodes?: string[];
-  edges?: string[];
-  interfacePolicy?: InterfaceIncidentEdgePolicyV01;
-  interfaceDetail?: InterfaceDiagnosticDetailV01;
-}
-
-export interface IdRemapResult {
-  nodeIdMap: Record<string, string>;
-  edgeIdMap: Record<string, string>;
-  omittedEdgeIds: string[];
-}
-
-export interface PasteGraphFragmentResponse {
-  schema: "skenion.runtime.paste-graph-fragment.response";
-  schemaVersion: "0.1.0";
-  ok: boolean;
-  applied: boolean;
-  conflict: boolean;
-  target: GraphTargetRef;
-  revisionBefore: string;
-  revisionAfter: string | null;
-  historyEntryId: string | null;
-  idRemap: IdRemapResult;
-  diagnostics: RuntimeOperationDiagnostic[];
-}
-
-export type RuntimePatchResponse = RuntimeMutationResponse;
-
 export type RuntimeConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export type RuntimeProjectPayload = RuntimeProjectRequest;
@@ -723,20 +667,16 @@ export type RuntimeResultKind =
   | "validateSession"
   | "planSession"
   | "runSession"
-  | "mutateSession"
   | "graphCommand"
-  | "sessionOperation"
-  | "undoPatch"
-  | "redoPatch"
+  | "historyUndo"
+  | "historyRedo"
   | "controlEvent"
   | "clearSession";
 
 export type RuntimeActionResponse =
   | RuntimeApiResponse
-  | RuntimePatchResponse
   | RuntimeGraphCommandResponse
   | RuntimeSessionResponse
-  | PasteGraphFragmentResponse
   | RuntimeControlEventResponse
   | RuntimeControlReadResponse;
 

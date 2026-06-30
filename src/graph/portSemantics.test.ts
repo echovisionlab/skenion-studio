@@ -84,6 +84,139 @@ describe("port and edge semantics", () => {
     expect(portSemanticsForPort(node, node.ports[1]!).type).toBe("signal.audio");
   });
 
+  it("shows core value storage kinds as artist-facing port labels", () => {
+    const node: GraphNodeV01 = {
+      id: "adapter",
+      kind: "core.subpatch",
+      kindVersion: "0.1.0",
+      params: {},
+      ports: [
+        {
+          id: "message",
+          direction: "input",
+          type: { flow: "control", dataKind: "value.core.message" }
+        },
+        {
+          id: "string",
+          direction: "input",
+          type: { flow: "control", dataKind: "value.core.string" }
+        },
+        {
+          id: "bool",
+          direction: "input",
+          type: { flow: "control", dataKind: "boolean" }
+        },
+        {
+          id: "f8",
+          direction: "input",
+          type: { flow: "control", dataKind: "value.core.float8" }
+        },
+        {
+          id: "f16",
+          direction: "input",
+          type: { flow: "control", dataKind: "value.core.float16" }
+        },
+        {
+          id: "i8",
+          direction: "input",
+          type: { flow: "control", dataKind: "value.core.int8" }
+        },
+        {
+          id: "i16",
+          direction: "input",
+          type: { flow: "control", dataKind: "value.core.int16" }
+        }
+      ]
+    };
+
+    expect(portSemanticsForPort(node, node.ports[0]!)).toMatchObject({
+      storedType: "value<message.any>",
+      type: "value.message.any"
+    });
+    expect(portSemanticsForPort(node, node.ports[1]!)).toMatchObject({
+      storedType: "value<string>",
+      type: "value.string"
+    });
+    expect(portSemanticsForPort(node, node.ports[3]!).type).toBe("value.number.float");
+    expect(portSemanticsForPort(node, node.ports[4]!).type).toBe("value.number.float");
+    expect(portSemanticsForPort(node, node.ports[5]!).type).toBe("value.number.int");
+    expect(portSemanticsForPort(node, node.ports[6]!).type).toBe("value.number.int");
+    expect(
+      analyzeGraphPortSemantics({
+        schema: "skenion.graph",
+        schemaVersion: "0.1.0",
+        id: "canonical-control",
+        revision: "1",
+        nodes: [
+          {
+            id: "source",
+            kind: "core.message",
+            kindVersion: "0.1.0",
+            params: {},
+            ports: [
+              {
+                id: "out",
+                direction: "output",
+                type: { flow: "control", dataKind: "message.any" }
+              }
+            ]
+          },
+          {
+            id: "target",
+            kind: "core.string",
+            kindVersion: "0.1.0",
+            params: {},
+            ports: [
+              {
+                id: "in",
+                direction: "input",
+                type: { flow: "control", dataKind: "string" }
+              }
+            ]
+          }
+        ],
+        edges: [{ from: { node: "source", port: "out" }, to: { node: "target", port: "in" } }]
+      })[0]
+    ).toMatchObject({ code: "incompatible-edge-type" });
+    expect(
+      analyzeGraphPortSemantics({
+        schema: "skenion.graph",
+        schemaVersion: "0.1.0",
+        id: "canonical-bool",
+        revision: "1",
+        nodes: [
+          {
+            id: "source",
+            kind: "core.bool",
+            kindVersion: "0.1.0",
+            params: {},
+            ports: [
+              {
+                id: "out",
+                direction: "output",
+                type: { flow: "control", dataKind: "boolean" }
+              }
+            ]
+          },
+          {
+            id: "target",
+            kind: "core.bool",
+            kindVersion: "0.1.0",
+            params: {},
+            ports: [
+              {
+                id: "in",
+                direction: "input",
+                type: { flow: "control", dataKind: "boolean" }
+              }
+            ]
+          }
+        ],
+        edges: [{ from: { node: "source", port: "out" }, to: { node: "target", port: "in" } }]
+      })
+    ).toEqual([]);
+  });
+
   it("builds edge inspector metadata with current defaults and explicit overrides", () => {
     const edge = {
       ...renderSampleGraph.edges[0],

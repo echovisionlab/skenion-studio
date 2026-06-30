@@ -224,6 +224,7 @@ describe("React Flow adapter", () => {
     expect(flowColor("resource")).toBe("#7950f2");
     expect(flowColor("value")).toBe("#495057");
     expect(flowColor("resource", "gpu.texture2d")).toBe("#7048e8");
+    expect(flowName("control")).toBe("value");
     expect(flowName("resource")).toBe("resource");
     expect(flowName("resource", "gpu.texture2d")).toBe("gpu resource");
   });

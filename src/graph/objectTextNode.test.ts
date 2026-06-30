@@ -14,6 +14,7 @@ import {
   objectTextTypeToGraphType
 } from "./objectTextNode";
 import { genericObjectTextForNode } from "./objectTextDisplay";
+import { parseObjectTextV01 } from "./objectTextParser";
 
 describe("object text graph node adapter", () => {
   it("creates a canonical control operator node from object text", () => {
@@ -56,6 +57,18 @@ describe("object text graph node adapter", () => {
         required: false
       }
     ]);
+  });
+
+  it("parses Studio-local object text syntax and atoms without runtime resolution", () => {
+    expect(parseObjectTextV01("[osc~ 440]").displayText).toBe("osc~ 440");
+    expect(parseObjectTextV01("[osc~ 440").diagnostics[0]).toMatchObject({
+      code: "invalid-syntax"
+    });
+    expect(parseObjectTextV01("print true").creationArgs).toEqual([{ type: "bool", value: true }]);
+    expect(parseObjectTextV01("print 1e999").creationArgs).toEqual([{ type: "symbol", value: "1e999" }]);
+    expect(parseObjectTextV01("+").params).toEqual({});
+    expect(parseObjectTextV01("*~").params).toEqual({});
+    expect(parseObjectTextV01("osc~").params).toEqual({});
   });
 
   it("creates audio signal nodes without losing scalar defaults", () => {
@@ -117,6 +130,12 @@ describe("object text graph node adapter", () => {
     expect(invalid.ok).toBe(false);
     expect(invalid.node).toMatchObject({
       kind: UNRESOLVED_OBJECT_NODE_KIND,
+      objectSpec: "sin~",
+      objectResolution: {
+        status: "unresolved",
+        selectedSpec: "sin~",
+        diagnostics: [{ code: "resolution-unresolved" }]
+      },
       params: {
         objectText: "sin~",
         requestedKind: "sin~"
@@ -151,6 +170,11 @@ describe("object text graph node adapter", () => {
     expect(missingDecode.ok).toBe(false);
     expect(missingDecode.node).toMatchObject({
       kind: UNRESOLVED_OBJECT_NODE_KIND,
+      objectSpec: "decode",
+      objectResolution: {
+        status: "unresolved",
+        selectedSpec: "decode"
+      },
       params: {
         objectText: "decode",
         requestedKind: "core.video-decode"
@@ -203,13 +227,19 @@ describe("object text graph node adapter", () => {
     expect(genericObjectTextForNode({ ...node, params: { objectText: "  ", label: " " } })).toBe("user.sensor");
   });
 
-  it("keeps namespaced extension candidates and warns namespace-less unknown classes", () => {
+  it("keeps unresolved namespace-free object specs editable for package authoring", () => {
     const extension = createGraphNodeFromObjectText("user.manipulator", [], nodeRegistry);
     const unknown = createGraphNodeFromObjectText("manipulator", [], nodeRegistry);
 
     expect(extension.ok).toBe(false);
     expect(extension.node).toMatchObject({
       kind: UNRESOLVED_OBJECT_NODE_KIND,
+      objectSpec: "user.manipulator",
+      objectResolution: {
+        status: "unresolved",
+        selectedSpec: "user.manipulator",
+        diagnostics: [{ code: "resolution-unresolved" }]
+      },
       params: {
         objectText: "user.manipulator",
         requestedKind: "user.manipulator"
@@ -220,13 +250,19 @@ describe("object text graph node adapter", () => {
     });
     expect(unknown.node).toMatchObject({
       kind: UNRESOLVED_OBJECT_NODE_KIND,
+      objectSpec: "manipulator",
+      objectResolution: {
+        status: "unresolved",
+        selectedSpec: "manipulator",
+        diagnostics: [{ code: "resolution-unresolved" }]
+      },
       params: {
         objectText: "manipulator",
         requestedKind: "manipulator"
       }
     });
     expect(unknown.diagnostics[0]).toMatchObject({
-      code: "extension-namespace-required"
+      code: "object-unresolved"
     });
   });
 
@@ -332,6 +368,72 @@ describe("object text graph node adapter", () => {
     });
   });
 
+  it("derives subpatch ports from legacy object.core boundary nodes when contracts cannot", () => {
+    const patch = {
+      id: "legacy",
+      revision: "1",
+      metadata: {},
+      graph: {
+        schema: "skenion.graph",
+        schemaVersion: "0.1.0",
+        id: "legacy-help",
+        revision: "1",
+        nodes: [
+          {
+            id: "legacy_in",
+            kind: "object.core.inlet",
+            kindVersion: "0.1.0",
+            params: { label: "Legacy In" },
+            ports: [
+              {
+                id: "left",
+                direction: "output",
+                type: "number.float"
+              },
+              {
+                id: "right",
+                direction: "output",
+                type: "number.float"
+              }
+            ]
+          },
+          {
+            id: "ignored",
+            kind: "object.core.comment",
+            kindVersion: "0.1.0",
+            params: {},
+            ports: []
+          },
+          {
+            id: "legacy_out",
+            kind: "object.core.outlet",
+            kindVersion: "0.1.0",
+            params: {},
+            ports: [
+              {
+                id: "in",
+                direction: "input",
+                type: "signal.audio"
+              }
+            ]
+          }
+        ],
+        edges: []
+      }
+    } as unknown as PatchDefinitionV01;
+
+    const result = createGraphNodeFromObjectText("p legacy", [], nodeRegistry, {
+      patchLibrary: createPatchLibrary([patch])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.parseResult.instancePorts.map((port) => [port.id, port.direction, port.type])).toEqual([
+      ["left", "input", "number.float"],
+      ["right", "input", "number.float"],
+      ["legacy_out", "output", "signal.audio"]
+    ]);
+  });
+
   it("keeps optional subpatch parse metadata absent for bare boundary ports", () => {
     const patch = {
       id: "bare",
@@ -380,6 +482,12 @@ describe("object text graph node adapter", () => {
     expect(missingLibrary.ok).toBe(false);
     expect(missingLibrary.node).toMatchObject({
       kind: UNRESOLVED_OBJECT_NODE_KIND,
+      objectSpec: "p missing",
+      objectResolution: {
+        status: "unresolved",
+        selectedSpec: "p missing",
+        diagnostics: [{ code: "resolution-unresolved" }]
+      },
       params: {
         objectText: "p missing",
         requestedKind: "core.subpatch"
@@ -447,6 +555,10 @@ describe("object text graph node adapter", () => {
       ok: false,
       node: {
         kind: UNRESOLVED_OBJECT_NODE_KIND,
+        objectSpec: "+ 1",
+        objectResolution: {
+          status: "unresolved"
+        },
         params: {
           objectText: "+ 1",
           requestedKind: "core.operator.add"

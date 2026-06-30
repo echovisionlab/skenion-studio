@@ -162,10 +162,10 @@ export function createSubpatchNodeFromDefinition(
 function legacyDisplayPatchBoundaryPorts(definition: PatchDefinitionV01): PatchContractPortV01[] {
   return definition.graph.nodes.flatMap((node) => {
     const legacyNode = node as ContractGraphNodeV01 & { kind?: string; params?: Record<string, unknown> };
-    if (legacyNode.kind === "core.inlet") {
+    if (legacyNode.kind === "core.inlet" || legacyNode.kind === "object.core.inlet") {
       return legacyBoundaryPortsForNode(legacyNode, "output", "input");
     }
-    if (legacyNode.kind === "core.outlet") {
+    if (legacyNode.kind === "core.outlet" || legacyNode.kind === "object.core.outlet") {
       return legacyBoundaryPortsForNode(legacyNode, "input", "output");
     }
     return [];
@@ -177,28 +177,45 @@ function legacyBoundaryPortsForNode(
   sourceDirection: PortSpecV01["direction"],
   boundaryDirection: PortSpecV01["direction"]
 ): PatchContractPortV01[] {
-  const sourcePort = node.ports.find((port) => port.direction === sourceDirection);
-  if (!sourcePort) {
+  const sourcePorts = node.ports.filter((port) => port.direction === sourceDirection);
+  if (sourcePorts.length === 0) {
     return [];
   }
 
-  const portId = typeof node.params?.portId === "string" && node.params.portId.trim()
-    ? node.params.portId
-    : node.id;
-  const label = typeof node.params?.label === "string" && node.params.label.trim()
-    ? node.params.label
-    : sourcePort.label;
-
-  return [
-    omitUndefined({
+  return sourcePorts.map((sourcePort) => {
+    const portId = legacyBoundaryPortId(node, sourcePort, sourcePorts.length);
+    const label = typeof node.params?.label === "string" && node.params.label.trim()
+      ? node.params.label
+      : sourcePort.label;
+    return omitUndefined({
       ...sourcePort,
       id: portId,
       direction: boundaryDirection,
       label,
       boundaryNodeId: node.id,
       boundaryPortId: sourcePort.id
-    })
-  ];
+    });
+  });
+}
+
+function legacyBoundaryPortId(
+  node: ContractGraphNodeV01 & { params?: Record<string, unknown> },
+  port: PortSpecV01,
+  eligiblePortCount: number
+): string {
+  return (
+    legacyBoundaryParam(node, "portId") ??
+    legacyBoundaryParam(node, "externalPortId") ??
+    (eligiblePortCount === 1 ? node.id : port.id)
+  );
+}
+
+function legacyBoundaryParam(
+  node: ContractGraphNodeV01 & { params?: Record<string, unknown> },
+  key: string
+): string | undefined {
+  const value = node.params?.[key];
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function metadataString(value: unknown): string | undefined {

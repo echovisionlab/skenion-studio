@@ -34,6 +34,112 @@ describe("patchLibrary", () => {
     expect(patchTags({ ...patch, metadata: {} })).toEqual([]);
   });
 
+  it("ignores malformed legacy boundary nodes when deriving patch contracts", () => {
+    const patch: PatchDefinitionV01 = {
+      ...testPatchDefinition(),
+      graph: {
+        ...testPatchDefinition().graph,
+        nodes: [
+          {
+            id: "broken_inlet",
+            kind: "core.inlet",
+            kindVersion: "0.1.0",
+            params: {},
+            ports: [
+              {
+                id: "in",
+                direction: "input",
+                type: "number.float"
+              }
+            ]
+          }
+        ] as unknown as PatchDefinitionV01["graph"]["nodes"],
+        edges: []
+      }
+    };
+
+    expect(createSubpatchNodeFromDefinition(patch, []).ports).toEqual([]);
+  });
+
+  it("falls back to legacy boundary node ids when labels and port ids are absent", () => {
+    const patch: PatchDefinitionV01 = {
+      ...testPatchDefinition(),
+      graph: {
+        ...testPatchDefinition().graph,
+        nodes: [
+          {
+            id: "bare_inlet",
+            kind: "core.inlet",
+            kindVersion: "0.1.0",
+            params: {},
+            ports: [
+              {
+                id: "out",
+                direction: "output",
+                type: "number.float"
+              }
+            ]
+          }
+        ] as unknown as PatchDefinitionV01["graph"]["nodes"],
+        edges: []
+      }
+    };
+
+    expect(createSubpatchNodeFromDefinition(patch, []).ports[0]).toMatchObject({
+      id: "bare_inlet",
+      label: "Bare Inlet"
+    });
+  });
+
+  it("derives legacy object.core boundary ports in the patch library boundary owner", () => {
+    const patch: PatchDefinitionV01 = {
+      ...testPatchDefinition(),
+      graph: {
+        ...testPatchDefinition().graph,
+        nodes: [
+          {
+            id: "legacy_in",
+            kind: "object.core.inlet",
+            kindVersion: "0.1.0",
+            params: { label: "Legacy In" },
+            ports: [
+              {
+                id: "left",
+                direction: "output",
+                type: "number.float"
+              },
+              {
+                id: "right",
+                direction: "output",
+                type: "number.float"
+              }
+            ]
+          },
+          {
+            id: "legacy_out",
+            kind: "object.core.outlet",
+            kindVersion: "0.1.0",
+            params: {},
+            ports: [
+              {
+                id: "in",
+                direction: "input",
+                type: "signal.audio"
+              }
+            ]
+          }
+        ] as unknown as PatchDefinitionV01["graph"]["nodes"],
+        edges: []
+      }
+    };
+
+    expect(createSubpatchNodeFromDefinition(patch, []).ports.map((port) => [port.id, port.direction, port.type])).toEqual([
+      ["left", "input", { flow: "control", dataKind: "number.float", format: "f32" }],
+      ["right", "input", { flow: "control", dataKind: "number.float", format: "f32" }],
+      ["legacy_out", "output", { flow: "signal", dataKind: "signal.audio" }]
+    ]);
+  });
+
   it("creates a core.subpatch node from patch boundary ports", () => {
     const patch = testPatchDefinition();
     const node = createSubpatchNodeFromDefinition(patch, [], { objectText: "p voice" });
@@ -160,6 +266,14 @@ describe("patchLibrary", () => {
     ).toEqual({ flow: "resource", dataKind: "asset.video" });
     expect(
       portSpecToGraphPort({
+        id: "mesh",
+        direction: "output",
+        type: "resource.buffer.mesh",
+        rate: "resource"
+      }).type
+    ).toEqual({ flow: "resource", dataKind: "buffer.mesh" });
+    expect(
+      portSpecToGraphPort({
         id: "frame",
         direction: "output",
         type: "video.frame"
@@ -172,6 +286,41 @@ describe("patchLibrary", () => {
         type: "value.velocity"
       }).type
     ).toEqual({ flow: "control", dataKind: "velocity" });
+    expect(
+      portSpecToGraphPort({
+        id: "audio",
+        direction: "output",
+        type: "media.audio-stream"
+      }).type
+    ).toEqual({ flow: "signal", dataKind: "signal.audio" });
+    expect(
+      portSpecToGraphPort({
+        id: "custom-video",
+        direction: "output",
+        type: "media.video-frame"
+      }).type
+    ).toEqual({ flow: "stream", dataKind: "video.frame" });
+    expect(
+      portSpecToGraphPort({
+        id: "message",
+        direction: "input",
+        type: "value.core.message"
+      }).type
+    ).toEqual({ flow: "event", dataKind: "message.any" });
+    expect(
+      portSpecToGraphPort({
+        id: "string",
+        direction: "input",
+        type: "value.core.string"
+      }).type
+    ).toEqual({ flow: "control", dataKind: "string" });
+    expect(
+      portSpecToGraphPort({
+        id: "count-u8",
+        direction: "input",
+        type: "value.core.uint8"
+      }).type
+    ).toEqual({ flow: "control", dataKind: "number.uint", format: "u32" });
     expect(
       portSpecToGraphPort({
         id: "depth",
@@ -257,6 +406,69 @@ describe("patchLibrary", () => {
         type: { flow: "control", dataKind: "number.float", format: "f32" }
       }).type
     ).toBe("value.core.float32");
+    expect(
+      graphPortToPortSpec({
+        id: "display-accepts",
+        direction: "input",
+        type: { flow: "control", dataKind: "number.float", format: "f32" },
+        accepts: [
+          "boolean",
+          "color",
+          "message.any",
+          "number.uint",
+          "string",
+          "signal.audio",
+          "video.frame",
+          "asset.video",
+          "gpu.texture2d"
+        ]
+      } as Parameters<typeof graphPortToPortSpec>[0] & { accepts: string[] }).accepts
+    ).toEqual([
+      "value.core.bool",
+      "value.core.color",
+      "value.core.message",
+      "value.core.uint32",
+      "value.core.string",
+      "media.audio-stream",
+      "media.video-frame",
+      "resource.asset.video",
+      "resource.gpu.texture2d"
+    ]);
+    expect(
+      graphPortToPortSpec({
+        id: "message",
+        direction: "input",
+        type: { flow: "control", dataKind: "message.any" }
+      }).type
+    ).toBe("value.core.message");
+    expect(
+      graphPortToPortSpec({
+        id: "integer",
+        direction: "input",
+        type: { flow: "control", dataKind: "number.int", format: "i16" }
+      }).type
+    ).toBe("value.core.int32");
+    expect(
+      graphPortToPortSpec({
+        id: "unsigned",
+        direction: "input",
+        type: { flow: "control", dataKind: "number.uint", format: "u16" }
+      }).type
+    ).toBe("value.core.uint32");
+    expect(
+      graphPortToPortSpec({
+        id: "string",
+        direction: "input",
+        type: { flow: "control", dataKind: "string" }
+      }).type
+    ).toBe("value.core.string");
+    expect(
+      graphPortToPortSpec({
+        id: "depth",
+        direction: "output",
+        type: { flow: "stream", dataKind: "depth" }
+      }).type
+    ).toBe("stream.depth");
   });
 
   it("converts current 0.1 graphs to readonly v0.1 display graphs", () => {
@@ -341,11 +553,23 @@ describe("patchLibrary", () => {
             version: "0.1.0"
           },
           objectSpec: "gain",
+          bindingRef: "binding_1",
           objectResolution: {
             status: "resolved",
             selectedSpec: "gain",
             candidates: []
           },
+          params: {},
+          ports: []
+        },
+        {
+          id: "unknown_core_1",
+          implementation: {
+            provider: { kind: "core" },
+            objectId: "unknown",
+            version: "0.1.0"
+          },
+          objectSpec: "unknown",
           params: {},
           ports: []
         }
@@ -359,7 +583,12 @@ describe("patchLibrary", () => {
     });
     expect(graph.nodes[1]).toMatchObject({
       kind: "object.external",
-      objectSpec: "gain"
+      objectSpec: "gain",
+      bindingRef: "binding_1"
+    });
+    expect(graph.nodes[2]).toMatchObject({
+      kind: "object.core",
+      objectSpec: "unknown"
     });
 
     const contractGraph = displayGraphToContractGraph(graph);
@@ -372,6 +601,55 @@ describe("patchLibrary", () => {
       },
       objectSpec: "float"
     });
+  });
+
+  it("keeps display graph fallbacks for unresolved, project patch, and legacy runtime core kinds", () => {
+    const graph = contractGraphToDisplayGraph({
+      schema: "skenion.graph",
+      schemaVersion: "0.1.0",
+      id: "display-fallbacks",
+      revision: "1",
+      nodes: [
+        {
+          id: "legacy_keep",
+          kind: "core.float",
+          kindVersion: "2.0.0",
+          params: {},
+          ports: []
+        },
+        {
+          id: "legacy_core",
+          kind: "object.core.float",
+          kindVersion: "",
+          params: {},
+          ports: []
+        },
+        {
+          id: "unresolved",
+          params: {},
+          ports: []
+        },
+        {
+          id: "project_patch",
+          implementation: {
+            provider: { kind: "projectPatch", patchId: "voice", revision: "1" },
+            objectId: "voice",
+            version: "1"
+          },
+          objectSpec: "p voice",
+          params: {},
+          ports: []
+        }
+      ],
+      edges: []
+    } as unknown as Parameters<typeof contractGraphToDisplayGraph>[0]);
+
+    expect(graph.nodes.map((node) => [node.id, node.kind, node.kindVersion])).toEqual([
+      ["legacy_keep", "core.float", "2.0.0"],
+      ["legacy_core", "core.float", "0.1.0"],
+      ["unresolved", "object.unresolved", "0.1.0"],
+      ["project_patch", "core.subpatch", "1"]
+    ]);
   });
 
   it("converts display graphs back into active current 0.1 graphs without losing metadata", () => {
