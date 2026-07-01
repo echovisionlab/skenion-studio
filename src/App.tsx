@@ -214,6 +214,7 @@ export default function App() {
   const [runtimeControlPulses, setRuntimeControlPulses] = useState<Record<string, number>>({});
   const runtimeControlPulseCounterRef = useRef(0);
   const graphPointerPositionRef = useRef<GraphPointerPosition | null>(null);
+  const lastGraphPointerPositionRef = useRef<GraphPointerPosition | null>(null);
   const [runtimeHistory, setRuntimeHistory] = useState<RuntimeHistory | null>(null);
   const [runtimePreviewStatus, setRuntimePreviewStatus] = useState<RuntimePreviewStatus | null>(null);
   const [runtimeTelemetry, setRuntimeTelemetry] = useState<RuntimeTelemetrySnapshot | null>(null);
@@ -797,6 +798,9 @@ export default function App() {
 
   function updateGraphPointerPosition(position: GraphPointerPosition | null) {
     graphPointerPositionRef.current = position;
+    if (position) {
+      lastGraphPointerPositionRef.current = position;
+    }
   }
 
   function createShortcutObjectAtPosition(request: {
@@ -820,14 +824,14 @@ export default function App() {
   async function addObjectNode(): Promise<boolean> {
     const nodeId = await createRuntimeObjectNode(undefined, {
       beginEditingObjectSpec: true,
-      position: defaultObjectNodePosition(graph.nodes.length)
+      position: lastGraphPointerPositionRef.current ?? defaultObjectNodePosition(graph.nodes.length)
     });
     return nodeId !== null;
   }
 
   async function addObjectNodeFromSpec(objectSpec: string): Promise<boolean> {
     const nodeId = await createRuntimeObjectNode(objectSpec, {
-      position: defaultObjectNodePosition(graph.nodes.length)
+      position: lastGraphPointerPositionRef.current ?? defaultObjectNodePosition(graph.nodes.length)
     });
     return nodeId !== null;
   }
@@ -918,6 +922,7 @@ export default function App() {
       setRuntimeError("Runtime session is required before editing objects.");
       return;
     }
+    const existingView = viewState.canvas.nodes[nodeId];
 
     setRuntimeBusyAction("graphCommand");
     setRuntimeError(null);
@@ -931,6 +936,7 @@ export default function App() {
           baseGraphRevision: baseRevision,
           nodeId,
           objectSpec: trimmedObjectSpec,
+          ...(existingView ? { view: existingView } : {}),
           unresolvedPolicy: "materialize-issue",
           interfaceIncidentEdgePolicy: "drop"
         },
