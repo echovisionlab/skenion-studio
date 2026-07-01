@@ -147,7 +147,13 @@ export function createRuntimeClient(options: RuntimeClientOptions = {}): Runtime
         isNodeCatalogSnapshot
       ),
     getSession: () =>
-      requestJson<RuntimeSessionResponse>(fetchImpl, baseUrl, sessionPath(), { method: "GET" }, isRuntimeSessionResponse),
+      requestJson<RuntimeSessionResponse>(
+        fetchImpl,
+        baseUrl,
+        sessionPath("/snapshot"),
+        { method: "GET" },
+        isRuntimeSessionResponse
+      ),
     loadSession: (project) => postRuntimeSessionResponse(fetchImpl, baseUrl, sessionPath("/load"), project),
     validateSession: () =>
       requestJson<RuntimeSessionResponse>(

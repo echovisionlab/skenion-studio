@@ -234,7 +234,7 @@ describe("runtime client", () => {
 
     const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
     expect(fetchMock).toHaveBeenCalledTimes(7);
-    expect(calls[0]).toEqual(["http://runtime.local/v0/sessions/default", { method: "GET" }]);
+    expect(calls[0]).toEqual(["http://runtime.local/v0/sessions/default/snapshot", { method: "GET" }]);
     expect(calls[1][0]).toBe("http://runtime.local/v0/sessions/default/load");
     expect(JSON.parse(String(calls[1][1].body))).toEqual(project);
     expect(calls[2]).toEqual(["http://runtime.local/v0/sessions/default/validate", { method: "POST" }]);
@@ -279,7 +279,7 @@ describe("runtime client", () => {
     const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
     expect(calls.map((call) => call[0])).toEqual([
       "http://runtime.local/v0/sessions/alpha/info",
-      "http://runtime.local/v0/sessions/alpha",
+      "http://runtime.local/v0/sessions/alpha/snapshot",
       "http://runtime.local/v0/sessions/alpha/load",
       "http://runtime.local/v0/sessions/alpha/history",
       "http://runtime.local/v0/sessions/alpha/preview",
