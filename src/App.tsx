@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppShell, Badge, Group, ScrollArea, Stack, Text } from "@mantine/core";
 import { CircleAlert, X } from "lucide-react";
 import {
   type GraphFragmentV01,
-  type GraphTargetRef,
   type NodeCatalogSnapshotV01,
   type PasteGraphFragmentRequest,
   type ProjectDocumentV01,
@@ -43,6 +42,7 @@ import {
   findEdgeInspectorModel
 } from "./graph/portSemantics";
 import {
+  displayEdgeToEdgeSpec,
   type DisplayGraphDocumentV01,
   type DisplayGraphNodeV01
 } from "./graph/patchLibrary";
@@ -76,6 +76,13 @@ import {
   runtimeSessionFingerprint,
   runtimeSessionIsSynced
 } from "./runtime/sessionSync";
+import {
+  rootGraphTarget,
+  runtimeCommandGroupsFromGraphPatches,
+  runtimeGraphCommandPayloadForPatchGroup,
+  runtimeSessionWithAcceptedProject,
+  withProjectGraphRevision
+} from "./runtime/liveGraphPatches";
 import { runtimeControlValueEquals } from "./runtime/controlMessage";
 import type {
   RuntimeConnectionStatus,
@@ -126,6 +133,8 @@ import {
   type StudioWindowRegistry
 } from "./desktop/windowRegistry";
 
+const emptyRuntimeControlValues: Record<string, RuntimeControlValue> = {};
+
 export default function App() {
   const [launchContext] = useState(() => readDesktopLaunchContext());
   const [desktopBridge] = useState(() => createTauriDesktopBridge());
@@ -150,6 +159,8 @@ export default function App() {
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
+  const selectedNodeIdsRef = useRef(selectedNodeIds);
+  const selectedEdgeIdsRef = useRef(selectedEdgeIds);
   const [editingObjectSpecNodeId, setEditingObjectSpecNodeId] = useState<string | null>(null);
   const [graphFragmentClipboard, setGraphFragmentClipboard] = useState<GraphFragmentV01 | null>(null);
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
@@ -263,6 +274,14 @@ export default function App() {
       url: runtimeUrl
     };
   }, [runtimeInfo, runtimeSession?.snapshot.project, runtimeSessionId, runtimeSessionSynced, runtimeStatus, runtimeUrl]);
+
+  useEffect(() => {
+    selectedNodeIdsRef.current = selectedNodeIds;
+  }, [selectedNodeIds]);
+
+  useEffect(() => {
+    selectedEdgeIdsRef.current = selectedEdgeIds;
+  }, [selectedEdgeIds]);
 
   useEffect(() => {
     const scope = createRuntimeScope({
@@ -389,7 +408,7 @@ export default function App() {
       setRuntimeStatus("connected");
       const project = value.snapshot.project;
       if (project) {
-        acceptRuntimeProject(project);
+        acceptRuntimeProject(project, { preserveViewport: true });
         setLastLoadedGraphFingerprint(runtimeSessionFingerprint(eventSession));
         if (runtimeSupportsControlState(runtimeInfo)) {
           void refreshRuntimeControlState(createActiveRuntimeClient(), runtimeInfo);
@@ -515,15 +534,15 @@ export default function App() {
     viewState
   ]);
 
-  function openInspectSidePanel() {
-    setLogsOpen(false);
-    setSidePanelOpen(true);
-  }
+  const openInspectSidePanel = useCallback(() => {
+    setLogsOpen((current) => current ? false : current);
+    setSidePanelOpen((current) => current ? current : true);
+  }, []);
 
-  function openLogsSidePanel() {
-    setLogsOpen(true);
-    setSidePanelOpen(true);
-  }
+  const openLogsSidePanel = useCallback(() => {
+    setLogsOpen((current) => current ? current : true);
+    setSidePanelOpen((current) => current ? current : true);
+  }, []);
 
   function appendClientLog(level: LogLevel, message: string) {
     const timestamp = new Date().toISOString();
@@ -849,28 +868,84 @@ export default function App() {
   }
 
   function updateGraph(nextGraph: DisplayGraphDocumentV01, patches: GraphPatch[] = []) {
-    setActiveProject((currentProject) =>
-      patches.length > 0
-        ? applyActiveProjectPatches(currentProject, patches)
-        : replaceProjectRootGraphFromDisplay(currentProject, nextGraph)
-    );
-    setViewState((currentViewState) => reconcileViewStateWithGraph(nextGraph, currentViewState));
-    recordGraphPatches(patches);
+    const nextProject = updateActiveProjectGraph(activeProject, nextGraph, patches);
+    if (patches.length === 0) {
+      setActiveProject(nextProject);
+      setConnectionCheck(null);
+      return;
+    }
+
+    void applyRuntimeGraphPatches(patches, nextProject);
     setConnectionCheck(null);
   }
 
-  function recordGraphPatches(patches: GraphPatch[]) {
-    if (patches.length === 0) {
-      return;
-    }
-
-    if (runtimeStatus !== "connected") {
+  async function applyRuntimeGraphPatches(patches: GraphPatch[], nextProject: ProjectDocumentV01) {
+    if (runtimeStatus !== "connected" || !runtimeSessionSynced) {
       setRuntimeError("Runtime session is required before graph edits can be applied.");
       return;
     }
+    let baseRevision = currentRuntimeGraphRevision();
+    if (!baseRevision) {
+      setRuntimeError("Runtime graph revision is required before graph edits can be applied.");
+      return;
+    }
 
+    const commandGroups = runtimeCommandGroupsFromGraphPatches(patches);
+    if (!commandGroups) {
+      setRuntimeError("Runtime does not support this graph edit as a live command yet.");
+      try {
+        await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
+      } catch {
+        // Keep the original live-command error visible.
+      }
+      return;
+    }
+
+    setRuntimeBusyAction("graphCommand");
+    setRuntimeError(null);
     setPatchConflict(null);
-    void loadProjectIntoRuntime(applyActiveProjectPatches(activeProject, patches));
+    try {
+      const graphCommandClient = createActiveRuntimeGraphCommandClient();
+      let acceptedProject = nextProject;
+      let baseSessionRevision = runtimeSession?.snapshot.sessionRevision;
+      let lastResponse: RuntimeGraphCommandResponse | null = null;
+      for (const group of commandGroups) {
+        const response = await graphCommandClient.sendGraphCommand(
+          runtimeGraphCommandPayloadForPatchGroup(group, baseRevision, baseSessionRevision)
+        );
+        if (!response.ok || !response.applied) {
+          const message = response.issues[0]?.message ?? "Runtime rejected graph edit.";
+          setRuntimeError(message);
+          appendClientLog(response.conflict ? "warning" : "error", message);
+          await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
+          return;
+        }
+        lastResponse = response;
+        if (typeof response.payload.sessionRevision === "number") {
+          baseSessionRevision = response.payload.sessionRevision;
+        }
+        if (response.payload.graphRevision) {
+          baseRevision = response.payload.graphRevision;
+          acceptedProject = withProjectGraphRevision(acceptedProject, response.payload.graphRevision);
+        }
+      }
+
+      setActiveProject(acceptedProject);
+      setRuntimeSession((current) => runtimeSessionWithAcceptedProject(current, acceptedProject, lastResponse));
+      setLastLoadedGraphFingerprint(runtimeGraphFingerprint(acceptedProject.graph.id, acceptedProject.graph.revision));
+      clearPendingPatch();
+      setRuntimeStatus("connected");
+    } catch (error) {
+      setRuntimeStatus("error");
+      setRuntimeError(error instanceof Error ? error.message : "Runtime graph edit failed.");
+      try {
+        await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
+      } catch {
+        // Keep the original graph edit error visible.
+      }
+    } finally {
+      setRuntimeBusyAction(null);
+    }
   }
 
   function updateViewStateFromCanvas(nextViewState: ViewStateV01) {
@@ -946,25 +1021,41 @@ export default function App() {
     setPatchConflict(null);
   }
 
-  function acceptRuntimeProject(nextProject: ProjectDocumentV01) {
-    const reconciledProject = parseProjectDocument(nextProject);
-    const nextGraph = activeProjectDisplayGraph(reconciledProject);
-    setActiveProject(reconciledProject);
-    const nextSelectedNodeId =
-      selectedNodeId && nextGraph.nodes.some((node) => node.id === selectedNodeId)
-        ? selectedNodeId
-        : nextGraph.nodes[0]?.id ?? null;
-    setSelectedNodeId(nextSelectedNodeId);
-    setSelectedNodeIds(nextSelectedNodeId ? [nextSelectedNodeId] : []);
-    setSelectedEdgeId(null);
-    setSelectedEdgeIds([]);
+  function acceptRuntimeProject(
+    nextProject: ProjectDocumentV01,
+    options: { preserveViewport?: boolean } = {}
+  ) {
+    const parsedProject = parseProjectDocument(nextProject);
+    const nextGraph = activeProjectDisplayGraph(parsedProject);
+    setActiveProject((currentProject) =>
+      options.preserveViewport
+        ? updateProjectViewState(parsedProject, {
+            ...parsedProject.viewState,
+            canvas: {
+              ...parsedProject.viewState.canvas,
+              viewport: currentProject.viewState.canvas.viewport
+            }
+          })
+        : parsedProject
+    );
+    const availableNodeIds = new Set(nextGraph.nodes.map((node) => node.id));
+    const availableEdgeIds = new Set(nextGraph.edges.map((edge) => displayEdgeToEdgeSpec(edge).id));
+    const nextSelectedNodeIds = selectedNodeIds.filter((nodeId) => availableNodeIds.has(nodeId));
+    const nextSelectedEdgeIds = nextSelectedNodeIds.length > 0
+      ? []
+      : selectedEdgeIds.filter((edgeId) => availableEdgeIds.has(edgeId));
+    setSelectedNodeId(nextSelectedNodeIds[0] ?? null);
+    setSelectedNodeIds(nextSelectedNodeIds);
+    setSelectedEdgeId(nextSelectedEdgeIds[0] ?? null);
+    setSelectedEdgeIds(nextSelectedEdgeIds);
     setConnectionCheck(null);
-    setLastLoadedGraphFingerprint(runtimeGraphFingerprint(reconciledProject.graph.id, reconciledProject.graph.revision));
+    setLastLoadedGraphFingerprint(runtimeGraphFingerprint(parsedProject.graph.id, parsedProject.graph.revision));
   }
 
   async function loadProjectIntoRuntime(
     project: ProjectDocumentV01,
-    busyAction = "loadSession"
+    busyAction = "loadSession",
+    options: { preserveViewport?: boolean } = {}
   ) {
     if (runtimeStatus !== "connected") {
       setRuntimeError("Connect Runtime before opening or changing a graph.");
@@ -983,7 +1074,7 @@ export default function App() {
 
       setRuntimeSession(response);
       setRuntimeStatus("connected");
-      acceptRuntimeProject(loadedProject);
+      acceptRuntimeProject(loadedProject, { preserveViewport: options.preserveViewport });
       clearPendingPatch();
       setRuntimeControlState(runtimeSupportsControlState(runtimeInfo) ? await client.getControlState() : null);
       await refreshRuntimeHistory(client);
@@ -1061,10 +1152,7 @@ export default function App() {
 
   function removeNode(node: DisplayGraphNodeV01) {
     const patch = { type: "removeNode", nodeId: node.id } satisfies GraphPatch;
-    const nextGraph = applyPatch(graph, patch);
-    setActiveProject((currentProject) => applyActiveProjectPatches(currentProject, [patch]));
-    setViewState((currentViewState) => reconcileViewStateWithGraph(nextGraph, currentViewState));
-    recordGraphPatches([patch]);
+    updateGraph(applyPatch(graph, patch), [patch]);
     selectSingleNode(null);
   }
 
@@ -1284,7 +1372,7 @@ export default function App() {
       return session;
     }
 
-    acceptRuntimeProject(project);
+    acceptRuntimeProject(project, { preserveViewport: true });
     setRuntimeSession(session);
     setNodeCatalog(await fetchRuntimeNodeCatalog(client, info));
     setRuntimeControlState(runtimeSupportsControlState(info) ? await client.getControlState() : null);
@@ -1784,6 +1872,58 @@ export default function App() {
     };
   }, [runtimeInfo, runtimeStatus, runtimeUrl]);
 
+  const handleCanvasSelectedEdgeChange = useCallback(
+    (edgeId: string | null) => {
+      setSelectedEdgeId((current) => current === edgeId ? current : edgeId);
+      if (edgeId) {
+        openInspectSidePanel();
+      }
+    },
+    [openInspectSidePanel]
+  );
+
+  const handleCanvasSelectedEdgesChange = useCallback(
+    (edgeIds: string[]) => {
+      if (stringArraysEqual(selectedEdgeIdsRef.current, edgeIds)) {
+        return;
+      }
+      selectedEdgeIdsRef.current = edgeIds;
+      setSelectedEdgeIds(edgeIds);
+      setWindowRegistry((current) =>
+        updateWindowLocalState(current, studioWindowId, {
+          selectedEdgeIds: edgeIds
+        })
+      );
+    },
+    [studioWindowId]
+  );
+
+  const handleCanvasSelectedNodeChange = useCallback(
+    (nodeId: string | null) => {
+      setSelectedNodeId((current) => current === nodeId ? current : nodeId);
+      if (nodeId) {
+        openInspectSidePanel();
+      }
+    },
+    [openInspectSidePanel]
+  );
+
+  const handleCanvasSelectedNodesChange = useCallback(
+    (nodeIds: string[]) => {
+      if (stringArraysEqual(selectedNodeIdsRef.current, nodeIds)) {
+        return;
+      }
+      selectedNodeIdsRef.current = nodeIds;
+      setSelectedNodeIds(nodeIds);
+      setWindowRegistry((current) =>
+        updateWindowLocalState(current, studioWindowId, {
+          selectedNodeIds: nodeIds
+        })
+      );
+    },
+    [studioWindowId]
+  );
+
   const runtimeSettingsPanel = (
     <RuntimeSettingsPanel
       busyAction={runtimeBusyAction}
@@ -1942,45 +2082,12 @@ export default function App() {
               }}
               runtimeControlEnabled={runtimeControlInteractionEnabled}
               runtimeControlPulses={runtimeControlPulses}
-              runtimeControlValues={runtimeSessionSynced ? runtimeControlState?.values ?? {} : {}}
+              runtimeControlValues={runtimeSessionSynced ? runtimeControlState?.values ?? emptyRuntimeControlValues : emptyRuntimeControlValues}
               onViewStateChange={updateViewStateFromCanvas}
-              onSelectedEdgeChange={(edgeId) => {
-                setSelectedEdgeId(edgeId);
-                if (edgeId) {
-                  openInspectSidePanel();
-                }
-              }}
-              onSelectedEdgesChange={(edgeIds) => {
-                if (stringArraysEqual(selectedEdgeIds, edgeIds)) {
-                  return;
-                }
-                setSelectedEdgeIds(edgeIds);
-                setWindowRegistry((current) =>
-                  updateWindowLocalState(current, studioWindowId, {
-                    selectedEdgeIds: edgeIds
-                  })
-                );
-              }}
-              onSelectedNodeChange={(nodeId) => {
-                if (selectedNodeId === nodeId) {
-                  return;
-                }
-                setSelectedNodeId(nodeId);
-                if (nodeId) {
-                  openInspectSidePanel();
-                }
-              }}
-              onSelectedNodesChange={(nodeIds) => {
-                if (stringArraysEqual(selectedNodeIds, nodeIds)) {
-                  return;
-                }
-                setSelectedNodeIds(nodeIds);
-                setWindowRegistry((current) =>
-                  updateWindowLocalState(current, studioWindowId, {
-                    selectedNodeIds: nodeIds
-                  })
-                );
-              }}
+              onSelectedEdgeChange={handleCanvasSelectedEdgeChange}
+              onSelectedEdgesChange={handleCanvasSelectedEdgesChange}
+              onSelectedNodeChange={handleCanvasSelectedNodeChange}
+              onSelectedNodesChange={handleCanvasSelectedNodesChange}
               selectedEdgeId={selectedEdgeId}
               selectedEdgeIds={selectedEdgeIds}
               selectedNodeId={selectedNodeId}
@@ -2068,13 +2175,6 @@ function createPasteGraphFragmentRequest(
   return validation.value;
 }
 
-function rootGraphTarget(baseRevision: string): GraphTargetRef {
-  return {
-    path: { kind: "root" },
-    baseRevision
-  };
-}
-
 function graphCommandNodeId(response: RuntimeGraphCommandResponse): string | null {
   const node = response.payload.node;
   if (!node || typeof node !== "object" || Array.isArray(node)) {
@@ -2082,6 +2182,16 @@ function graphCommandNodeId(response: RuntimeGraphCommandResponse): string | nul
   }
   const nodeId = (node as { nodeId?: unknown }).nodeId;
   return typeof nodeId === "string" && nodeId.length > 0 ? nodeId : null;
+}
+
+function updateActiveProjectGraph(
+  project: ProjectDocumentV01,
+  graph: DisplayGraphDocumentV01,
+  patches: GraphPatch[]
+): ProjectDocumentV01 {
+  return patches.length > 0
+    ? applyActiveProjectPatches(project, patches)
+    : replaceProjectRootGraphFromDisplay(project, graph);
 }
 
 function createUntitledProject(): ProjectDocumentV01 {

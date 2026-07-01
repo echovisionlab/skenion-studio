@@ -19,6 +19,7 @@ export type RuntimeGraphCommandKind =
   | "node.resolve"
   | "node.create"
   | "node.replace"
+  | "node.update"
   | "view.patch"
   | "graph.pasteFragment"
   | "history.undo"

@@ -10,5 +10,6 @@ describe("Studio live mutation paths", () => {
     expect(appSource).not.toContain(".undoSessionPatch(");
     expect(appSource).not.toContain(".redoSessionPatch(");
     expect(appSource).not.toContain(".sendControlEvent(");
+    expect(appSource).not.toContain("loadProjectIntoRuntime(nextProject");
   });
 });

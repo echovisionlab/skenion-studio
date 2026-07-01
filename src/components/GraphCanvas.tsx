@@ -1,19 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import {
   Background,
   Controls,
   Panel,
   ReactFlow,
   useReactFlow,
-  useEdgesState,
-  useNodesState,
   type Connection,
   type Edge,
+  type EdgeMouseHandler,
   type FinalConnectionState,
-  type Node,
+  type NodeMouseHandler,
   type NodeTypes,
   type OnConnectEnd,
   type OnConnectStart,
+  type OnSelectionChangeFunc,
   type Viewport
 } from "@xyflow/react";
 import type { ViewStateV01 } from "@skenion/contracts";
@@ -30,18 +30,16 @@ import {
   type ConnectionCheck
 } from "../graph/skenionGraph";
 import { updateViewStateNodePosition, updateViewStateViewport } from "../graph/projectDocument";
-import {
-  toReactFlowViewModel,
-  type SkenionNodeData
-} from "../graph/reactFlowAdapter";
+import { toReactFlowViewModel } from "../graph/reactFlowAdapter";
 import { portSemanticsForPort } from "../graph/portSemantics";
-import { runtimeControlValueEquals } from "../runtime/controlMessage";
+import { useGraphCanvasFlowState, type StudioFlowNode } from "./graph/useGraphCanvasFlowState";
 
 const nodeTypes: NodeTypes = {
   skenion: ReactFlowNodeAdapter
 };
 
-type StudioFlowNode = Node<SkenionNodeData>;
+const emptyRuntimeControlPulses: Record<string, number> = {};
+const emptyRuntimeControlValues: Record<string, RuntimeControlValue> = {};
 
 interface GraphCanvasProps {
   graph: DisplayGraphDocumentV01;
@@ -89,8 +87,8 @@ export function GraphCanvas({
   onObjectSpecEditComplete,
   onObjectSpecCommit,
   runtimeControlEnabled = false,
-  runtimeControlPulses = {},
-  runtimeControlValues = {},
+  runtimeControlPulses = emptyRuntimeControlPulses,
+  runtimeControlValues = emptyRuntimeControlValues,
   onSelectedEdgeChange,
   onSelectedEdgesChange,
   onGraphChange,
@@ -117,9 +115,13 @@ export function GraphCanvas({
   );
   const objectControlRef = useRef(onObjectControl);
   const objectLiveControlRef = useRef(onObjectLiveControl);
+  const importAssetRef = useRef(onImportAsset);
   const objectParamChangeRef = useRef(onObjectParamChange);
   const objectSpecEditCompleteRef = useRef(onObjectSpecEditComplete);
   const objectSpecCommitRef = useRef(onObjectSpecCommit);
+  useEffect(() => {
+    importAssetRef.current = onImportAsset;
+  }, [onImportAsset]);
   useEffect(() => {
     objectControlRef.current = onObjectControl;
   }, [onObjectControl]);
@@ -141,6 +143,9 @@ export function GraphCanvas({
     },
     []
   );
+  const handleImportAsset = useCallback((node: DisplayGraphNodeV01, file: File) => {
+    return importAssetRef.current?.(node, file);
+  }, []);
   const handleObjectParamChange = useCallback(
     (nodeId: string, key: string, value: unknown) => {
       objectParamChangeRef.current?.(nodeId, key, value);
@@ -162,10 +167,10 @@ export function GraphCanvas({
   const flowNodes = useMemo<StudioFlowNode[]>(
     () =>
       viewModel.nodes.map((node) => ({
-        ...node,
+          ...node,
         data: {
           ...node.data,
-          onImportAsset,
+          onImportAsset: handleImportAsset,
           onObjectControl: handleObjectControl,
           onObjectLiveControl: handleObjectLiveControl,
           onObjectParamChange: handleObjectParamChange,
@@ -180,21 +185,25 @@ export function GraphCanvas({
       })),
     [
       handleObjectControl,
+      handleImportAsset,
       handleObjectLiveControl,
       handleObjectParamChange,
       handleObjectSpecEditComplete,
       handleObjectSpecCommit,
       editingObjectSpecNodeId,
       graphLocked,
-      onImportAsset,
       runtimeControlEnabled,
       runtimeControlPulses,
       runtimeControlValues,
       viewModel.nodes
     ]
   );
-  const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(viewModel.edges);
+  const { edges, nodes, onEdgesChange, onNodesChange } = useGraphCanvasFlowState({
+    edges: viewModel.edges,
+    nodes: flowNodes,
+    selectedEdgeIds,
+    selectedNodeIds
+  });
   const deletingNodeIdsRef = useRef<Set<string>>(new Set());
   const activeConnectionRef = useRef<string | null>(null);
   const [activeConnectionMessage, setActiveConnectionMessage] = useState<string | null>(null);
@@ -207,11 +216,37 @@ export function GraphCanvas({
     }),
     []
   );
+  const deleteKeyCode = useMemo(() => (graphLocked ? null : ["Backspace", "Delete"]), [graphLocked]);
+  const emittedSelectionRef = useRef({
+    edgeIds: selectedEdgeIds,
+    nodeIds: selectedNodeIds
+  });
 
   useEffect(() => {
-    setNodes((currentNodes) => reconcileFlowNodes(currentNodes, flowNodes));
-    setEdges((currentEdges) => reconcileFlowEdges(currentEdges, viewModel.edges));
-  }, [flowNodes, setEdges, setNodes, viewModel.edges]);
+    emittedSelectionRef.current = {
+      edgeIds: selectedEdgeIds,
+      nodeIds: selectedNodeIds
+    };
+  }, [selectedEdgeIds, selectedNodeIds]);
+
+  const emitSelection = useCallback(
+    (nodeIds: string[], edgeIds: string[]) => {
+      const currentSelection = emittedSelectionRef.current;
+      if (
+        stringArraysEqual(currentSelection.nodeIds, nodeIds) &&
+        stringArraysEqual(currentSelection.edgeIds, edgeIds)
+      ) {
+        return;
+      }
+
+      emittedSelectionRef.current = { edgeIds, nodeIds };
+      onSelectedNodesChange?.(nodeIds);
+      onSelectedEdgesChange?.(edgeIds);
+      onSelectedNodeChange(nodeIds[0] ?? null);
+      onSelectedEdgeChange(nodeIds.length > 0 ? null : edgeIds[0] ?? null);
+    },
+    [onSelectedEdgeChange, onSelectedEdgesChange, onSelectedNodeChange, onSelectedNodesChange]
+  );
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -300,7 +335,7 @@ export function GraphCanvas({
   );
 
   const onNodeDragStop = useCallback(
-    (_event: MouseEvent | TouchEvent, node: Node) => {
+    (_event: MouseEvent | TouchEvent, node: StudioFlowNode) => {
       if (graphLocked) {
         return;
       }
@@ -310,7 +345,7 @@ export function GraphCanvas({
   );
 
   const onMoveEnd = useCallback(
-    (nextViewport: Viewport) => {
+    (_event: MouseEvent | TouchEvent | null, nextViewport: Viewport) => {
       onViewStateChange(updateViewStateViewport(graph, viewState, nextViewport));
     },
     [graph, onViewStateChange, viewState]
@@ -336,15 +371,15 @@ export function GraphCanvas({
       }
       onGraphChange(nextGraph, patches);
       if (deletedEdges.some((edge) => edge.id === selectedEdgeId)) {
-        onSelectedEdgeChange(null);
+        emitSelection(selectedNodeIds, []);
       }
       onConnectionCheck(null);
     },
-    [graph, graphLocked, onConnectionCheck, onGraphChange, onSelectedEdgeChange, selectedEdgeId]
+    [emitSelection, graph, graphLocked, onConnectionCheck, onGraphChange, selectedEdgeId, selectedNodeIds]
   );
 
   const onNodesDelete = useCallback(
-    (deletedNodes: Node[]) => {
+    (deletedNodes: StudioFlowNode[]) => {
       if (graphLocked) {
         return;
       }
@@ -360,10 +395,9 @@ export function GraphCanvas({
         patches.push(patch);
       }
       onGraphChange(nextGraph, patches);
-      onSelectedEdgeChange(null);
-      onSelectedNodeChange(null);
+      emitSelection([], []);
     },
-    [graph, graphLocked, onGraphChange, onSelectedEdgeChange, onSelectedNodeChange]
+    [emitSelection, graph, graphLocked, onGraphChange]
   );
 
   const addObjectAtMenuPosition = useCallback(
@@ -397,11 +431,10 @@ export function GraphCanvas({
       }
       const patch = { type: "removeNode", nodeId } satisfies GraphPatch;
       onGraphChange(applyPatch(graph, patch), [patch]);
-      onSelectedNodeChange(null);
-      onSelectedEdgeChange(null);
+      emitSelection([], []);
       setContextMenu(null);
     },
-    [graph, graphLocked, onConnectionCheck, onGraphChange, onSelectedEdgeChange, onSelectedNodeChange]
+    [emitSelection, graph, graphLocked, onConnectionCheck, onGraphChange]
   );
 
   const deleteEdgeById = useCallback(
@@ -421,10 +454,10 @@ export function GraphCanvas({
       }
       const patch = { type: "removeEdge", edge: skenionEdge } satisfies GraphPatch;
       onGraphChange(applyPatch(graph, patch), [patch]);
-      onSelectedEdgeChange(null);
+      emitSelection(selectedNodeIds, []);
       setContextMenu(null);
     },
-    [edges, graph, graphLocked, onConnectionCheck, onGraphChange, onSelectedEdgeChange]
+    [edges, emitSelection, graph, graphLocked, onConnectionCheck, onGraphChange, selectedNodeIds]
   );
 
   const duplicateNodeById = useCallback(
@@ -453,20 +486,95 @@ export function GraphCanvas({
       onViewStateChange(
         reconcileViewStateAfterDuplicate(viewState, nextId, viewNode ?? { x: 120, y: 120 })
       );
-      onSelectedNodeChange(nextId);
-      onSelectedEdgeChange(null);
+      emitSelection([nextId], []);
       setContextMenu(null);
     },
-    [graph, graphLocked, onConnectionCheck, onGraphChange, onSelectedEdgeChange, onSelectedNodeChange, onViewStateChange, viewState]
+    [emitSelection, graph, graphLocked, onConnectionCheck, onGraphChange, onViewStateChange, viewState]
   );
 
-  const selectedNodes = useMemo(
-    () => applyNodeSelection(nodes, selectedNodeIds),
-    [nodes, selectedNodeIds]
+  const handleEdgeClick = useCallback<EdgeMouseHandler>(
+    (_event, edge) => {
+      emitSelection([], [edge.id]);
+    },
+    [emitSelection]
   );
-  const selectedEdges = useMemo(
-    () => applyEdgeSelection(edges, selectedEdgeIds),
-    [edges, selectedEdgeIds]
+
+  const handleEdgeContextMenu = useCallback<EdgeMouseHandler>(
+    (event, edge) => {
+      event.preventDefault();
+      event.stopPropagation();
+      emitSelection([], [edge.id]);
+      setContextMenu({
+        type: "edge",
+        edgeId: edge.id,
+        screenX: event.clientX,
+        screenY: event.clientY
+      });
+    },
+    [emitSelection]
+  );
+
+  const handleNodeClick = useCallback<NodeMouseHandler>(
+    (_event, node) => {
+      emitSelection([node.id], []);
+    },
+    [emitSelection]
+  );
+
+  const handleNodeContextMenu = useCallback<NodeMouseHandler>(
+    (event, node) => {
+      event.preventDefault();
+      event.stopPropagation();
+      emitSelection([node.id], []);
+      setContextMenu({
+        type: "node",
+        nodeId: node.id,
+        nodeKind: String(node.data.kind),
+        screenX: event.clientX,
+        screenY: event.clientY
+      });
+    },
+    [emitSelection]
+  );
+
+  const handlePaneClick = useCallback(() => {
+    emitSelection([], []);
+    setContextMenu(null);
+  }, [emitSelection]);
+
+  const handlePaneContextMenu = useCallback(
+    (event: MouseEvent | ReactMouseEvent<Element>) => {
+      event.preventDefault();
+      if (graphLocked) {
+        setContextMenu({
+          type: "pane",
+          flowPosition: { x: 0, y: 0 },
+          screenX: event.clientX,
+          screenY: event.clientY
+        });
+        return;
+      }
+      const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      setContextMenu({
+        type: "pane",
+        flowPosition: {
+          x: (event.clientX - bounds.left - viewport.x) / viewport.zoom,
+          y: (event.clientY - bounds.top - viewport.y) / viewport.zoom
+        },
+        screenX: event.clientX,
+        screenY: event.clientY
+      });
+    },
+    [graphLocked, viewport.x, viewport.y, viewport.zoom]
+  );
+
+  const handleSelectionChange = useCallback<OnSelectionChangeFunc<StudioFlowNode, Edge>>(
+    ({ nodes: nextSelectedNodes, edges: nextSelectedEdges }) => {
+      const nextNodeIds = nextSelectedNodes.map((node) => node.id);
+      const nextEdgeIds = nextSelectedEdges.map((edge) => edge.id);
+      emitSelection(nextNodeIds, nextEdgeIds);
+    },
+    [emitSelection]
   );
 
   return (
@@ -474,11 +582,11 @@ export function GraphCanvas({
       className="skenion-flow"
       defaultEdgeOptions={defaultEdgeOptions}
       defaultViewport={viewport}
-      deleteKeyCode={graphLocked ? null : ["Backspace", "Delete"]}
-      edges={selectedEdges}
+      deleteKeyCode={deleteKeyCode}
+      edges={edges}
       key={graph.id}
       nodeTypes={nodeTypes}
-      nodes={selectedNodes}
+      nodes={nodes}
       nodesConnectable={!graphLocked}
       nodesDraggable={!graphLocked}
       isValidConnection={isValidConnection}
@@ -487,88 +595,17 @@ export function GraphCanvas({
       onConnectStart={onConnectStart}
       onEdgesChange={onEdgesChange}
       onEdgesDelete={onEdgesDelete}
-      onEdgeClick={(_event, edge) => {
-        onSelectedEdgeChange(edge.id);
-        onSelectedEdgesChange?.([edge.id]);
-        onSelectedNodeChange(null);
-        onSelectedNodesChange?.([]);
-      }}
-      onEdgeContextMenu={(event, edge) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onSelectedEdgeChange(edge.id);
-        onSelectedEdgesChange?.([edge.id]);
-        onSelectedNodeChange(null);
-        onSelectedNodesChange?.([]);
-        setContextMenu({
-          type: "edge",
-          edgeId: edge.id,
-          screenX: event.clientX,
-          screenY: event.clientY
-        });
-      }}
-      onNodeClick={(_event, node) => {
-        onSelectedNodeChange(node.id);
-        onSelectedNodesChange?.([node.id]);
-        onSelectedEdgeChange(null);
-        onSelectedEdgesChange?.([]);
-      }}
-      onNodeContextMenu={(event, node) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onSelectedNodeChange(node.id);
-        onSelectedNodesChange?.([node.id]);
-        onSelectedEdgeChange(null);
-        onSelectedEdgesChange?.([]);
-        setContextMenu({
-          type: "node",
-          nodeId: node.id,
-          nodeKind: String(node.data.kind),
-          screenX: event.clientX,
-          screenY: event.clientY
-        });
-      }}
+      onEdgeClick={handleEdgeClick}
+      onEdgeContextMenu={handleEdgeContextMenu}
+      onNodeClick={handleNodeClick}
+      onNodeContextMenu={handleNodeContextMenu}
       onNodeDragStop={onNodeDragStop}
       onNodesChange={onNodesChange}
       onNodesDelete={onNodesDelete}
-      onPaneClick={() => {
-        onSelectedNodeChange(null);
-        onSelectedNodesChange?.([]);
-        onSelectedEdgeChange(null);
-        onSelectedEdgesChange?.([]);
-        setContextMenu(null);
-      }}
-      onPaneContextMenu={(event) => {
-        event.preventDefault();
-        if (graphLocked) {
-          setContextMenu({
-            type: "pane",
-            flowPosition: { x: 0, y: 0 },
-            screenX: event.clientX,
-            screenY: event.clientY
-          });
-          return;
-        }
-        const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
-        setContextMenu({
-          type: "pane",
-          flowPosition: {
-            x: (event.clientX - bounds.left - viewport.x) / viewport.zoom,
-            y: (event.clientY - bounds.top - viewport.y) / viewport.zoom
-          },
-          screenX: event.clientX,
-          screenY: event.clientY
-        });
-      }}
-      onSelectionChange={({ nodes: nextSelectedNodes, edges: nextSelectedEdges }) => {
-        const nextNodeIds = nextSelectedNodes.map((node) => node.id);
-        const nextEdgeIds = nextSelectedEdges.map((edge) => edge.id);
-        onSelectedNodesChange?.(nextNodeIds);
-        onSelectedEdgesChange?.(nextEdgeIds);
-        onSelectedNodeChange(nextNodeIds[0] ?? null);
-        onSelectedEdgeChange(nextNodeIds.length > 0 ? null : nextEdgeIds[0] ?? null);
-      }}
-      onMoveEnd={(_event, nextViewport) => onMoveEnd(nextViewport)}
+      onPaneClick={handlePaneClick}
+      onPaneContextMenu={handlePaneContextMenu}
+      onSelectionChange={handleSelectionChange}
+      onMoveEnd={onMoveEnd}
     >
       <Background color="var(--sk-grid-dot)" gap={20} size={1} />
       {activeConnectionMessage ? (
@@ -589,13 +626,11 @@ export function GraphCanvas({
         onDuplicateNode={duplicateNodeById}
         layoutEditable={!graphLocked}
         onInspectEdge={(edgeId) => {
-          onSelectedEdgeChange(edgeId);
-          onSelectedNodeChange(null);
+          emitSelection([], [edgeId]);
           setContextMenu(null);
         }}
         onInspectNode={(nodeId) => {
-          onSelectedNodeChange(nodeId);
-          onSelectedEdgeChange(null);
+          emitSelection([nodeId], []);
           setContextMenu(null);
         }}
       />
@@ -718,108 +753,6 @@ function reconcileViewStateAfterDuplicate(
   };
 }
 
-function reconcileFlowNodes(
-  currentNodes: StudioFlowNode[],
-  nextNodes: StudioFlowNode[]
-): StudioFlowNode[] {
-  const currentById = new Map(currentNodes.map((node) => [node.id, node]));
-  let changed = currentNodes.length !== nextNodes.length;
-  const reconciled = nextNodes.map((nextNode) => {
-    const currentNode = currentById.get(nextNode.id);
-    if (currentNode && sameFlowNode(currentNode, nextNode)) {
-      return currentNode;
-    }
-    changed = true;
-    return currentNode ? mergeFlowNode(currentNode, nextNode) : nextNode;
-  });
-  return changed ? reconciled : currentNodes;
-}
-
-function reconcileFlowEdges(currentEdges: Edge[], nextEdges: Edge[]): Edge[] {
-  const currentById = new Map(currentEdges.map((edge) => [edge.id, edge]));
-  let changed = currentEdges.length !== nextEdges.length;
-  const reconciled = nextEdges.map((nextEdge) => {
-    const currentEdge = currentById.get(nextEdge.id);
-    if (currentEdge && sameFlowEdge(currentEdge, nextEdge)) {
-      return currentEdge;
-    }
-    changed = true;
-    return nextEdge;
-  });
-  return changed ? reconciled : currentEdges;
-}
-
-function applyNodeSelection(nodes: StudioFlowNode[], selectedNodeIds: string[]): StudioFlowNode[] {
-  const selectedNodeIdSet = new Set(selectedNodeIds);
-  let changed = false;
-  const selectedNodes = nodes.map((node) => {
-    const selected = selectedNodeIdSet.has(node.id);
-    if (Boolean(node.selected) === selected) {
-      return node;
-    }
-    changed = true;
-    return { ...node, selected };
-  });
-  return changed ? selectedNodes : nodes;
-}
-
-function mergeFlowNode(currentNode: StudioFlowNode, nextNode: StudioFlowNode): StudioFlowNode {
-  return {
-    ...currentNode,
-    ...nextNode,
-    position: currentNode.dragging ? currentNode.position : nextNode.position,
-    data: {
-      ...currentNode.data,
-      ...nextNode.data
-    }
-  };
-}
-
-function applyEdgeSelection(edges: Edge[], selectedEdgeIds: string[]): Edge[] {
-  const selectedEdgeIdSet = new Set(selectedEdgeIds);
-  let changed = false;
-  const selectedEdges = edges.map((edge) => {
-    const selected = selectedEdgeIdSet.has(edge.id);
-    if (Boolean(edge.selected) === selected) {
-      return edge;
-    }
-    changed = true;
-    return { ...edge, selected };
-  });
-  return changed ? selectedEdges : edges;
-}
-
-function sameFlowNode(currentNode: StudioFlowNode, nextNode: StudioFlowNode): boolean {
-  return (
-    currentNode.type === nextNode.type &&
-    currentNode.dragHandle === nextNode.dragHandle &&
-    currentNode.position.x === nextNode.position.x &&
-    currentNode.position.y === nextNode.position.y &&
-    currentNode.data.node === nextNode.data.node &&
-    currentNode.data.layoutEditable === nextNode.data.layoutEditable &&
-    currentNode.data.runtimeControlEnabled === nextNode.data.runtimeControlEnabled &&
-    currentNode.data.runtimeControlPulseKey === nextNode.data.runtimeControlPulseKey &&
-    runtimeControlValueEquals(
-      currentNode.data.runtimeControlValue,
-      nextNode.data.runtimeControlValue
-    )
-  );
-}
-
-function sameFlowEdge(currentEdge: Edge, nextEdge: Edge): boolean {
-  return (
-    currentEdge.source === nextEdge.source &&
-    currentEdge.sourceHandle === nextEdge.sourceHandle &&
-    currentEdge.target === nextEdge.target &&
-    currentEdge.targetHandle === nextEdge.targetHandle &&
-    currentEdge.type === nextEdge.type &&
-    currentEdge.label === nextEdge.label &&
-    JSON.stringify(currentEdge.style ?? {}) === JSON.stringify(nextEdge.style ?? {}) &&
-    JSON.stringify(currentEdge.markerStart ?? null) === JSON.stringify(nextEdge.markerStart ?? null) &&
-    JSON.stringify(currentEdge.markerEnd ?? null) === JSON.stringify(nextEdge.markerEnd ?? null)
-  );
-}
-
 function connectionFromFinalState(connectionState: FinalConnectionState): Connection | null {
   if (!connectionState.fromHandle || !connectionState.toHandle) {
     return null;
@@ -865,4 +798,8 @@ function connectionStartMessage(
   const semantics = portSemanticsForPort(node, port);
   const side = port.direction === "output" ? "OUT" : "IN";
   return `Dragging ${side}: ${node.id}.${port.id} ${semantics.type}`;
+}
+
+function stringArraysEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
