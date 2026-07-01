@@ -67,7 +67,6 @@ import {
 import { createReplaceShaderInterfacePatch } from "./graph/fullscreenShader";
 import {
   createRuntimeClient,
-  DEFAULT_RUNTIME_URL,
   isRuntimeSessionEvent,
   isRuntimeLogEvent,
   runtimeLogStreamUrl,
@@ -117,6 +116,10 @@ import {
   resolveStudioWindowId
 } from "./desktop/launchContext";
 import {
+  readCachedRuntimeConnectionPreference,
+  writeCachedRuntimeConnectionPreference
+} from "./desktop/runtimeConnectionCache";
+import {
   DEFAULT_RUNTIME_SESSION_ID,
   activeRuntimeProfile,
   applyRuntimeSidecarError,
@@ -151,6 +154,7 @@ const emptyRuntimeControlValues: Record<string, RuntimeControlValue> = {};
 
 export default function App() {
   const [launchContext] = useState(() => readDesktopLaunchContext());
+  const [runtimeConnectionPreference] = useState(() => readCachedRuntimeConnectionPreference());
   const [desktopBridge] = useState(() => createTauriDesktopBridge());
   const [studioWindowId] = useState(() =>
     resolveStudioWindowId({
@@ -158,13 +162,18 @@ export default function App() {
       tauriWindowLabel: desktopBridge.currentWindowLabel
     })
   );
-  const [runtimeSessionId] = useState(() => launchContext.sessionId || DEFAULT_RUNTIME_SESSION_ID);
+  const [runtimeSessionId] = useState(() =>
+    runtimeConnectionPreference?.sessionId ?? launchContext.sessionId ?? DEFAULT_RUNTIME_SESSION_ID
+  );
   const [runtimeProfileState, setRuntimeProfileState] = useState(() =>
     createRuntimeProfileState({
-      activeProfileId: launchContext.profileId,
+      activeProfileId: runtimeConnectionPreference?.activeProfileId ?? launchContext.profileId,
       defaultRuntimeUrl: launchContext.runtimeUrl,
-      remoteRuntimeUrl: launchContext.runtimeUrl
+      remoteRuntimeUrl: runtimeConnectionPreference?.remoteRuntimeUrl ?? launchContext.runtimeUrl
     })
+  );
+  const [autoConnectRuntimeOnMount] = useState(
+    () => runtimeConnectionPreference?.autoConnect === true
   );
   const viewportCacheSurface: ViewportCacheSurface = desktopBridge.available ? "desktop" : "web";
   const [activeProject, setActiveProject] = useState<ProjectDocumentV01>(() => createUntitledProject());
@@ -188,7 +197,7 @@ export default function App() {
   const [graphLocked, setGraphLocked] = useState(true);
   const [connectionCheck, setConnectionCheck] = useState<ConnectionCheck | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const [runtimeUrl, setRuntimeUrl] = useState(launchContext.runtimeUrl ?? DEFAULT_RUNTIME_URL);
+  const [runtimeUrl, setRuntimeUrl] = useState(() => activeRuntimeProfile(runtimeProfileState).url);
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeConnectionStatus>("disconnected");
   const [runtimeBusyAction, setRuntimeBusyAction] = useState<string | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
@@ -205,6 +214,8 @@ export default function App() {
   const [lastLoadedGraphFingerprint, setLastLoadedGraphFingerprint] = useState<string | null>(null);
   const [, setPendingPatchBaseRevision] = useState<string | null>(null);
   const [, setPatchConflict] = useState<string | null>(null);
+  const autoConnectAttemptedRef = useRef(false);
+  const connectRuntimeRef = useRef<() => Promise<void>>(async () => undefined);
   const currentWindowMode = launchContext.windowMode;
   const [windowRegistry, setWindowRegistry] = useState<StudioWindowRegistry>(() =>
     hydrateInitialViewport(
@@ -609,6 +620,16 @@ export default function App() {
     setLastLoadedGraphFingerprint(null);
     clearPendingPatch();
     setRuntimeError(null);
+  }
+
+  function rememberRuntimeConnectionPreference(options: { autoConnect: boolean; state?: typeof runtimeProfileState }) {
+    const state = options.state ?? runtimeProfileState;
+    writeCachedRuntimeConnectionPreference({
+      activeProfileId: state.activeProfileId,
+      autoConnect: options.autoConnect,
+      remoteRuntimeUrl: state.profiles.remote.url,
+      sessionId: runtimeSessionId
+    });
   }
 
   function setViewState(update: ViewStateV01 | ((currentViewState: ViewStateV01) => ViewStateV01)) {
@@ -1269,6 +1290,7 @@ export default function App() {
       setLastLoadedGraphFingerprint(runtimeSessionFingerprint(session));
       clearPendingPatch();
       setRuntimeStatus("connected");
+      rememberRuntimeConnectionPreference({ autoConnect: true, state: nextProfileState });
     } catch (error) {
       setRuntimeInfo(null);
       setNodeCatalog(null);
@@ -1288,8 +1310,10 @@ export default function App() {
   }
 
   function changeRuntimeUrl(nextUrl: string) {
+    const nextProfileState = updateRuntimeProfileUrl(runtimeProfileState, runtimeProfileState.activeProfileId, nextUrl);
     setRuntimeUrl(nextUrl);
-    setRuntimeProfileState((current) => updateRuntimeProfileUrl(current, current.activeProfileId, nextUrl));
+    setRuntimeProfileState(nextProfileState);
+    rememberRuntimeConnectionPreference({ autoConnect: false, state: nextProfileState });
     resetRuntimeConnectionState();
   }
 
@@ -1297,6 +1321,7 @@ export default function App() {
     const transition = switchRuntimeProfile(runtimeProfileState, profileId);
     setRuntimeProfileState(transition.state);
     setRuntimeUrl(activeRuntimeProfile(transition.state).url);
+    rememberRuntimeConnectionPreference({ autoConnect: false, state: transition.state });
     resetRuntimeConnectionState();
     for (const effect of transition.effects) {
       if (effect.type === "stopManagedSidecar") {
@@ -1304,6 +1329,21 @@ export default function App() {
       }
     }
   }
+
+  connectRuntimeRef.current = connectRuntime;
+
+  useEffect(() => {
+    if (
+      autoConnectAttemptedRef.current ||
+      !autoConnectRuntimeOnMount ||
+      runtimeStatus !== "disconnected"
+    ) {
+      return;
+    }
+
+    autoConnectAttemptedRef.current = true;
+    void connectRuntimeRef.current();
+  }, [autoConnectRuntimeOnMount, runtimeStatus]);
 
   async function stopManagedSidecarForEffect(
     effect: Extract<RuntimeProfileEffect, { type: "stopManagedSidecar" }>

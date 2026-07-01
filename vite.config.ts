@@ -6,7 +6,8 @@ export default defineConfig({
     chunkSizeWarningLimit: 900
   },
   optimizeDeps: {
-    exclude: ["@skenion/contracts"]
+    force: true,
+    include: ["@skenion/contracts"]
   },
   plugins: [react()],
   server: {
