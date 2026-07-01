@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppShell, Badge, Group, ScrollArea, Stack, Text } from "@mantine/core";
-import { CircleAlert, X } from "lucide-react";
+import { Box as BoxIcon, CircleAlert, PanelRightOpen, ScrollText, X } from "lucide-react";
 import {
   type GraphFragmentV01,
   type NodeCatalogSnapshotV01,
@@ -17,6 +17,7 @@ import { RuntimeLogsPanel, RuntimeSettingsPanel } from "./components/RuntimePane
 import { StudioToolbar } from "./components/StudioToolbar";
 import { Dialog } from "./components/core/Dialog/Dialog";
 import { IconButton } from "./components/core/IconButton/IconButton";
+import { WorkspaceSideDock, type PanelRailItem } from "./components/layout/PanelRail";
 import { clientLogLine, runtimeLogLineFromEvent, type LogLevel, type LogLine } from "./components/log/LogConsole";
 import {
   applyPatch,
@@ -188,14 +189,12 @@ export default function App() {
   const [graphFragmentClipboard, setGraphFragmentClipboard] = useState<GraphFragmentV01 | null>(null);
   const {
     closeSidePanel,
-    inspectorEdgeHovered,
     logsOpen,
     openInspectSidePanel,
     openLogsSidePanel,
-    setInspectorEdgeHovered,
-    sidePanelOpen,
-    toggleInspectSidePanel
+    sidePanelOpen
   } = useStudioSidePanels();
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [clientLogLines, setClientLogLines] = useState<LogLine[]>([]);
   const [runtimeStreamLogLines, setRuntimeStreamLogLines] = useState<LogLine[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -2001,13 +2000,50 @@ export default function App() {
       runtimeLines={runtimeStreamLogLines}
     />
   );
+  const leftPanelItems: PanelRailItem[] = [
+    {
+      icon: <BoxIcon size={18} />,
+      id: "nodes",
+      label: leftPanelOpen ? "Hide nodes" : "Show nodes",
+      onClick: () => setLeftPanelOpen((open) => !open),
+      selected: leftPanelOpen
+    }
+  ];
+  const rightPanelItems: PanelRailItem[] = [
+    {
+      icon: <PanelRightOpen size={18} />,
+      id: "inspector",
+      label: sidePanelOpen && !logsOpen ? "Hide inspector" : "Inspector",
+      onClick: () => {
+        if (sidePanelOpen && !logsOpen) {
+          closeSidePanel();
+          return;
+        }
+        openInspectSidePanel();
+      },
+      selected: sidePanelOpen && !logsOpen
+    },
+    {
+      icon: <ScrollText size={18} />,
+      id: "logs",
+      label: sidePanelOpen && logsOpen ? "Hide logs" : "Logs",
+      onClick: () => {
+        if (sidePanelOpen && logsOpen) {
+          closeSidePanel();
+          return;
+        }
+        openLogsSidePanel();
+      },
+      selected: sidePanelOpen && logsOpen
+    }
+  ];
 
   return (
     <AppShell
       header={{ height: 58 }}
       footer={{ height: 30 }}
-      navbar={{ width: 292, breakpoint: "sm" }}
-      aside={sidePanelOpen ? { width: 356, breakpoint: "md" } : undefined}
+      navbar={{ width: leftPanelOpen ? 340 : 48, breakpoint: "sm" }}
+      aside={{ width: sidePanelOpen ? 404 : 48, breakpoint: "md" }}
       padding={0}
     >
       <Dialog
@@ -2031,8 +2067,6 @@ export default function App() {
           onOpenProject={openProject}
           onSaveProject={saveProject}
           onOpenSettings={() => setSettingsOpen(true)}
-          inspectorOpen={sidePanelOpen}
-          onToggleInspector={toggleInspectSidePanel}
         />
       </AppShell.Header>
 
@@ -2040,24 +2074,25 @@ export default function App() {
         <IssuesFooter
           graphLockDisabled={!runtimeGraphAvailable}
           graphLocked={graphLocked}
-          onOpenLogs={openLogsSidePanel}
           onToggleGraphLock={toggleGraphLock}
           semanticIssues={semanticIssues}
           validation={validation}
         />
       </AppShell.Footer>
 
-      <AppShell.Navbar p="md">
-        {runtimeGraphAvailable ? (
-          <PalettePanel
-            addDisabled={graphLocked}
-            catalogEntries={nodeCatalog?.entries ?? []}
-            onAddObject={addObjectNode}
-            onAddObjectSpec={addObjectNodeFromSpec}
-          />
-        ) : (
-          <RuntimeRequiredPanel status={runtimeStatus} />
-        )}
+      <AppShell.Navbar className="workspace-navbar" p={0}>
+        <WorkspaceSideDock contentOpen={leftPanelOpen} edge="left" railItems={leftPanelItems}>
+          {runtimeGraphAvailable ? (
+            <PalettePanel
+              addDisabled={graphLocked}
+              catalogEntries={nodeCatalog?.entries ?? []}
+              onAddObject={addObjectNode}
+              onAddObjectSpec={addObjectNodeFromSpec}
+            />
+          ) : (
+            <RuntimeRequiredPanel status={runtimeStatus} />
+          )}
+        </WorkspaceSideDock>
       </AppShell.Navbar>
 
       <AppShell.Main>
@@ -2127,25 +2162,8 @@ export default function App() {
         </div>
       </AppShell.Main>
 
-      {sidePanelOpen ? (
-        <AppShell.Aside
-          onClickCapture={(event) => {
-            const leftEdge = event.currentTarget.getBoundingClientRect().left;
-            if (event.clientX - leftEdge <= 6) {
-              event.preventDefault();
-              event.stopPropagation();
-              closeSidePanel();
-            }
-          }}
-          onMouseLeave={() => setInspectorEdgeHovered(false)}
-          onMouseMoveCapture={(event) => {
-            const leftEdge = event.currentTarget.getBoundingClientRect().left;
-            const edgeHovered = event.clientX - leftEdge <= 6;
-            setInspectorEdgeHovered(edgeHovered);
-          }}
-          p="md"
-          style={{ cursor: inspectorEdgeHovered ? "pointer" : undefined }}
-        >
+      <AppShell.Aside className="workspace-aside" p={0}>
+        <WorkspaceSideDock contentOpen={sidePanelOpen} edge="right" railItems={rightPanelItems}>
           <ScrollArea className="aside-scroll" offsetScrollbars>
             {logsOpen ? (
               runtimeLogsPanel
@@ -2172,8 +2190,8 @@ export default function App() {
               <RuntimeRequiredPanel status={runtimeStatus} />
             )}
           </ScrollArea>
-        </AppShell.Aside>
-      ) : null}
+        </WorkspaceSideDock>
+      </AppShell.Aside>
     </AppShell>
   );
 }

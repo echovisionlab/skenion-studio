@@ -1,5 +1,5 @@
 import { Group, Text, Tooltip } from "@mantine/core";
-import { CircleAlert, Lock, ScrollText, TriangleAlert, Unlock } from "lucide-react";
+import { CircleAlert, Lock, TriangleAlert, Unlock } from "lucide-react";
 import type { ValidationResult } from "@skenion/contracts";
 import type { DisplayGraphDocumentV01 } from "../graph/patchLibrary";
 import type { GraphSemanticIssue } from "../graph/portSemantics";
@@ -28,15 +28,13 @@ export function IssuesFooter({
   graphLocked,
   semanticIssues,
   validation,
-  onToggleGraphLock,
-  onOpenLogs
+  onToggleGraphLock
 }: {
   graphLockDisabled: boolean;
   graphLocked: boolean;
   semanticIssues: GraphSemanticIssue[];
   validation: ValidationResult<DisplayGraphDocumentV01>;
   onToggleGraphLock: () => void;
-  onOpenLogs: () => void;
 }) {
   const counts = issueCounts(validation, semanticIssues);
 
@@ -83,15 +81,6 @@ export function IssuesFooter({
               {counts.errors}
             </Text>
           </Group>
-        </Tooltip>
-        <Tooltip label="Logs">
-          <IconButton
-            className={styles.logs}
-            icon={<ScrollText size={13} />}
-            label="Logs"
-            onClick={onOpenLogs}
-            size={24}
-          />
         </Tooltip>
       </Group>
     </Group>

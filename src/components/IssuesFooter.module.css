@@ -19,8 +19,7 @@
   color: #c92a2a;
 }
 
-.lock,
-.logs {
+.lock {
   height: 24px;
   min-width: 24px;
   width: 24px;

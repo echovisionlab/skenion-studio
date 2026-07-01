@@ -9,7 +9,7 @@ import { theme } from "../theme";
 import { IssuesFooter, issueCounts } from "./IssuesFooter";
 
 describe("IssuesFooter", () => {
-  it("shows zero counts and opens logs from the global footer", () => {
+  it("shows zero counts and graph lock state", () => {
     const html = renderToStaticMarkup(
       createElement(
         MantineProvider,
@@ -17,7 +17,6 @@ describe("IssuesFooter", () => {
         createElement(IssuesFooter, {
           graphLockDisabled: false,
           graphLocked: true,
-          onOpenLogs: () => undefined,
           onToggleGraphLock: () => undefined,
           semanticIssues: [],
           validation: { ok: true, value: graph() }
@@ -28,7 +27,6 @@ describe("IssuesFooter", () => {
     expect(html).toContain("aria-label=\"0 warnings\"");
     expect(html).toContain("aria-label=\"0 errors\"");
     expect(html).toContain("aria-label=\"Locked\"");
-    expect(html).toContain("aria-label=\"Logs\"");
   });
 
   it("combines schema and semantic issues into footer counts", () => {

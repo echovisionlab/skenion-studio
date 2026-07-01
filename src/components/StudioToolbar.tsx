@@ -11,8 +11,6 @@ import {
   Download,
   FolderOpen,
   Moon,
-  PanelRightClose,
-  PanelRightOpen,
   Save,
   Settings,
   Sun,
@@ -32,8 +30,6 @@ interface StudioToolbarProps {
   onOpenProject: (file: File | null) => void;
   onSaveProject: () => void;
   onOpenSettings: () => void;
-  onToggleInspector: () => void;
-  inspectorOpen: boolean;
 }
 
 export function StudioToolbar({
@@ -45,9 +41,7 @@ export function StudioToolbar({
   onImport,
   onOpenProject,
   onSaveProject,
-  onOpenSettings,
-  onToggleInspector,
-  inspectorOpen
+  onOpenSettings
 }: StudioToolbarProps) {
   const graphActionDisabled = !runtimeGraphAvailable;
   const { setColorScheme } = useMantineColorScheme();
@@ -129,15 +123,6 @@ export function StudioToolbar({
             icon={nextColorScheme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
             label={colorSchemeLabel}
             onClick={() => setColorScheme(nextColorScheme)}
-          />
-        </Tooltip>
-        <Tooltip label={inspectorOpen ? "Hide inspector" : "Show inspector"}>
-          <IconButton
-            color="blue"
-            icon={inspectorOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
-            label={inspectorOpen ? "Hide inspector" : "Show inspector"}
-            onClick={onToggleInspector}
-            selected={inspectorOpen}
           />
         </Tooltip>
       </Group>
