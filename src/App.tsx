@@ -72,6 +72,10 @@ import {
   type RuntimeGraphCommandResponse
 } from "./runtime/graphCommand";
 import {
+  runtimeGraphCommandRejectionMessage,
+  sendRuntimeGraphCommandAndRefresh
+} from "./runtime/graphCommandExecution";
+import {
   runtimeGraphFingerprint,
   runtimeSessionFingerprint,
   runtimeSessionIsSynced
@@ -686,16 +690,20 @@ export default function App() {
     setPatchConflict(null);
     try {
       const client = createActiveRuntimeClient();
-      const response = await createActiveRuntimeGraphCommandClient().sendGraphCommand({
-        kind: "graph.pasteFragment",
-        request
+      const { response } = await sendRuntimeGraphCommandAndRefresh({
+        graphCommandClient: createActiveRuntimeGraphCommandClient(),
+        payload: {
+          kind: "graph.pasteFragment",
+          request
+        },
+        refreshRuntimeProject: refreshRuntimeProjectFromRuntime,
+        runtimeClient: client
       });
-      if (!response.ok || !response.applied) {
-        const message = response.issues[0]?.message ?? "Runtime rejected graph fragment paste.";
+      const message = runtimeGraphCommandRejectionMessage(response, "Runtime rejected graph fragment paste.");
+      if (message) {
         setRuntimeError(message);
         appendClientLog(response.conflict ? "warning" : "error", message);
       }
-      await refreshRuntimeProjectFromRuntime(client);
       setRuntimeStatus("connected");
     } catch (error) {
       setRuntimeStatus("error");
@@ -755,19 +763,23 @@ export default function App() {
     setRuntimeError(null);
     setPatchConflict(null);
     try {
-      const response = await createActiveRuntimeGraphCommandClient().sendGraphCommand({
-        kind: "node.create",
-        target: rootGraphTarget(baseRevision),
-        baseGraphRevision: baseRevision,
-        ...(trimmedObjectSpec ? { objectSpec: trimmedObjectSpec } : {}),
-        view: options.position,
-        ...(options.params && Object.keys(options.params).length > 0 ? { params: options.params } : {}),
-        ...(trimmedObjectSpec ? { unresolvedPolicy: "materialize-issue" as const } : {})
+      const { response } = await sendRuntimeGraphCommandAndRefresh({
+        graphCommandClient: createActiveRuntimeGraphCommandClient(),
+        payload: {
+          kind: "node.create",
+          target: rootGraphTarget(baseRevision),
+          baseGraphRevision: baseRevision,
+          ...(trimmedObjectSpec ? { objectSpec: trimmedObjectSpec } : {}),
+          view: options.position,
+          ...(options.params && Object.keys(options.params).length > 0 ? { params: options.params } : {}),
+          ...(trimmedObjectSpec ? { unresolvedPolicy: "materialize-issue" as const } : {})
+        },
+        refreshRuntimeProject: refreshRuntimeProjectFromRuntime,
+        runtimeClient: createActiveRuntimeClient()
       });
       const nodeId = graphCommandNodeId(response);
-      await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
-      if (!response.ok || !response.applied) {
-        const message = response.issues[0]?.message ?? "Runtime rejected object create.";
+      const message = runtimeGraphCommandRejectionMessage(response, "Runtime rejected object create.");
+      if (message) {
         setRuntimeError(message);
         appendClientLog(response.conflict ? "warning" : "error", message);
         return null;
@@ -819,18 +831,22 @@ export default function App() {
     setRuntimeError(null);
     setPatchConflict(null);
     try {
-      const response = await createActiveRuntimeGraphCommandClient().sendGraphCommand({
-        kind: "node.replace",
-        target: rootGraphTarget(baseRevision),
-        baseGraphRevision: baseRevision,
-        nodeId,
-        objectSpec: trimmedObjectSpec,
-        unresolvedPolicy: "materialize-issue",
-        interfaceIncidentEdgePolicy: "drop"
+      const { response } = await sendRuntimeGraphCommandAndRefresh({
+        graphCommandClient: createActiveRuntimeGraphCommandClient(),
+        payload: {
+          kind: "node.replace",
+          target: rootGraphTarget(baseRevision),
+          baseGraphRevision: baseRevision,
+          nodeId,
+          objectSpec: trimmedObjectSpec,
+          unresolvedPolicy: "materialize-issue",
+          interfaceIncidentEdgePolicy: "drop"
+        },
+        refreshRuntimeProject: refreshRuntimeProjectFromRuntime,
+        runtimeClient: createActiveRuntimeClient()
       });
-      await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
-      if (!response.ok || !response.applied) {
-        const message = response.issues[0]?.message ?? "Runtime rejected object edit.";
+      const message = runtimeGraphCommandRejectionMessage(response, "Runtime rejected object edit.");
+      if (message) {
         setRuntimeError(message);
         appendClientLog(response.conflict ? "warning" : "error", message);
         return;
@@ -894,8 +910,8 @@ export default function App() {
         const response = await graphCommandClient.sendGraphCommand(
           runtimeGraphCommandPayloadForPatchGroup(group, baseRevision, baseSessionRevision)
         );
-        if (!response.ok || !response.applied) {
-          const message = response.issues[0]?.message ?? "Runtime rejected graph edit.";
+        const message = runtimeGraphCommandRejectionMessage(response, "Runtime rejected graph edit.");
+        if (message) {
           setRuntimeError(message);
           appendClientLog(response.conflict ? "warning" : "error", message);
           await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
@@ -954,18 +970,22 @@ export default function App() {
     setPatchConflict(null);
     try {
       const client = createActiveRuntimeClient();
-      const response = await createActiveRuntimeGraphCommandClient().sendGraphCommand({
-        kind: "view.patch",
-        baseViewRevision,
-        ...(baseGraphRevision ? { baseGraphRevision } : {}),
-        viewPatch: {
+      const { response } = await sendRuntimeGraphCommandAndRefresh({
+        graphCommandClient: createActiveRuntimeGraphCommandClient(),
+        payload: {
+          kind: "view.patch",
           baseViewRevision,
-          ops
+          ...(baseGraphRevision ? { baseGraphRevision } : {}),
+          viewPatch: {
+            baseViewRevision,
+            ops
+          },
+          description: "move object"
         },
-        description: "move object"
+        refreshRuntimeProject: refreshRuntimeProjectFromRuntime,
+        runtimeClient: client
       });
       setRuntimeStatus("connected");
-      await refreshRuntimeProjectFromRuntime(client);
 
       if (response.ok && response.applied) {
         clearPendingPatch();
