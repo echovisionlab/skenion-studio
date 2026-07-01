@@ -22,6 +22,7 @@ import {
 import { useGraphCanvasSelection, type GraphCanvasSelection } from "./graph/useGraphCanvasSelection";
 import { useGraphCanvasInteractions } from "./graph/useGraphCanvasInteractions";
 import { useLatestCallback } from "../hooks/useLatestCallback";
+import type { CanvasViewport } from "../graph/viewport";
 
 const nodeTypes: NodeTypes = {
   skenion: ReactFlowNodeAdapter
@@ -35,6 +36,7 @@ interface GraphCanvasProps {
   graphLocked?: boolean;
   editingObjectSpecNodeId?: string | null;
   viewState: ViewStateV01;
+  viewport: CanvasViewport;
   selection: GraphCanvasSelection;
   onConnectionCheck: (check: ConnectionCheck | null) => void;
   onAddObjectAtPosition?: (position: { x: number; y: number }) => void;
@@ -50,6 +52,7 @@ interface GraphCanvasProps {
   onSelectionChange: (selection: GraphCanvasSelection) => void;
   onGraphChange: (graph: DisplayGraphDocumentV01, patches?: GraphPatch[]) => void;
   onViewStateChange: (viewState: ViewStateV01) => void;
+  onViewportChange: (viewport: CanvasViewport) => void;
 }
 
 export function GraphCanvas({
@@ -57,6 +60,7 @@ export function GraphCanvas({
   graphLocked = true,
   editingObjectSpecNodeId = null,
   viewState,
+  viewport,
   selection,
   onConnectionCheck,
   onAddObjectAtPosition,
@@ -71,7 +75,8 @@ export function GraphCanvas({
   runtimeControlValues = emptyRuntimeControlValues,
   onSelectionChange,
   onGraphChange,
-  onViewStateChange
+  onViewStateChange,
+  onViewportChange
 }: GraphCanvasProps) {
   const selectedNodeIds = selection.nodeIds;
   const selectedEdgeIds = selection.edgeIds;
@@ -83,8 +88,7 @@ export function GraphCanvas({
         schema: "skenion.view-state",
         schemaVersion: "0.1.0",
         canvas: {
-          nodes: JSON.parse(nodeViewStateKey) as ViewStateV01["canvas"]["nodes"],
-          viewport: { x: 0, y: 0, zoom: 1 }
+          nodes: JSON.parse(nodeViewStateKey) as ViewStateV01["canvas"]["nodes"]
         }
       }) satisfies ViewStateV01,
     [nodeViewStateKey]
@@ -139,7 +143,6 @@ export function GraphCanvas({
     selectedEdgeIds,
     selectedNodeIds
   });
-  const viewport = viewState.canvas.viewport ?? { x: 0, y: 0, zoom: 1 };
   const defaultEdgeOptions = useMemo(
     () => ({
       type: "smoothstep",
@@ -166,6 +169,7 @@ export function GraphCanvas({
     onConnectionCheck,
     onGraphChange,
     onViewStateChange,
+    onViewportChange,
     selectedEdgeId,
     selectedNodeIds,
     viewState,

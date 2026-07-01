@@ -389,8 +389,7 @@ export const runtimeSession: RuntimeSessionResponse = {
         schema: "skenion.view-state",
         schemaVersion: "0.1.0",
         canvas: {
-          nodes: {},
-          viewport: { x: 0, y: 0, zoom: 1 }
+          nodes: {}
         }
       },
       patchLibrary: []

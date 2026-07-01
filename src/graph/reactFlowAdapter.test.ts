@@ -197,8 +197,7 @@ describe("React Flow adapter", () => {
       canvas: {
         nodes: {
           value_1: { x: 10, y: 20 }
-        },
-        viewport: { x: 0, y: 0, zoom: 1 }
+        }
       }
     });
 

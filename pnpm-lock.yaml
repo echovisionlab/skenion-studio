@@ -15,11 +15,11 @@ importers:
         specifier: ^9.3.1
         version: 9.3.1(react@19.2.7)
       '@skenion/contracts':
-        specifier: 0.57.0
-        version: 0.57.0
+        specifier: 0.58.0
+        version: 0.58.0
       '@skenion/sdk':
-        specifier: 0.49.0
-        version: 0.49.0(@skenion/contracts@0.57.0)
+        specifier: 0.50.0
+        version: 0.50.0(@skenion/contracts@0.58.0)
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -97,14 +97,14 @@ importers:
   packages/studio-desktop:
     dependencies:
       '@skenion/contracts':
-        specifier: '>=0.57.0 <0.58.0'
-        version: 0.57.0
+        specifier: '>=0.58.0 <0.59.0'
+        version: 0.58.0
 
   packages/studio-web:
     dependencies:
       '@skenion/contracts':
-        specifier: '>=0.57.0 <0.58.0'
-        version: 0.57.0
+        specifier: '>=0.58.0 <0.59.0'
+        version: 0.58.0
 
 packages:
 
@@ -829,13 +829,13 @@ packages:
       rollup:
         optional: true
 
-  '@skenion/contracts@0.57.0':
-    resolution: {integrity: sha512-lV5kl5pTjE6cW7moOlDdIXsNT7MlISVVWp8gYKfcbLo2gq3OmkJ6xJnq+zePsrmPr1Zm8GE591LBNDFIStKtnw==}
+  '@skenion/contracts@0.58.0':
+    resolution: {integrity: sha512-8JM0ab4Ie537ingOP8U73gB4eTOVc5sw/06f40gTG4CXK40Loq/6azvSJc9W2F0ZHGq16e2K4KOKpz6SDaVIjA==}
 
-  '@skenion/sdk@0.49.0':
-    resolution: {integrity: sha512-hzVlbaQmrFDhXBvzxeFCITRpCEa5rdoCgghD1SAGmSWQBn+7sH7RVYm38r6r4NPO1AU5fmT9WK3kMm/83hqnLQ==}
+  '@skenion/sdk@0.50.0':
+    resolution: {integrity: sha512-Aun5PfhBCRJeUMRIwCPw2ftA1pmak7i2D6C5dGGrf29tqgLiv6Jjh7GHi9i1H4LHINCCH6VYiEkPsyrBw/JMtQ==}
     peerDependencies:
-      '@skenion/contracts': '>=0.56.0 <0.57.0'
+      '@skenion/contracts': '>=0.58.0 <0.59.0'
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -2876,13 +2876,13 @@ snapshots:
       estree-walker: 2.0.2
       picomatch: 4.0.4
 
-  '@skenion/contracts@0.57.0':
+  '@skenion/contracts@0.58.0':
     dependencies:
       ajv: 8.20.0
 
-  '@skenion/sdk@0.49.0(@skenion/contracts@0.57.0)':
+  '@skenion/sdk@0.50.0(@skenion/contracts@0.58.0)':
     dependencies:
-      '@skenion/contracts': 0.57.0
+      '@skenion/contracts': 0.58.0
 
   '@standard-schema/spec@1.1.0': {}
 

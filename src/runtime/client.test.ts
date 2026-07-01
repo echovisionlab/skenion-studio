@@ -56,8 +56,7 @@ const project = {
     schema: "skenion.view-state",
     schemaVersion: "0.1.0",
     canvas: {
-      nodes: {},
-      viewport: { x: 0, y: 0, zoom: 1 }
+      nodes: {}
     }
   },
   patchLibrary: []
@@ -248,7 +247,7 @@ describe("runtime client", () => {
     expect(calls[6]).toEqual(["http://runtime.local/v0/sessions/default", { method: "DELETE" }]);
   });
 
-  it("accepts the Runtime 0.57 empty-session connection response set", async () => {
+  it("accepts the Runtime 0.58 empty-session connection response set", async () => {
     const emptySession = sessionResponse({
       snapshot: {
         ...sessionResponse().snapshot,
@@ -269,9 +268,9 @@ describe("runtime client", () => {
           service: "skenion-runtime",
           version: "0.49.0",
           apiVersion: "0.1.0",
-          contractsBuiltAgainstVersion: "0.57.0",
-          supportedContractsLine: "0.57",
-          supportedContractsRange: ">=0.57.0 <0.58.0"
+          contractsBuiltAgainstVersion: "0.58.0",
+          supportedContractsLine: "0.58",
+          supportedContractsRange: ">=0.58.0 <0.59.0"
         });
       }
       if (input.endsWith("/v0/runtime/info")) {
@@ -279,9 +278,9 @@ describe("runtime client", () => {
           name: "skenion-runtime",
           version: "0.49.0",
           apiVersion: "0.1.0",
-          contractsBuiltAgainstVersion: "0.57.0",
-          supportedContractsLine: "0.57",
-          supportedContractsRange: ">=0.57.0 <0.58.0",
+          contractsBuiltAgainstVersion: "0.58.0",
+          supportedContractsLine: "0.58",
+          supportedContractsRange: ">=0.58.0 <0.59.0",
           capabilities: [
             "session.load",
             "session.realtime.websocket",
@@ -412,7 +411,7 @@ describe("runtime client", () => {
     const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
 
     await expect(client.getHealth()).resolves.toMatchObject({ ok: true, service: "skenion-runtime" });
-    await expect(client.getRuntimeInfo()).resolves.toMatchObject({ supportedContractsLine: "0.57" });
+    await expect(client.getRuntimeInfo()).resolves.toMatchObject({ supportedContractsLine: "0.58" });
     await expect(client.getSessionInfo()).resolves.toMatchObject({ snapshot: { bindingFormats: [], project: null } });
     await expect(client.getSession()).resolves.toMatchObject({ snapshot: { bindingFormats: [], project: null } });
     await expect(client.getSessionHistory()).resolves.toMatchObject({ entries: [], canUndo: false });
@@ -2049,11 +2048,6 @@ function viewStateResponse() {
     canvas: {
       nodes: {
         value_1: { x: 0, y: 0 }
-      },
-      viewport: {
-        x: 0,
-        y: 0,
-        zoom: 1
       }
     }
   } as const;

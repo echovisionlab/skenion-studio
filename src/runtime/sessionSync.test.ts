@@ -20,8 +20,7 @@ const viewState: ViewStateV01 = {
   schema: "skenion.view-state",
   schemaVersion: "0.1.0",
   canvas: {
-    nodes: {},
-    viewport: { x: 0, y: 0, zoom: 1 }
+    nodes: {}
   }
 };
 const project: ProjectDocumentV01 = {

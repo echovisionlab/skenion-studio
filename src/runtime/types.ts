@@ -14,7 +14,8 @@ import type {
   ProjectDocumentV01,
   RuntimeSessionLoadRequestV01,
   ShaderIssueV01,
-  UintRepresentationV01
+  UintRepresentationV01,
+  ViewStateV01
 } from "@skenion/contracts";
 import type { RuntimeGraphCommandResponse } from "./graphCommand";
 
@@ -200,18 +201,7 @@ export type RuntimeGraphEdge = EdgeSpecV01;
 
 export type RuntimeGraphDocument = GraphDocumentV01;
 
-export interface RuntimeViewStateDocument {
-  schema: "skenion.view-state";
-  schemaVersion: "0.1.0";
-  canvas: {
-    nodes: Record<string, CanvasNodeViewV01>;
-    viewport?: {
-      x: number;
-      y: number;
-      zoom: number;
-    };
-  };
-}
+export type RuntimeViewStateDocument = ViewStateV01;
 
 export type RuntimePatchLibraryEntry = PatchDefinitionV01;
 

@@ -36,6 +36,16 @@ import {
   replaceProjectRootGraphFromDisplay,
   updateProjectViewState
 } from "./graph/projectDocument";
+import {
+  canvasViewportEquals,
+  DEFAULT_CANVAS_VIEWPORT,
+  type CanvasViewport
+} from "./graph/viewport";
+import {
+  readCachedViewport,
+  writeCachedViewport,
+  type ViewportCacheSurface
+} from "./graph/viewportCache";
 import { videoAssetSizeForSource } from "./graph/videoAsset";
 import {
   analyzeGraphPortSemantics,
@@ -156,6 +166,7 @@ export default function App() {
       remoteRuntimeUrl: launchContext.runtimeUrl
     })
   );
+  const viewportCacheSurface: ViewportCacheSurface = desktopBridge.available ? "desktop" : "web";
   const [activeProject, setActiveProject] = useState<ProjectDocumentV01>(() => createUntitledProject());
   const graph = useMemo(() => activeProjectDisplayGraph(activeProject), [activeProject]);
   const viewState = activeProject.viewState;
@@ -196,17 +207,25 @@ export default function App() {
   const [, setPatchConflict] = useState<string | null>(null);
   const currentWindowMode = launchContext.windowMode;
   const [windowRegistry, setWindowRegistry] = useState<StudioWindowRegistry>(() =>
-    createWindowRegistry({
-      scope: createRuntimeScope({
-        profileId: runtimeProfileState.activeProfileId,
-        runtimeUrl: launchContext.runtimeUrl,
-        sessionId: runtimeSessionId,
-        windowId: studioWindowId,
-        windowMode: currentWindowMode
+    hydrateInitialViewport(
+      createWindowRegistry({
+        scope: createRuntimeScope({
+          profileId: runtimeProfileState.activeProfileId,
+          runtimeUrl: launchContext.runtimeUrl,
+          sessionId: runtimeSessionId,
+          windowId: studioWindowId,
+          windowMode: currentWindowMode
+        }),
+        windowId: studioWindowId
       }),
-      windowId: studioWindowId
-    })
+      {
+        project: activeProject,
+        studioWindowId,
+        surface: viewportCacheSurface
+      }
+    )
   );
+  const canvasViewport = windowRegistry.windows[studioWindowId]?.localState.viewport ?? DEFAULT_CANVAS_VIEWPORT;
   const {
     handleCanvasSelectionChange,
     pruneSelection,
@@ -425,7 +444,7 @@ export default function App() {
       setRuntimeStatus("connected");
       const project = value.snapshot.project;
       if (project) {
-        acceptRuntimeProject(project, { preserveViewport: true });
+        acceptRuntimeProject(project);
         setLastLoadedGraphFingerprint(runtimeSessionFingerprint(eventSession));
         if (runtimeSupportsControlState(runtimeInfo)) {
           void refreshRuntimeControlState(createActiveRuntimeClient(), runtimeInfo);
@@ -942,15 +961,23 @@ export default function App() {
 
   function updateViewStateFromCanvas(nextViewState: ViewStateV01) {
     setViewState(nextViewState);
-    setWindowRegistry((current) =>
-      updateWindowLocalState(current, studioWindowId, {
-        viewport: nextViewState.canvas.viewport ?? null
-      })
-    );
     if (!nodeViewStateChanged(viewState, nextViewState)) {
       return;
     }
     void applyRuntimeViewStatePatch(nextViewState);
+  }
+
+  function updateViewportFromCanvas(nextViewport: CanvasViewport) {
+    writeCachedViewport(viewportCacheKeyForProject(activeProject, viewportCacheSurface), nextViewport);
+    setWindowRegistry((current) => {
+      const currentViewport = current.windows[studioWindowId]?.localState.viewport ?? null;
+      if (canvasViewportEquals(currentViewport, nextViewport)) {
+        return current;
+      }
+      return updateWindowLocalState(current, studioWindowId, {
+        viewport: nextViewport
+      });
+    });
   }
 
   async function applyRuntimeViewStatePatch(nextViewState: ViewStateV01) {
@@ -1017,23 +1044,20 @@ export default function App() {
     setPatchConflict(null);
   }
 
-  function acceptRuntimeProject(
-    nextProject: ProjectDocumentV01,
-    options: { preserveViewport?: boolean } = {}
-  ) {
+  function acceptRuntimeProject(nextProject: ProjectDocumentV01) {
     const parsedProject = parseProjectDocument(nextProject);
     const nextGraph = activeProjectDisplayGraph(parsedProject);
-    setActiveProject((currentProject) =>
-      options.preserveViewport
-        ? updateProjectViewState(parsedProject, {
-            ...parsedProject.viewState,
-            canvas: {
-              ...parsedProject.viewState.canvas,
-              viewport: currentProject.viewState.canvas.viewport
-            }
-          })
-        : parsedProject
-    );
+    const cachedViewport = readCachedViewport(viewportCacheKeyForProject(parsedProject, viewportCacheSurface));
+    setWindowRegistry((current) => {
+      const currentViewport = current.windows[studioWindowId]?.localState.viewport ?? null;
+      if (canvasViewportEquals(currentViewport, cachedViewport)) {
+        return current;
+      }
+      return updateWindowLocalState(current, studioWindowId, {
+        viewport: cachedViewport
+      });
+    });
+    setActiveProject(parsedProject);
     const availableNodeIds = new Set(nextGraph.nodes.map((node) => node.id));
     const availableEdgeIds = new Set(nextGraph.edges.map((edge) => displayEdgeToEdgeSpec(edge).id));
     pruneSelection(availableNodeIds, availableEdgeIds);
@@ -1043,8 +1067,7 @@ export default function App() {
 
   async function loadProjectIntoRuntime(
     project: ProjectDocumentV01,
-    busyAction = "loadSession",
-    options: { preserveViewport?: boolean } = {}
+    busyAction = "loadSession"
   ) {
     if (runtimeStatus !== "connected") {
       setRuntimeError("Connect Runtime before opening or changing a graph.");
@@ -1063,7 +1086,7 @@ export default function App() {
 
       setRuntimeSession(response);
       setRuntimeStatus("connected");
-      acceptRuntimeProject(loadedProject, { preserveViewport: options.preserveViewport });
+      acceptRuntimeProject(loadedProject);
       clearPendingPatch();
       setRuntimeControlState(runtimeSupportsControlState(runtimeInfo) ? await client.getControlState() : null);
       await refreshRuntimeHistory(client);
@@ -1361,7 +1384,7 @@ export default function App() {
       return session;
     }
 
-    acceptRuntimeProject(project, { preserveViewport: true });
+    acceptRuntimeProject(project);
     setRuntimeSession(session);
     setNodeCatalog(await fetchRuntimeNodeCatalog(client, info));
     setRuntimeControlState(runtimeSupportsControlState(info) ? await client.getControlState() : null);
@@ -1994,6 +2017,7 @@ export default function App() {
               graphLocked={graphLocked}
               editingObjectSpecNodeId={editingObjectSpecNodeId}
               viewState={viewState}
+              viewport={canvasViewport}
               onAddObjectAtPosition={addObjectAtPosition}
               onConnectionCheck={setConnectionCheck}
               onGraphChange={updateGraph}
@@ -2021,6 +2045,7 @@ export default function App() {
               runtimeControlPulses={runtimeControlPulses}
               runtimeControlValues={runtimeSessionSynced ? runtimeControlState?.values ?? emptyRuntimeControlValues : emptyRuntimeControlValues}
               onViewStateChange={updateViewStateFromCanvas}
+              onViewportChange={updateViewportFromCanvas}
               onSelectionChange={handleCanvasSelectionChange}
               selection={canvasSelection}
             />
@@ -2161,6 +2186,28 @@ function changedNodeViewOperations(
       from: beforeView.canvas.nodes[nodeId],
       to
     }));
+}
+
+function hydrateInitialViewport(
+  registry: StudioWindowRegistry,
+  options: {
+    project: ProjectDocumentV01;
+    studioWindowId: string;
+    surface: ViewportCacheSurface;
+  }
+): StudioWindowRegistry {
+  const cachedViewport = readCachedViewport(viewportCacheKeyForProject(options.project, options.surface));
+  return cachedViewport
+    ? updateWindowLocalState(registry, options.studioWindowId, { viewport: cachedViewport })
+    : registry;
+}
+
+function viewportCacheKeyForProject(project: ProjectDocumentV01, surface: ViewportCacheSurface) {
+  return {
+    documentId: project.documentId,
+    graphId: project.graph.id,
+    surface
+  };
 }
 
 function createRuntimeScope({

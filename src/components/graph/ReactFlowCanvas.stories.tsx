@@ -19,6 +19,7 @@ import {
 import { createViewStateFromPositions, reconcileViewStateWithGraph } from "../../graph/projectDocument";
 import type { DisplayGraphDocumentV01 } from "../../graph/patchLibrary";
 import type { ConnectionCheck, GraphPatch } from "../../graph/skenionGraph";
+import { DEFAULT_CANVAS_VIEWPORT } from "../../graph/viewport";
 
 const meta = {
   title: "Graph/ReactFlowCanvas",
@@ -81,8 +82,7 @@ export const SavedProjectLayoutGraph: Story = {
           toggle_enabled: { x: 48, y: 236 },
           shader_1: { x: 390, y: 146 },
           output_1: { x: 730, y: 206 }
-        },
-        { x: -24, y: -16, zoom: 0.92 }
+        }
       )}
     />
   )
@@ -140,6 +140,7 @@ function GraphCanvasStory({
   const [viewState, setViewState] = useState<ViewStateV01>(
     () => initialViewState ?? createViewStateFromPositions(initialGraph, {})
   );
+  const [viewport, setViewport] = useState(DEFAULT_CANVAS_VIEWPORT);
   const [selection, setSelection] = useState({
     edgeIds: initialSelectedEdgeId ? [initialSelectedEdgeId] : [],
     nodeIds: [] as string[]
@@ -181,8 +182,10 @@ function GraphCanvasStory({
           setPatches(patches);
         }}
         onViewStateChange={setViewState}
+        onViewportChange={setViewport}
         onSelectionChange={setSelection}
         selection={selection}
+        viewport={viewport}
         viewState={viewState}
       />
     </div>

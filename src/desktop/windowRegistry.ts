@@ -1,4 +1,5 @@
 import { normalizeRuntimeUrl } from "../runtime/client";
+import type { CanvasViewport } from "../graph/viewport";
 import type { RuntimeProfileId } from "./runtimeProfiles";
 
 export type StudioWindowMode = "shared-session" | "isolated-runtime" | "volatile-help";
@@ -8,7 +9,7 @@ export interface StudioWindowLocalState {
   inspectorOpen: boolean;
   selectedEdgeIds: string[];
   selectedNodeIds: string[];
-  viewport: { x: number; y: number; zoom: number } | null;
+  viewport: CanvasViewport | null;
 }
 
 export interface SharedRuntimeWindowScope {

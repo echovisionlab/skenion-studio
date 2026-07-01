@@ -5,7 +5,6 @@ import {
 } from "@skenion/contracts";
 import type {
   CanvasNodeViewV01,
-  CanvasViewportV01,
   GraphDocumentV01,
   ProjectDocumentV01,
   ViewStateV01
@@ -55,8 +54,7 @@ export function viewPositionsFromViewState(viewState: ViewStateV01): ViewPositio
 
 export function createViewStateFromPositions(
   graph: DisplayGraphDocumentV01,
-  positions: ViewPositions,
-  viewport?: CanvasViewportV01
+  positions: ViewPositions
 ): ViewStateV01 {
   const defaults = createDefaultViewStateForDisplayGraph(graph);
   const nodes = Object.fromEntries(
@@ -72,8 +70,7 @@ export function createViewStateFromPositions(
   return {
     ...defaults,
     canvas: {
-      nodes,
-      viewport: viewport ?? defaults.canvas.viewport
+      nodes
     }
   };
 }
@@ -97,8 +94,7 @@ export function reconcileViewStateWithGraph(
     schema: "skenion.view-state",
     schemaVersion: "0.1.0",
     canvas: {
-      nodes,
-      viewport: viewState.canvas.viewport ?? defaults.canvas.viewport
+      nodes
     }
   };
 }
@@ -120,20 +116,6 @@ export function updateViewStateNodePosition(
           ...position
         }
       }
-    }
-  });
-}
-
-export function updateViewStateViewport(
-  graph: DisplayGraphDocumentV01,
-  viewState: ViewStateV01,
-  viewport: CanvasViewportV01
-): ViewStateV01 {
-  return reconcileViewStateWithGraph(graph, {
-    ...viewState,
-    canvas: {
-      ...viewState.canvas,
-      viewport
     }
   });
 }
@@ -275,8 +257,7 @@ function createDefaultViewStateForDisplayGraph(graph: DisplayGraphDocumentV01): 
             y: 96 + Math.floor(index / 4) * 180
           }
         ])
-      ),
-      viewport: { x: 0, y: 0, zoom: 1 }
+      )
     }
   };
 }

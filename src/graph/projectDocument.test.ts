@@ -14,27 +14,23 @@ import {
   replaceProjectRootGraphFromDisplay,
   updateProjectViewState,
   updateViewStateNodePosition,
-  updateViewStateViewport,
   viewPositionsFromViewState
 } from "./projectDocument";
 
 describe("project document helpers", () => {
   it("creates view state from explicit positions and default positions", () => {
-    const viewState = createViewStateFromPositions(
-      sampleGraph,
-      {
-        value_1: { x: 10, y: 20 }
-      },
-      { x: -40, y: 12, zoom: 0.85 }
-    );
+    const viewState = createViewStateFromPositions(sampleGraph, {
+      value_1: { x: 10, y: 20 }
+    });
 
     expect(viewState).toMatchObject({
       schema: "skenion.view-state",
       schemaVersion: "0.1.0",
       canvas: {
-        viewport: { x: -40, y: 12, zoom: 0.85 }
+        nodes: expect.any(Object)
       }
     });
+    expect("viewport" in viewState.canvas).toBe(false);
     expect(viewPositionsFromViewState(viewState).value_1).toEqual({ x: 10, y: 20 });
     expect(viewState.canvas.nodes.target_1).toEqual({
       x: 376,
@@ -67,7 +63,7 @@ describe("project document helpers", () => {
     expect(reconciled.canvas.nodes.value_1).toEqual({ x: 100, y: 200 });
   });
 
-  it("creates defaults when a view state has no viewport or node entries", () => {
+  it("creates defaults when a view state has no node entries", () => {
     const partialViewState = {
       schema: "skenion.view-state",
       schemaVersion: "0.1.0",
@@ -78,18 +74,17 @@ describe("project document helpers", () => {
 
     const reconciled = reconcileViewStateWithGraph(sampleGraph, partialViewState);
 
-    expect(reconciled.canvas.viewport).toEqual({ x: 0, y: 0, zoom: 1 });
+    expect("viewport" in reconciled.canvas).toBe(false);
     expect(Object.keys(reconciled.canvas.nodes)).toHaveLength(sampleGraph.nodes.length);
   });
 
-  it("updates node position and viewport without mutating the graph", () => {
+  it("updates node position without mutating the graph", () => {
     const graphBefore = JSON.stringify(sampleGraph);
     const viewState = createViewStateFromPositions(sampleGraph, {});
     const moved = updateViewStateNodePosition(sampleGraph, viewState, "value_1", { x: 480, y: 320 });
-    const panned = updateViewStateViewport(sampleGraph, moved, { x: -128, y: -64, zoom: 1.25 });
 
-    expect(viewPositionsFromViewState(panned).value_1).toEqual({ x: 480, y: 320 });
-    expect(panned.canvas.viewport).toEqual({ x: -128, y: -64, zoom: 1.25 });
+    expect(viewPositionsFromViewState(moved).value_1).toEqual({ x: 480, y: 320 });
+    expect("viewport" in moved.canvas).toBe(false);
     expect(JSON.stringify(sampleGraph)).toBe(graphBefore);
   });
 
@@ -123,6 +118,23 @@ describe("project document helpers", () => {
     expect(parsed.graph).toEqual(project.graph);
     expectDisplayGraphMatchesSample(activeProjectDisplayGraph(parsed));
     expect(parsed.viewState.canvas.nodes.value_1).toEqual({ x: 32, y: 48 });
+  });
+
+  it("rejects persisted viewport in project view state", () => {
+    const project = createProjectDocument(sampleGraph, createViewStateFromPositions(sampleGraph, {}));
+
+    expect(() =>
+      parseProjectDocument({
+        ...project,
+        viewState: {
+          ...project.viewState,
+          canvas: {
+            ...project.viewState.canvas,
+            viewport: { x: 0, y: 0, zoom: 1 }
+          }
+        }
+      })
+    ).toThrow(ContractDocumentError);
   });
 
   it("creates a fallback document id when crypto randomUUID is unavailable", () => {
@@ -245,8 +257,7 @@ describe("project document helpers", () => {
             schema: "skenion.view-state",
             schemaVersion: "0.1.0",
             canvas: {
-              nodes: { value_1: { x: 3, y: 4 } },
-              viewport: { x: 0, y: 0, zoom: 1 }
+              nodes: { value_1: { x: 3, y: 4 } }
             }
           }
         },

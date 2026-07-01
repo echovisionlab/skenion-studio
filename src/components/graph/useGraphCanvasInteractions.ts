@@ -19,10 +19,8 @@ import {
   type ConnectionCheck,
   type GraphPatch
 } from "../../graph/skenionGraph";
-import {
-  updateViewStateNodePosition,
-  updateViewStateViewport
-} from "../../graph/projectDocument";
+import { updateViewStateNodePosition } from "../../graph/projectDocument";
+import type { CanvasViewport } from "../../graph/viewport";
 import type { StudioFlowNode } from "./useGraphCanvasFlowState";
 import type { GraphCanvasContextMenuState } from "./GraphCanvasContextMenu";
 import {
@@ -43,6 +41,7 @@ export interface UseGraphCanvasInteractionsInput {
   onConnectionCheck: (check: ConnectionCheck | null) => void;
   onGraphChange: (graph: DisplayGraphDocumentV01, patches?: GraphPatch[]) => void;
   onViewStateChange: (viewState: ViewStateV01) => void;
+  onViewportChange: (viewport: CanvasViewport) => void;
   selectedEdgeId: string | null;
   selectedNodeIds: string[];
   viewState: ViewStateV01;
@@ -58,6 +57,7 @@ export function useGraphCanvasInteractions({
   onConnectionCheck,
   onGraphChange,
   onViewStateChange,
+  onViewportChange,
   selectedEdgeId,
   selectedNodeIds,
   viewState,
@@ -166,9 +166,9 @@ export function useGraphCanvasInteractions({
 
   const onMoveEnd = useCallback(
     (_event: MouseEvent | TouchEvent | null, nextViewport: Viewport) => {
-      onViewStateChange(updateViewStateViewport(graph, viewState, nextViewport));
+      onViewportChange(nextViewport);
     },
-    [graph, onViewStateChange, viewState]
+    [onViewportChange]
   );
 
   const onEdgesDelete = useCallback(

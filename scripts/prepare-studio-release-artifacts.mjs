@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 
 const rootDir = fileURLToPath(new URL("..", import.meta.url));
 const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
-const contractsLine = "0.57";
-const contractsRange = ">=0.57.0 <0.58.0";
+const contractsLine = "0.58";
+const contractsRange = ">=0.58.0 <0.59.0";
 const runtimeApiBaseline = "0.1.0";
 const runtimeProtocolBaseline = "0.1.0";
 const studioRepo = "skenion/skenion-studio";
