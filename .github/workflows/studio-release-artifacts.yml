@@ -149,7 +149,7 @@ jobs:
           const releaseTag = process.env.RELEASE_TAG;
           const version = process.env.VERSION;
           const studioRepoUrl = "https://github.com/skenion/skenion-studio";
-          const contractsRange = ">=0.57.0 <0.58.0";
+          const contractsRange = ">=0.58.0 <0.59.0";
           const failures = [];
           const missingFiles = new Set();
           const requiredFiles = [
@@ -274,7 +274,7 @@ jobs:
 
           function expectContractsLine(actual, label) {
             if (typeof actual !== "string" || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(actual)) {
-              fail(`${label} must be a concrete 0.57.x package version, got ${actual ?? "<missing>"}`);
+              fail(`${label} must be a concrete 0.58.x package version, got ${actual ?? "<missing>"}`);
               return;
             }
             const [major, minor] = actual.split(".").map(Number);
@@ -301,7 +301,7 @@ jobs:
 
       - name: Verify released Contracts npm package
         env:
-          CONTRACTS_VERSION: 0.57.0
+          CONTRACTS_VERSION: 0.58.0
         run: |
           set -euo pipefail
           if ! released_version="$(pnpm view "@skenion/contracts@${CONTRACTS_VERSION}" version --silent --registry "${NPM_REGISTRY}")"; then
@@ -391,9 +391,9 @@ jobs:
           SKENION_RELEASE_S3_PREFIX: ${{ secrets.SKENION_RELEASE_S3_PREFIX }}
           SKENION_RELEASE_S3_FORCE_PATH_STYLE: ${{ secrets.SKENION_RELEASE_S3_FORCE_PATH_STYLE }}
           SKENION_RELEASE_PUBLIC_BASE_URL: ${{ secrets.SKENION_RELEASE_PUBLIC_BASE_URL }}
-          CONTRACTS_VERSION: 0.57.0
-          CONTRACTS_LINE: "0.57"
-          CONTRACTS_RANGE: ">=0.57.0 <0.58.0"
+          CONTRACTS_VERSION: 0.58.0
+          CONTRACTS_LINE: "0.58"
+          CONTRACTS_RANGE: ">=0.58.0 <0.59.0"
         run: |
           set -euo pipefail
           SOURCE_COMMIT="$(git rev-parse HEAD)" scripts/publish-studio-asset-s3.sh \
@@ -455,9 +455,9 @@ jobs:
           SKENION_RELEASE_S3_SECRET_ACCESS_KEY: ${{ secrets.SKENION_RELEASE_S3_SECRET_ACCESS_KEY }}
           SKENION_RELEASE_S3_FORCE_PATH_STYLE: ${{ secrets.SKENION_RELEASE_S3_FORCE_PATH_STYLE }}
           SKENION_RELEASE_PUBLIC_BASE_URL: ${{ secrets.SKENION_RELEASE_PUBLIC_BASE_URL }}
-          CONTRACTS_VERSION: 0.57.0
-          CONTRACTS_LINE: "0.57"
-          CONTRACTS_RANGE: ">=0.57.0 <0.58.0"
+          CONTRACTS_VERSION: 0.58.0
+          CONTRACTS_LINE: "0.58"
+          CONTRACTS_RANGE: ">=0.58.0 <0.59.0"
         run: |
           set -euo pipefail
           SOURCE_COMMIT="$(git rev-parse HEAD)" scripts/publish-studio-asset-s3.sh \
