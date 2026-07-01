@@ -3,10 +3,9 @@ import type { RuntimeControlValue } from "../runtime/types";
 import { isBoolValueNode, readBoolValueParam } from "./boolValue";
 import { isColorRgbaNode, readColorRepresentationParam, readColorRgbaParam, readColorSpaceParam } from "./colorRgba";
 import { isFloatValueNode, readFloatRepresentationParam, readFloatValueParam } from "./floatValue";
-import { isIntValueNode, readIntRepresentationParam, readIntValueParam } from "./intValue";
+import { isIntValueNode, isUnsignedIntRepresentation, readIntRepresentationParam, readIntValueParam } from "./intValue";
 import { isMessageNode, readMessageValueParam } from "./messageNode";
 import { isStringValueNode, readStringValueParam } from "./stringValue";
-import { isUIntValueNode, readUIntRepresentationParam, readUIntValueParam } from "./uintValue";
 
 export function runtimeControlValueForNode(node: DisplayGraphNodeV01): RuntimeControlValue | null {
   if (isFloatValueNode(node)) {
@@ -17,17 +16,18 @@ export function runtimeControlValueForNode(node: DisplayGraphNodeV01): RuntimeCo
     };
   }
   if (isIntValueNode(node)) {
+    const representation = readIntRepresentationParam(node);
+    if (isUnsignedIntRepresentation(representation)) {
+      return {
+        type: "uint",
+        representation,
+        value: readIntValueParam(node)
+      };
+    }
     return {
       type: "int",
-      representation: readIntRepresentationParam(node),
+      representation,
       value: readIntValueParam(node)
-    };
-  }
-  if (isUIntValueNode(node)) {
-    return {
-      type: "uint",
-      representation: readUIntRepresentationParam(node),
-      value: readUIntValueParam(node)
     };
   }
   if (isBoolValueNode(node)) {

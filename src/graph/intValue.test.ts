@@ -8,6 +8,8 @@ import {
   isIntValueNode,
   readIntRepresentationParam,
   readIntValueParam,
+  isUnsignedIntRepresentation,
+  normalizeIntValue,
   setIntValueParamPatch
 } from "./intValue";
 
@@ -29,7 +31,13 @@ describe("integer value graph helpers", () => {
     expect(readIntValueParam(intNode(12.5))).toBe(DEFAULT_INT_VALUE);
     expect(readIntValueParam(intNode("12"))).toBe(DEFAULT_INT_VALUE);
     expect(readIntRepresentationParam(intNode(12, "i8"))).toBe("i8");
+    expect(readIntRepresentationParam(intNode(12, "u8"))).toBe("u8");
+    expect(readIntValueParam(intNode(-12, "u8"))).toBe(0);
     expect(readIntRepresentationParam(intNode(12, "bad"))).toBe(DEFAULT_INT_REPRESENTATION);
+    expect(isUnsignedIntRepresentation("u32")).toBe(true);
+    expect(isUnsignedIntRepresentation("i32")).toBe(false);
+    expect(normalizeIntValue(-12.8, "u16")).toBe(0);
+    expect(normalizeIntValue(12.8, "i16")).toBe(12);
   });
 
   it("creates integer setNodeParam patch operations", () => {

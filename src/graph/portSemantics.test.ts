@@ -247,8 +247,8 @@ describe("port and edge semantics", () => {
       nodes: [
         controlNode("int_source", "output", "number.int", "i32"),
         controlNode("int_target", "input", "number.int", "i64"),
-        controlNode("uint_source", "output", "number.uint", "u8"),
-        controlNode("uint_target", "input", "number.uint", "u16"),
+        controlNode("uint_source", "output", "number.int", "u8"),
+        controlNode("uint_target", "input", "number.int", "u16"),
         controlNode("bool_source", "output", "boolean"),
         controlNode("bool_target", "input", "boolean"),
         controlNode("message_source", "output", "message.any"),
@@ -303,8 +303,8 @@ describe("port and edge semantics", () => {
       ]
     });
     expect(edgeInspectorModel(graph, graph.edges[1]!).conversion).toMatchObject({
-      source: "number.uint/u8",
-      target: "number.uint/u16",
+      source: "number.int/u8",
+      target: "number.int/u16",
       issues: [
         expect.stringContaining("implicit-lossy-conversion")
       ]
@@ -410,14 +410,14 @@ describe("port and edge semantics", () => {
         },
         {
           id: "uint_1",
-          kind: "core.uint",
+          kind: "core.int",
           kindVersion: "0.1.0",
-          params: {},
+          params: { representation: "u8" },
           ports: [
             {
               id: "in",
               direction: "input",
-              type: { flow: "control", dataKind: "number.uint", format: "u8" },
+              type: { flow: "control", dataKind: "number.int", format: "u8" },
               activation: "trigger"
             }
           ]
@@ -429,18 +429,17 @@ describe("port and edge semantics", () => {
     const conversion = edgeInspectorModel(graph, graph.edges[0]!).conversion;
 
     expect(conversion).toMatchObject({
-      source: "value.number.float",
-      target: "value.number.uint",
-      lossy: false,
-      policies: [],
-      issues: ["incompatible-type"]
+      source: "number.float/f32",
+      target: "number.int/u8",
+      lossy: true,
+      policies: [
+        "float-to-integer clamp=saturating trunc=toward-zero sanitize=nan-inf-to-finite"
+      ],
+      issues: [
+        expect.stringContaining("implicit-lossy-conversion")
+      ]
     });
-    expect(analyzeGraphPortSemantics(graph)).toMatchObject([
-      {
-        code: "incompatible-edge-type",
-        edgeId: "float_1.value->uint_1.in"
-      }
-    ]);
+    expect(analyzeGraphPortSemantics(graph)).toEqual([]);
   });
 
   it("reports signedness and color format differences through the connection policy", () => {
@@ -465,14 +464,14 @@ describe("port and edge semantics", () => {
         },
         {
           id: "uint_1",
-          kind: "core.uint",
+          kind: "core.int",
           kindVersion: "0.1.0",
-          params: {},
+          params: { representation: "u8" },
           ports: [
             {
               id: "in",
               direction: "input",
-              type: { flow: "control", dataKind: "number.uint", format: "u8" },
+              type: { flow: "control", dataKind: "number.int", format: "u8" },
               activation: "trigger"
             }
           ]
@@ -511,18 +510,17 @@ describe("port and edge semantics", () => {
       ]
     };
 
-    expect(edgeInspectorModel(graph, graph.edges[0]!).conversion?.issues).toEqual([
-      "incompatible-type"
-    ]);
+    expect(edgeInspectorModel(graph, graph.edges[0]!).conversion).toMatchObject({
+      source: "number.int/i32",
+      target: "number.int/u8",
+      issues: [
+        expect.stringContaining("implicit-lossy-conversion")
+      ]
+    });
     expect(edgeInspectorModel(graph, graph.edges[1]!).conversion?.policies).toEqual([
       "color-cast clamp=unit quantize sanitize=nan-inf-to-finite"
     ]);
-    expect(analyzeGraphPortSemantics(graph)).toMatchObject([
-      {
-        code: "incompatible-edge-type",
-        edgeId: "int_1.value->uint_1.in"
-      }
-    ]);
+    expect(analyzeGraphPortSemantics(graph)).toEqual([]);
   });
 
   it("reports fan-in and type issues without mutating graph documents", () => {

@@ -17,7 +17,6 @@ interface DefinitionOptions {
 export const studioBuiltinNodeDefinitionsV01: NodeDefinitionManifestV01[] = [
   valueDefinition("core.float", "Float", "value.core.float32"),
   valueDefinition("core.int", "Int", "value.core.int32"),
-  valueDefinition("core.uint", "UInt", "value.core.uint32"),
   valueDefinition("core.bool", "Bool", "value.core.bool"),
   valueDefinition("core.color", "Color", "value.core.color", "Color"),
   valueDefinition("core.string", "String", "value.core.string"),

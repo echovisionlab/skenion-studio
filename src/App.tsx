@@ -57,6 +57,10 @@ import {
   type DisplayGraphNodeV01
 } from "./graph/patchLibrary";
 import {
+  isUnsignedIntRepresentation,
+  readIntRepresentationParam
+} from "./graph/intValue";
+import {
   createGraphFragmentFromSelection,
   graphClipboardShortcutAction,
   graphFragmentPasteAvailability,
@@ -1754,8 +1758,8 @@ export default function App() {
   function isOptimisticValueTarget(node: DisplayGraphNodeV01, value: RuntimeControlValue): boolean {
     return (
       (value.type === "float" && node.kind === "core.float") ||
-      (value.type === "int" && node.kind === "core.int") ||
-      (value.type === "uint" && node.kind === "core.uint") ||
+      (value.type === "int" && node.kind === "core.int" && !isUnsignedIntRepresentation(readIntRepresentationParam(node))) ||
+      (value.type === "uint" && node.kind === "core.int" && isUnsignedIntRepresentation(readIntRepresentationParam(node))) ||
       (value.type === "bool" && node.kind === "core.bool") ||
       (value.type === "color" && node.kind === "core.color") ||
       (value.type === "string" && node.kind === "core.string")

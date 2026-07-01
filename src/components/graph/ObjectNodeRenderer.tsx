@@ -3,11 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from "react";
 import { readCommentTextParam } from "../../graph/commentNode";
 import { FLOAT_VALUE_NODE_KIND, readFloatRepresentationParam, readFloatValueParam } from "../../graph/floatValue";
-import { INT_VALUE_NODE_KIND, readIntRepresentationParam, readIntValueParam } from "../../graph/intValue";
+import { INT_VALUE_NODE_KIND, isUnsignedIntRepresentation, readIntRepresentationParam, readIntValueParam } from "../../graph/intValue";
 import { BOOL_VALUE_NODE_KIND, readBoolValueParam } from "../../graph/boolValue";
 import { COLOR_NODE_KIND, readColorRgbaParam } from "../../graph/colorRgba";
 import { STRING_VALUE_NODE_KIND, readStringValueParam } from "../../graph/stringValue";
-import { UINT_VALUE_NODE_KIND, readUIntRepresentationParam, readUIntValueParam } from "../../graph/uintValue";
 import { MESSAGE_NODE_KIND, readMessageValueParam } from "../../graph/messageNode";
 import {
   isBangControlNode,
@@ -914,7 +913,6 @@ function isValueObject(node: DisplayGraphNodeV01): boolean {
   return [
     FLOAT_VALUE_NODE_KIND,
     INT_VALUE_NODE_KIND,
-    UINT_VALUE_NODE_KIND,
     BOOL_VALUE_NODE_KIND,
     COLOR_NODE_KIND,
     STRING_VALUE_NODE_KIND
@@ -947,17 +945,6 @@ function ValueObjectContent({
     return (
       <NumericValueDragObject
         mode="int"
-        node={node}
-        onLiveControl={onLiveControl}
-        runtimeControlEnabled={runtimeControlEnabled}
-        runtimeControlValue={runtimeControlValue}
-      />
-    );
-  }
-  if (node.kind === UINT_VALUE_NODE_KIND) {
-    return (
-      <NumericValueDragObject
-        mode="uint"
         node={node}
         onLiveControl={onLiveControl}
         runtimeControlEnabled={runtimeControlEnabled}
@@ -1005,7 +992,7 @@ function NumericValueDragObject({
   runtimeControlEnabled,
   runtimeControlValue
 }: {
-  mode: "float" | "int" | "uint";
+  mode: "float" | "int";
   node: DisplayGraphNodeV01;
   onLiveControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   runtimeControlEnabled: boolean;
@@ -1031,24 +1018,28 @@ function NumericValueDragObject({
       };
     }
     if (mode === "int") {
+      const representation = readIntRepresentationParam(node);
+      if (isUnsignedIntRepresentation(representation)) {
+        return {
+          type: "uint",
+          representation,
+          value: Math.max(0, Math.trunc(value))
+        };
+      }
       return {
         type: "int",
-        representation: readIntRepresentationParam(node),
+        representation,
         value: Math.trunc(value)
       };
     }
-    return {
-      type: "uint",
-      representation: readUIntRepresentationParam(node),
-      value: Math.max(0, Math.trunc(value))
-    };
+    throw new Error(`unsupported numeric value mode: ${mode}`);
   };
 
   const normalize = (value: number): number => {
     if (mode === "float") {
       return value;
     }
-    if (mode === "uint") {
+    if (isUnsignedIntRepresentation(readIntRepresentationParam(node))) {
       return Math.max(0, Math.trunc(value));
     }
     return Math.trunc(value);
@@ -1115,7 +1106,7 @@ function NumericValueDragObject({
 }
 
 function numericDisplayValue(
-  mode: "float" | "int" | "uint",
+  mode: "float" | "int",
   node: DisplayGraphNodeV01,
   runtimeControlValue?: RuntimeControlValue
 ): number {
@@ -1123,9 +1114,9 @@ function numericDisplayValue(
     return controlFloatValue(runtimeControlValue) ?? readFloatValueParam(node);
   }
   if (mode === "int") {
-    return controlIntValue(runtimeControlValue) ?? readIntValueParam(node);
+    return controlIntegerValue(runtimeControlValue) ?? readIntValueParam(node);
   }
-  return controlUIntValue(runtimeControlValue) ?? readUIntValueParam(node);
+  throw new Error(`unsupported numeric display mode: ${mode}`);
 }
 
 function resizeAssetBox(
@@ -1189,12 +1180,11 @@ function controlFloatValue(value?: RuntimeControlValue): number | null {
   return value?.type === "float" ? value.value : null;
 }
 
-function controlIntValue(value?: RuntimeControlValue): number | null {
-  return value?.type === "int" ? value.value : null;
-}
-
-function controlUIntValue(value?: RuntimeControlValue): number | null {
-  return value?.type === "uint" ? value.value : null;
+function controlIntegerValue(value?: RuntimeControlValue): number | null {
+  if (value?.type === "int" || value?.type === "uint") {
+    return value.value;
+  }
+  return null;
 }
 
 function controlBoolValue(value?: RuntimeControlValue): boolean | null {

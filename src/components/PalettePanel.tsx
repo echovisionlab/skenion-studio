@@ -104,7 +104,6 @@ const NODE_TOOL_DEFINITIONS: NodeToolDefinition[] = [
   { key: "message", label: "Message", match: ["message", "msg", "core.message"] },
   { key: "float", label: "Float", match: ["float", "f", "core.float"] },
   { key: "int", label: "Integer", match: ["int", "integer", "i", "core.int"] },
-  { key: "uint", label: "Unsigned Integer", match: ["uint", "unsigned integer", "u", "core.uint"] },
   { key: "comment", label: "Comment", match: ["comment", "core.comment"] },
   { key: "inlet", label: "Inlet", match: ["inlet", "core.inlet"] },
   { key: "outlet", label: "Outlet", match: ["outlet", "core.outlet"] }

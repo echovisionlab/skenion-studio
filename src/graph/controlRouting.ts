@@ -4,7 +4,6 @@ const ROUTING_CAPABLE_NODE_KINDS = new Set([
   "core.bang",
   "core.float",
   "core.int",
-  "core.uint",
   "core.bool",
   "core.color",
   "core.string",

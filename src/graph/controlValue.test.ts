@@ -14,7 +14,7 @@ describe("runtime control value helpers", () => {
       representation: "i32",
       value: 32
     });
-    expect(runtimeControlValueForNode(valueNode("core.uint", 42))).toEqual({
+    expect(runtimeControlValueForNode(valueNode("core.int", 42, { representation: "u32" }))).toEqual({
       type: "uint",
       representation: "u32",
       value: 42
@@ -49,12 +49,13 @@ describe("runtime control value helpers", () => {
   });
 });
 
-function valueNode(kind: string, value: unknown): GraphNodeV01 {
+function valueNode(kind: string, value: unknown, params: Record<string, unknown> = {}): GraphNodeV01 {
   return {
     id: "value_1",
     kind,
     kindVersion: "0.1.0",
     params: {
+      ...params,
       value
     },
     ports: []

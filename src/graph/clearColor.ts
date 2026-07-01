@@ -9,7 +9,6 @@ import { INT_VALUE_NODE_KIND, defaultIntValueParams } from "./intValue";
 import { MESSAGE_NODE_KIND, defaultMessageParams } from "./messageNode";
 import { PANEL_NODE_KIND, defaultPanelParams } from "./panelNode";
 import { STRING_VALUE_NODE_KIND, defaultStringValueParams } from "./stringValue";
-import { UINT_VALUE_NODE_KIND, defaultUIntValueParams } from "./uintValue";
 import { VIDEO_ASSET_NODE_KIND, defaultVideoAssetParams } from "./videoAsset";
 import { BANG_NODE_KIND, defaultBangParams } from "./panelControls";
 
@@ -35,9 +34,6 @@ export function defaultParamsForNodeKind(kind: string): Record<string, unknown> 
   }
   if (kind === INT_VALUE_NODE_KIND) {
     return defaultIntValueParams();
-  }
-  if (kind === UINT_VALUE_NODE_KIND) {
-    return defaultUIntValueParams();
   }
   if (kind === BOOL_VALUE_NODE_KIND) {
     return defaultBoolValueParams();

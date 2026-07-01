@@ -14,7 +14,6 @@ import {
   TOGGLE_BOOL_NODE_KIND
 } from "./panelControls";
 import { STRING_VALUE_NODE_KIND } from "./stringValue";
-import { UINT_VALUE_NODE_KIND } from "./uintValue";
 import { VIDEO_ASSET_NODE_KIND } from "./videoAsset";
 
 export type ObjectChromePolicy = "none" | "widget" | "box" | "container";
@@ -48,7 +47,7 @@ export function objectViewSpecForNode(node: DisplayGraphNodeV01): ObjectViewSpec
   if (node.kind === FLOAT_VALUE_NODE_KIND && node.params.widget === SLIDER_WIDGET) {
     return { chromePolicy: "box", interaction: "runtime-control" };
   }
-  if (node.kind === FLOAT_VALUE_NODE_KIND || node.kind === INT_VALUE_NODE_KIND || node.kind === UINT_VALUE_NODE_KIND) {
+  if (node.kind === FLOAT_VALUE_NODE_KIND || node.kind === INT_VALUE_NODE_KIND) {
     return { chromePolicy: "box", interaction: "numeric-drag" };
   }
   if (node.kind === MESSAGE_NODE_KIND) {

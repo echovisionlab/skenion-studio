@@ -28,10 +28,6 @@ describe("clear color graph helpers", () => {
       representation: "i32",
       value: 0
     });
-    expect(defaultParamsForNodeKind("core.uint")).toEqual({
-      representation: "u32",
-      value: 0
-    });
     expect(defaultParamsForNodeKind("core.bool")).toEqual({
       value: false
     });

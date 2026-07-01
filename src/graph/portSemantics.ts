@@ -200,7 +200,11 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
       graphPortToPortSpec(source.port),
       graphPortToPortSpec(target.port)
     );
-    if (!connectionPolicy.accepted && connectionPolicy.reason !== "direction-mismatch") {
+    const conversionPlan = planConversion(
+      semanticDataTypeForPort(source.node, source.port),
+      semanticDataTypeForPort(target.node, target.port)
+    );
+    if (!connectionPolicy.accepted && connectionPolicy.reason !== "direction-mismatch" && !conversionPlan.ok) {
       issues.push({
         severity: "error",
         code: "incompatible-edge-type",
@@ -366,8 +370,15 @@ function edgeConnectionPreview(
   const sourceSpec = graphPortToPortSpec(sourcePort);
   const targetSpec = graphPortToPortSpec(targetPort);
   const connectionPolicy = portConnectionPolicyV01(sourceSpec, targetSpec);
+  const conversionPlan = planConversion(
+    semanticDataTypeForPort(sourceNode, sourcePort),
+    semanticDataTypeForPort(targetNode, targetPort)
+  );
 
   if (!connectionPolicy.accepted) {
+    if (conversionPlan.ok) {
+      return conversionPreviewForPlan(conversionPlan);
+    }
     return {
       source: portSemanticsForPort(sourceNode, sourcePort).type,
       target: portSemanticsForPort(targetNode, targetPort).type,
@@ -387,10 +398,7 @@ function edgeConnectionPreview(
     };
   }
 
-  return conversionPreviewForPlan(planConversion(
-    semanticDataTypeForPort(sourceNode, sourcePort),
-    semanticDataTypeForPort(targetNode, targetPort)
-  ));
+  return conversionPreviewForPlan(conversionPlan);
 }
 
 export function conversionPreviewForPlan(plan: ConversionPlanV01): EdgeConversionPreview | null {
@@ -428,7 +436,7 @@ function artistFacingDataKind(dataKind: string): string {
     case "value.core.uint16":
     case "value.core.uint32":
     case "value.core.uint64":
-      return "number.uint";
+      return "number.int";
     case "value.core.bool":
       return "boolean";
     case "value.core.color":
@@ -448,8 +456,6 @@ function canonicalValueDataKind(type: DataTypeV01): string {
       return valueCoreKindForFormat("float", type.format, "32");
     case "number.int":
       return valueCoreKindForFormat("int", type.format, "32");
-    case "number.uint":
-      return valueCoreKindForFormat("uint", type.format, "32");
     case "boolean":
       return "value.core.bool";
     case "color":
@@ -464,13 +470,16 @@ function canonicalValueDataKind(type: DataTypeV01): string {
 }
 
 function valueCoreKindForFormat(
-  family: "float" | "int" | "uint",
+  family: "float" | "int",
   format: DataTypeV01["format"],
   fallbackBits: string
 ): string {
   const text = typeof format === "string" ? format : "";
   const match = text.match(/^(?:u?float|[fiu])([0-9]+)(?:\\.|$)/u);
   const bits = match?.[1] ?? fallbackBits;
+  if (family === "int" && text.startsWith("u")) {
+    return `value.core.uint${bits}`;
+  }
   return `value.core.${family}${bits}`;
 }
 

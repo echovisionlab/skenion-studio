@@ -334,7 +334,6 @@ const CORE_OBJECT_DISPLAY_KIND_BY_OBJECT_ID: Record<string, string> = {
   "core.string": "core.string",
   "core.bool": "core.bool",
   subpatch: SUBPATCH_NODE_KIND,
-  uint: "core.uint",
   "video-asset": "core.video-asset",
   "video-decode": "core.video-decode",
   "gpu-upload": "core.gpu-upload"
@@ -465,7 +464,7 @@ export function dataTypeFromPortSpec(port: PortSpecV01): DataTypeV01 {
     dataKind: dataKindForPortSpecType(type)
   };
 
-  const format = defaultFormatForDataKind(graphType.dataKind);
+  const format = formatForPortSpecType(type) ?? defaultFormatForDataKind(graphType.dataKind);
   if (format) {
     graphType.format = format;
   }
@@ -577,10 +576,7 @@ function portSpecTypeFromGraphPort(port: PortV01): string {
     return "value.core.float32";
   }
   if (isControlFlow(port.type.flow) && dataKind === "number.int") {
-    return "value.core.int32";
-  }
-  if (isControlFlow(port.type.flow) && dataKind === "number.uint") {
-    return "value.core.uint32";
+    return valueCoreIntegerKindForFormat(port.type.format);
   }
   if (isControlFlow(port.type.flow) && dataKind === "string") {
     return "value.core.string";
@@ -609,6 +605,16 @@ function portSpecTypeFromGraphPort(port: PortV01): string {
   return dataKind;
 }
 
+function valueCoreIntegerKindForFormat(format: DataTypeV01["format"]): string {
+  const text = typeof format === "string" ? format : "i32";
+  const unsigned = text.match(/^u(8|16|32|64)$/u);
+  if (unsigned) {
+    return `value.core.uint${unsigned[1]}`;
+  }
+  const signed = text.match(/^i(8|16|32|64)$/u);
+  return `value.core.int${signed?.[1] ?? "32"}`;
+}
+
 function canonicalPortTypeFromDisplayType(type: string): string {
   switch (type) {
     case "boolean":
@@ -623,8 +629,6 @@ function canonicalPortTypeFromDisplayType(type: string): string {
       return "value.core.float32";
     case "number.int":
       return "value.core.int32";
-    case "number.uint":
-      return "value.core.uint32";
     case "string":
       return "value.core.string";
     case "signal.audio":
@@ -648,7 +652,6 @@ function isGenericValueDataKind(dataKind: string): boolean {
     "message.any",
     "number.float",
     "number.int",
-    "number.uint",
     "string"
   ].includes(dataKind);
 }
@@ -733,7 +736,7 @@ function dataKindForPortSpecType(type: string): string {
     return "number.int";
   }
   if (type.startsWith("value.core.uint")) {
-    return "number.uint";
+    return "number.int";
   }
   if (type === "value.core.string") {
     return "string";
@@ -760,15 +763,28 @@ function displayPortTypeFromPortSpecType(type: string): string {
   return dataKindForPortSpecType(normalizedPortSpecType(type));
 }
 
+function formatForPortSpecType(type: string): string | undefined {
+  const integer = type.match(/^value\.core\.(u?int)(8|16|32|64)$/u);
+  if (integer) {
+    return `${integer[1] === "uint" ? "u" : "i"}${integer[2]}`;
+  }
+  const unsignedFloat = type.match(/^value\.core\.ufloat(8|16|32|64)$/u);
+  if (unsignedFloat) {
+    return `ufloat${unsignedFloat[1]}`;
+  }
+  const float = type.match(/^value\.core\.float(8|16|32|64)$/u);
+  if (float) {
+    return float[1] === "8" ? "f8.e4m3" : `f${float[1]}`;
+  }
+  return undefined;
+}
+
 function defaultFormatForDataKind(dataKind: string): string | undefined {
   if (dataKind === "number.float") {
     return "f32";
   }
   if (dataKind === "number.int") {
     return "i32";
-  }
-  if (dataKind === "number.uint") {
-    return "u32";
   }
   if (dataKind === "color") {
     return "rgba32f";

@@ -370,10 +370,10 @@ describe("patchLibrary", () => {
       portSpecToGraphPort({
         id: "index",
         direction: "input",
-        type: "number.uint",
+        type: "value.core.uint32",
         rate: "control"
       }).type
-    ).toEqual({ flow: "control", dataKind: "number.uint", format: "u32" });
+    ).toEqual({ flow: "control", dataKind: "number.int", format: "u32" });
     expect(
       portSpecToGraphPort({
         id: "asset",
@@ -438,7 +438,7 @@ describe("patchLibrary", () => {
         direction: "input",
         type: "value.core.uint8"
       }).type
-    ).toEqual({ flow: "control", dataKind: "number.uint", format: "u32" });
+    ).toEqual({ flow: "control", dataKind: "number.int", format: "u8" });
     expect(
       portSpecToGraphPort({
         id: "depth",
@@ -533,7 +533,7 @@ describe("patchLibrary", () => {
           "boolean",
           "color",
           "message.any",
-          "number.uint",
+          "value.core.uint32",
           "string",
           "signal.audio",
           "video.frame",
@@ -565,14 +565,14 @@ describe("patchLibrary", () => {
         direction: "input",
         type: { flow: "control", dataKind: "number.int", format: "i16" }
       }).type
-    ).toBe("value.core.int32");
+    ).toBe("value.core.int16");
     expect(
       graphPortToPortSpec({
         id: "unsigned",
         direction: "input",
-        type: { flow: "control", dataKind: "number.uint", format: "u16" }
+        type: { flow: "control", dataKind: "number.int", format: "u16" }
       }).type
-    ).toBe("value.core.uint32");
+    ).toBe("value.core.uint16");
     expect(
       graphPortToPortSpec({
         id: "string",

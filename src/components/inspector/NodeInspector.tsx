@@ -16,7 +16,6 @@ import { PanelControlInspector } from "./PanelControlInspector";
 import { PortTable } from "./PortTable";
 import { RoutingNodeControls } from "./RoutingNodeControls";
 import { StringValueControls } from "./StringValueControls";
-import { UnsignedIntegerValueControls } from "./UnsignedIntegerValueControls";
 import {
   isBoolValueNode,
   readBoolValueParam
@@ -53,11 +52,6 @@ import {
   readIntRepresentationParam,
   readIntValueParam
 } from "../../graph/intValue";
-import {
-  isUIntValueNode,
-  readUIntRepresentationParam,
-  readUIntValueParam
-} from "../../graph/uintValue";
 import {
   isMessageNode,
   readMessageValueParam
@@ -117,8 +111,6 @@ export function NodeInspector({
   const floatRepresentation = isFloatValueNode(node) && !isPanelControl ? readFloatRepresentationParam(node) : null;
   const intValue = isIntValueNode(node) ? readIntValueParam(node) : null;
   const intRepresentation = isIntValueNode(node) ? readIntRepresentationParam(node) : null;
-  const uintValue = isUIntValueNode(node) ? readUIntValueParam(node) : null;
-  const uintRepresentation = isUIntValueNode(node) ? readUIntRepresentationParam(node) : null;
   const toggleValue = isToggleNode(node) ? readToggleParam(node) : null;
   const boolValue = isBoolValueNode(node) && toggleValue === null ? readBoolValueParam(node) : null;
   const stringValue = isStringValueNode(node) ? readStringValueParam(node) : null;
@@ -199,18 +191,6 @@ export function NodeInspector({
         onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
         representation={intRepresentation!}
         value={intValue}
-      />
-    );
-  }
-
-  if (uintValue !== null) {
-    addObjectSettingBlock(
-      "unsigned-integer",
-      <UnsignedIntegerValueControls
-        onChange={(value) => onSetNodeParam(node.id, "value", value)}
-        onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
-        representation={uintRepresentation!}
-        value={uintValue}
       />
     );
   }

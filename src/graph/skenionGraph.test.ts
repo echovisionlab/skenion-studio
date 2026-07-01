@@ -38,8 +38,8 @@ describe("skenion graph helpers", () => {
     expect(typeLabel({ flow: "control", dataKind: "value.core.float8" })).toBe("value<number.float>");
     expect(typeLabel({ flow: "control", dataKind: "value.core.int32" })).toBe("value<number.int>");
     expect(typeLabel({ flow: "control", dataKind: "value.core.int8" })).toBe("value<number.int>");
-    expect(typeLabel({ flow: "control", dataKind: "value.core.uint32" })).toBe("value<number.uint>");
-    expect(typeLabel({ flow: "control", dataKind: "value.core.uint8" })).toBe("value<number.uint>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.uint32" })).toBe("value<number.int>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.uint8" })).toBe("value<number.int>");
     expect(typeLabel({ flow: "control", dataKind: "value.core.bool" })).toBe("value<boolean>");
     expect(typeLabel({ flow: "control", dataKind: "value.core.color" })).toBe("value<color>");
     expect(typeLabel({ flow: "control", dataKind: "value.core.message" })).toBe("value<message.any>");

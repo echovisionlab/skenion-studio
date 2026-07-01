@@ -72,7 +72,7 @@ function displayDataKind(dataKind: string): string {
     case "value.core.uint16":
     case "value.core.uint32":
     case "value.core.uint64":
-      return "number.uint";
+      return "number.int";
     case "value.core.bool":
       return "boolean";
     case "value.core.color":
