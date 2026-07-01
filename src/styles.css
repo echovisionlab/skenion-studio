@@ -15,6 +15,9 @@
   --sk-warning: #d9480f;
   --sk-warning-ring: rgb(217 72 15 / 20%);
   --sk-grid-dot: #d8dee6;
+  --sk-edge-label-bg: #ffffff;
+  --sk-edge-label-border: #cbd5e1;
+  --sk-edge-label-border-selected: #64748b;
   color: var(--sk-text);
   background: var(--sk-bg);
   font-synthesis: none;
@@ -46,6 +49,9 @@ html[data-mantine-color-scheme="dark"] {
   --sk-warning: #ff922b;
   --sk-warning-ring: rgb(255 146 43 / 24%);
   --sk-grid-dot: #343a46;
+  --sk-edge-label-bg: #1d2025;
+  --sk-edge-label-border: #4b5563;
+  --sk-edge-label-border-selected: #94a3b8;
   background-color: var(--mantine-color-body, #1a1b1e);
   color-scheme: dark;
 }
@@ -243,24 +249,27 @@ body {
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
-  stroke: var(--sk-blue) !important;
-  stroke-width: var(--skenion-selected-edge-stroke-width, 2.75px) !important;
+  stroke-width: var(--skenion-selected-edge-stroke-width, 2.25px) !important;
 }
 
 .react-flow__edge.selected .react-flow__edge-interaction {
   stroke: transparent !important;
 }
 
-.react-flow__edge.selected .react-flow__edge-textbg {
-  fill: var(--sk-blue-soft);
-  stroke: var(--sk-blue);
+.react-flow__edge .react-flow__edge-text {
+  fill: var(--sk-text);
+}
+
+.react-flow__edge .react-flow__edge-textbg {
+  fill: var(--sk-edge-label-bg);
+  stroke: var(--sk-edge-label-border);
   stroke-width: 1px;
 }
 
-.react-flow__edge.selected .react-flow__arrowhead polyline,
-.react-flow__edge.selected marker path {
-  fill: var(--sk-blue);
-  stroke: var(--sk-blue);
+.react-flow__edge.selected .react-flow__edge-textbg {
+  fill: var(--sk-edge-label-bg);
+  stroke: var(--sk-edge-label-border-selected);
+  stroke-width: 1px;
 }
 
 .ports-table th,

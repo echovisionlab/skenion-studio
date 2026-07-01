@@ -160,11 +160,16 @@ function toReactFlowEdge(edge: DisplayEdgeV01, graph: DisplayGraphDocumentV01): 
       stroke: color,
       strokeDasharray: feedback ? "7 4" : undefined,
       strokeWidth,
-      "--skenion-selected-edge-stroke-width": `${strokeWidth + 0.75}px`
+      "--skenion-selected-edge-stroke-width": `${strokeWidth + 0.25}px`
     } as CSSProperties,
     labelStyle: {
-      fill: "#343a40",
+      fill: "var(--sk-text)",
       fontWeight: 600
+    },
+    labelBgStyle: {
+      fill: "var(--sk-edge-label-bg)",
+      stroke: "var(--sk-edge-label-border)",
+      strokeWidth: 1
     },
     data: {
       inspector,

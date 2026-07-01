@@ -46,7 +46,17 @@ describe("React Flow adapter", () => {
       animated: false,
       style: {
         stroke: "#495057",
-        strokeWidth: 2
+        strokeWidth: 2,
+        "--skenion-selected-edge-stroke-width": "2.25px"
+      },
+      labelStyle: {
+        fill: "var(--sk-text)",
+        fontWeight: 600
+      },
+      labelBgStyle: {
+        fill: "var(--sk-edge-label-bg)",
+        stroke: "var(--sk-edge-label-border)",
+        strokeWidth: 1
       }
     });
     expect(viewModel.edges[1].animated).toBe(true);
