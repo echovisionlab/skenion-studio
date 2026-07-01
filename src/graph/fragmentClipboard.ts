@@ -43,6 +43,10 @@ export interface GraphClipboardShortcutEvent {
 
 export type GraphClipboardShortcutAction = "copy" | "paste";
 
+export interface GraphClipboardShortcutContext {
+  selectedText?: string | null;
+}
+
 export interface GraphFragmentPasteAvailabilityInput {
   capabilities: string[] | null | undefined;
   connected: boolean;
@@ -66,9 +70,10 @@ export function graphFragmentPasteAvailability(
 }
 
 export function graphClipboardShortcutAction(
-  event: GraphClipboardShortcutEvent
+  event: GraphClipboardShortcutEvent,
+  context: GraphClipboardShortcutContext = {}
 ): GraphClipboardShortcutAction | null {
-  if (isEditableShortcutTarget(event.target) || event.altKey || event.shiftKey) {
+  if (hasSelectedText(context.selectedText) || isEditableShortcutTarget(event.target) || event.altKey || event.shiftKey) {
     return null;
   }
 
@@ -85,6 +90,10 @@ export function graphClipboardShortcutAction(
     return "paste";
   }
   return null;
+}
+
+function hasSelectedText(selectedText: string | null | undefined): boolean {
+  return typeof selectedText === "string" && selectedText.length > 0;
 }
 
 export function isEditableShortcutTarget(target: EventTarget | null): boolean {

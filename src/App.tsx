@@ -524,8 +524,9 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const selectedText = window.getSelection()?.toString() ?? "";
       if (isHelpWorkingCopyTarget(event.target)) {
-        const action = graphClipboardShortcutAction(event);
+        const action = graphClipboardShortcutAction(event, { selectedText });
         if (action === "copy") {
           event.preventDefault();
           event.stopPropagation();
@@ -536,7 +537,7 @@ export default function App() {
       if (isHelpGraphViewerTarget(event.target)) {
         return;
       }
-      const action = graphClipboardShortcutAction(event);
+      const action = graphClipboardShortcutAction(event, { selectedText });
       if (!action) {
         return;
       }

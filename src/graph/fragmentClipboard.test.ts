@@ -310,6 +310,8 @@ describe("fragmentClipboard", () => {
     expect(graphClipboardShortcutAction(event({ key: "c", metaKey: true, target: select }))).toBeNull();
     expect(graphClipboardShortcutAction(event({ key: "c", metaKey: true, target: textarea }))).toBeNull();
     expect(graphClipboardShortcutAction(event({ key: "c", metaKey: true, target: editable }))).toBeNull();
+    expect(graphClipboardShortcutAction(event({ key: "c", metaKey: true }), { selectedText: "Runtime returned an unsupported response shape." })).toBeNull();
+    expect(graphClipboardShortcutAction(event({ key: "v", metaKey: true }), { selectedText: "selected text" })).toBeNull();
     expect(graphClipboardShortcutAction(event({ key: "c", metaKey: true, shiftKey: true }))).toBeNull();
   });
 
