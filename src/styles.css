@@ -12,6 +12,8 @@
   --sk-shadow: rgb(31 41 51 / 12%);
   --sk-blue: #1864ab;
   --sk-blue-soft: #e7f5ff;
+  --sk-warning: #d9480f;
+  --sk-warning-ring: rgb(217 72 15 / 20%);
   --sk-grid-dot: #d8dee6;
   color: var(--sk-text);
   background: var(--sk-bg);
@@ -41,6 +43,8 @@ html[data-mantine-color-scheme="dark"] {
   --sk-shadow: rgb(0 0 0 / 28%);
   --sk-blue: #74c0fc;
   --sk-blue-soft: #172033;
+  --sk-warning: #ff922b;
+  --sk-warning-ring: rgb(255 146 43 / 24%);
   --sk-grid-dot: #343a46;
   background-color: var(--mantine-color-body, #1a1b1e);
   color-scheme: dark;
