@@ -61,6 +61,33 @@ describe("patchLibrary", () => {
     expect(createSubpatchNodeFromDefinition(patch, []).ports).toEqual([]);
   });
 
+  it("ignores non-boundary legacy nodes when deriving patch contracts", () => {
+    const patch: PatchDefinitionV01 = {
+      ...testPatchDefinition(),
+      graph: {
+        ...testPatchDefinition().graph,
+        nodes: [
+          {
+            id: "ordinary_legacy",
+            kind: "core.float",
+            kindVersion: "0.1.0",
+            params: {},
+            ports: [
+              {
+                id: "value",
+                direction: "output",
+                type: "number.float"
+              }
+            ]
+          }
+        ] as unknown as PatchDefinitionV01["graph"]["nodes"],
+        edges: []
+      }
+    };
+
+    expect(createSubpatchNodeFromDefinition(patch, []).ports).toEqual([]);
+  });
+
   it("falls back to legacy boundary node ids when labels and port ids are absent", () => {
     const patch: PatchDefinitionV01 = {
       ...testPatchDefinition(),
@@ -88,6 +115,97 @@ describe("patchLibrary", () => {
     expect(createSubpatchNodeFromDefinition(patch, []).ports[0]).toMatchObject({
       id: "bare_inlet",
       label: "Bare Inlet"
+    });
+
+    const noParamsPatch: PatchDefinitionV01 = {
+      ...patch,
+      graph: {
+        ...patch.graph,
+        nodes: [
+          {
+            id: "no_params_inlet",
+            kind: "core.inlet",
+            kindVersion: "0.1.0",
+            ports: [
+              {
+                id: "out",
+                direction: "output",
+                type: "number.float"
+              }
+            ]
+          }
+        ] as unknown as PatchDefinitionV01["graph"]["nodes"]
+      }
+    };
+    expect(createSubpatchNodeFromDefinition(noParamsPatch, []).ports[0]).toMatchObject({
+      id: "no_params_inlet",
+      label: "No Params Inlet"
+    });
+  });
+
+  it("ignores malformed legacy boundary label and port id params", () => {
+    const patch: PatchDefinitionV01 = {
+      ...testPatchDefinition(),
+      graph: {
+        ...testPatchDefinition().graph,
+        nodes: [
+          {
+            id: "fallback_inlet",
+            kind: "core.inlet",
+            kindVersion: "0.1.0",
+            params: {
+              label: 7,
+              portId: "  ",
+              externalPortId: 9
+            },
+            ports: [
+              {
+                id: "out",
+                direction: "output",
+                type: "number.float"
+              }
+            ]
+          }
+        ] as unknown as PatchDefinitionV01["graph"]["nodes"],
+        edges: []
+      }
+    };
+
+    expect(createSubpatchNodeFromDefinition(patch, []).ports[0]).toMatchObject({
+      id: "fallback_inlet",
+      label: "Fallback Inlet"
+    });
+  });
+
+  it("uses non-empty legacy boundary port id params", () => {
+    const patch: PatchDefinitionV01 = {
+      ...testPatchDefinition(),
+      graph: {
+        ...testPatchDefinition().graph,
+        nodes: [
+          {
+            id: "renamed_inlet",
+            kind: "core.inlet",
+            kindVersion: "0.1.0",
+            params: {
+              portId: "pitch_in"
+            },
+            ports: [
+              {
+                id: "out",
+                direction: "output",
+                type: "number.float"
+              }
+            ]
+          }
+        ] as unknown as PatchDefinitionV01["graph"]["nodes"],
+        edges: []
+      }
+    };
+
+    expect(createSubpatchNodeFromDefinition(patch, []).ports[0]).toMatchObject({
+      id: "pitch_in",
+      label: "Pitch In"
     });
   });
 

@@ -387,13 +387,13 @@ function edgeConnectionPreview(
     };
   }
 
-  return conversionPreview(planConversion(
+  return conversionPreviewForPlan(planConversion(
     semanticDataTypeForPort(sourceNode, sourcePort),
     semanticDataTypeForPort(targetNode, targetPort)
   ));
 }
 
-function conversionPreview(plan: ConversionPlanV01): EdgeConversionPreview | null {
+export function conversionPreviewForPlan(plan: ConversionPlanV01): EdgeConversionPreview | null {
   if (!plan.ok || plan.steps.every((step) => step.policy === "identity")) {
     return null;
   }

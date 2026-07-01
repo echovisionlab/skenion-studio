@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ConversionPlanV01 } from "@skenion/contracts";
 import type {
   DisplayEdgeV01 as EdgeV01,
   DisplayGraphDocumentV01 as GraphDocumentV01,
@@ -9,6 +10,7 @@ import { renderSampleGraph, sampleGraph } from "../data/sampleGraph";
 import {
   analyzeGraphPortSemantics,
   connectionSemanticCheck,
+  conversionPreviewForPlan,
   edgeId,
   edgeInspectorModel,
   findEdgeInspectorModel,
@@ -233,6 +235,117 @@ describe("port and edge semantics", () => {
     expect(inspector.conversion).toMatchObject({
       policies: ["message-selector"],
       issues: []
+    });
+  });
+
+  it("canonicalizes UI value data kinds before conversion preview planning", () => {
+    const graph: GraphDocumentV01 = {
+      schema: "skenion.graph",
+      schemaVersion: "0.1.0",
+      id: "canonical-value-preview",
+      revision: "1",
+      nodes: [
+        controlNode("int_source", "output", "number.int", "i32"),
+        controlNode("int_target", "input", "number.int", "i64"),
+        controlNode("uint_source", "output", "number.uint", "u8"),
+        controlNode("uint_target", "input", "number.uint", "u16"),
+        controlNode("bool_source", "output", "boolean"),
+        controlNode("bool_target", "input", "boolean"),
+        controlNode("message_source", "output", "message.any"),
+        controlNode("message_target", "input", "message.any"),
+        controlNode("string_source", "output", "string"),
+        controlNode("string_target", "input", "string"),
+        controlNode("custom_source", "output", "value.acme.payload"),
+        controlNode("custom_target", "input", "value.acme.payload"),
+        eventNode("bang_source", "output", "event.bang"),
+        eventNode("bang_target", "input", "event.bang"),
+        eventNode("event_message_source", "output", "message.any"),
+        eventNode("event_message_target", "input", "message.any"),
+        controlNode("float_default_source", "output", "number.float"),
+        controlNode("float_default_target", "input", "number.float")
+      ],
+      edges: [
+        { from: { node: "int_source", port: "out" }, to: { node: "int_target", port: "in" } },
+        { from: { node: "uint_source", port: "out" }, to: { node: "uint_target", port: "in" } },
+        { from: { node: "bool_source", port: "out" }, to: { node: "bool_target", port: "in" } },
+        {
+          from: { node: "message_source", port: "out" },
+          to: { node: "message_target", port: "in" }
+        },
+        {
+          from: { node: "string_source", port: "out" },
+          to: { node: "string_target", port: "in" }
+        },
+        {
+          from: { node: "custom_source", port: "out" },
+          to: { node: "custom_target", port: "in" }
+        },
+        {
+          from: { node: "bang_source", port: "out" },
+          to: { node: "bang_target", port: "in" }
+        },
+        {
+          from: { node: "event_message_source", port: "out" },
+          to: { node: "event_message_target", port: "in" }
+        },
+        {
+          from: { node: "float_default_source", port: "out" },
+          to: { node: "float_default_target", port: "in" }
+        }
+      ]
+    };
+
+    expect(edgeInspectorModel(graph, graph.edges[0]!).conversion).toMatchObject({
+      source: "number.int/i32",
+      target: "number.int/i64",
+      issues: [
+        expect.stringContaining("implicit-lossy-conversion")
+      ]
+    });
+    expect(edgeInspectorModel(graph, graph.edges[1]!).conversion).toMatchObject({
+      source: "number.uint/u8",
+      target: "number.uint/u16",
+      issues: [
+        expect.stringContaining("implicit-lossy-conversion")
+      ]
+    });
+    expect(edgeInspectorModel(graph, graph.edges[2]!).conversion).toBeNull();
+    expect(edgeInspectorModel(graph, graph.edges[3]!).conversion).toBeNull();
+    expect(edgeInspectorModel(graph, graph.edges[4]!).conversion).toBeNull();
+    expect(edgeInspectorModel(graph, graph.edges[5]!).conversion).toBeNull();
+    expect(edgeInspectorModel(graph, graph.edges[6]!).conversion).toBeNull();
+    expect(edgeInspectorModel(graph, graph.edges[7]!).conversion).toBeNull();
+    expect(edgeInspectorModel(graph, graph.edges[8]!).conversion).toBeNull();
+  });
+
+  it("formats all Contracts conversion policy attributes for the edge inspector", () => {
+    const plan = {
+      ok: true,
+      source: { flow: "control", dataKind: "value.core.float32", representation: "f32" },
+      target: { flow: "control", dataKind: "value.core.int32", representation: "i32" },
+      lossy: true,
+      steps: [
+        {
+          policy: "float-to-integer",
+          clamp: "saturating",
+          trunc: "toward-zero"
+        }
+      ],
+      issues: [
+        {
+          severity: "warning",
+          code: "implicit-lossy-conversion",
+          message: "float32 to int32 uses truncation"
+        }
+      ]
+    } as unknown as ConversionPlanV01;
+
+    expect(conversionPreviewForPlan(plan)).toEqual({
+      source: "number.float/f32",
+      target: "number.int/i32",
+      lossy: true,
+      policies: ["float-to-integer clamp=saturating trunc=toward-zero"],
+      issues: ["implicit-lossy-conversion: float32 to int32 uses truncation"]
     });
   });
 
@@ -496,6 +609,56 @@ describe("port and edge semantics", () => {
     ]);
   });
 });
+
+function controlNode(
+  id: string,
+  direction: "input" | "output",
+  dataKind: string,
+  format?: string
+): GraphNodeV01 {
+  const portId = direction === "input" ? "in" : "out";
+  return {
+    id,
+    kind: `core.${id}`,
+    kindVersion: "0.1.0",
+    params: {},
+    ports: [
+      {
+        id: portId,
+        direction,
+        type: {
+          flow: "control",
+          dataKind,
+          ...(format ? { format } : {})
+        }
+      }
+    ]
+  };
+}
+
+function eventNode(
+  id: string,
+  direction: "input" | "output",
+  dataKind: "event.bang" | "message.any"
+): GraphNodeV01 {
+  const portId = direction === "input" ? "in" : "out";
+  return {
+    id,
+    kind: `core.${id}`,
+    kindVersion: "0.1.0",
+    params: {},
+    ports: [
+      {
+        id: portId,
+        direction,
+        type: {
+          flow: "event",
+          dataKind
+        }
+      }
+    ]
+  };
+}
 
 function twoNodeValueCycle(): GraphDocumentV01 {
   const ports: GraphNodeV01["ports"] = [

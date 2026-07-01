@@ -2,8 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { GraphPatch } from "../graph/skenionGraph";
 import {
   runtimeCommandGroupsFromGraphPatches,
-  runtimeGraphCommandPayloadForPatchGroup
+  runtimeGraphCommandPayloadForPatchGroup,
+  runtimeSessionWithAcceptedProject,
+  withProjectGraphRevision
 } from "./liveGraphPatches";
+import type { ProjectDocumentV01 } from "@skenion/contracts";
+import type { RuntimeGraphCommandResponse } from "./graphCommand";
+import type { RuntimeSessionResponse } from "./types";
 
 describe("live graph patch command conversion", () => {
   it("converts cable creation to a Runtime graph.changeSet command", () => {
@@ -63,6 +68,57 @@ describe("live graph patch command conversion", () => {
     });
   });
 
+  it("converts node add and delete patches to Runtime change-set operations", () => {
+    const groups = runtimeCommandGroupsFromGraphPatches([
+      {
+        type: "addNode",
+        node: {
+          id: "float 1",
+          kind: "core.float",
+          kindVersion: "0.1.0",
+          implementation: {
+            provider: { kind: "core" },
+            objectId: "float",
+            version: "0.1.0"
+          },
+          objectSpec: "float",
+          params: { value: 0.5 },
+          ports: [
+            {
+              id: "value",
+              direction: "output",
+              type: { flow: "control", dataKind: "number.float", format: "f32" }
+            }
+          ]
+        }
+      },
+      {
+        type: "removeNode",
+        nodeId: "old float"
+      }
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(runtimeGraphCommandPayloadForPatchGroup(groups![0], "12")).toMatchObject({
+      kind: "graph.changeSet",
+      changes: [
+        {
+          op: "node.add",
+          changeId: "add-node-0-float-1",
+          node: {
+            id: "float 1",
+            objectSpec: "float"
+          }
+        },
+        {
+          op: "node.delete",
+          changeId: "delete-node-1-old-float",
+          nodeId: "old float"
+        }
+      ]
+    });
+  });
+
   it("converts object parameter edits to Runtime node.update", () => {
     const groups = runtimeCommandGroupsFromGraphPatches([
       { type: "setNodeParam", nodeId: "float_1", key: "value", value: 0.25 },
@@ -93,4 +149,76 @@ describe("live graph patch command conversion", () => {
 
     expect(runtimeCommandGroupsFromGraphPatches([unsupportedPatch])).toBeNull();
   });
+
+  it("keeps accepted Runtime project revisions and session counters authoritative", () => {
+    const project = projectDocument("3");
+    const acceptedProject = withProjectGraphRevision(project, "4");
+    const unchangedProject = withProjectGraphRevision(acceptedProject, "4");
+    const session: RuntimeSessionResponse = {
+      ok: true,
+      issues: [],
+      report: null,
+      snapshot: {
+        sessionRevision: 7,
+        viewRevision: 8,
+        controlRevision: 9,
+        project,
+        bindingFormats: [],
+        issues: [],
+        plan: null
+      }
+    };
+    const response = {
+      payload: {
+        sessionRevision: 10,
+        viewRevision: 11
+      }
+    } as RuntimeGraphCommandResponse;
+
+    expect(acceptedProject).not.toBe(project);
+    expect(acceptedProject.revision).toBe("4");
+    expect(acceptedProject.graph.revision).toBe("4");
+    expect(unchangedProject).toBe(acceptedProject);
+    expect(runtimeSessionWithAcceptedProject(null, acceptedProject, response)).toBeNull();
+    expect(runtimeSessionWithAcceptedProject(session, acceptedProject, response)).toMatchObject({
+      snapshot: {
+        project: acceptedProject,
+        sessionRevision: 10,
+        viewRevision: 11,
+        controlRevision: 9
+      }
+    });
+    expect(runtimeSessionWithAcceptedProject(session, acceptedProject, null)).toMatchObject({
+      snapshot: {
+        sessionRevision: 7,
+        viewRevision: 8
+      }
+    });
+  });
 });
+
+function projectDocument(revision: string): ProjectDocumentV01 {
+  return {
+    schema: "skenion.project",
+    schemaVersion: "0.1.0",
+    id: "coverage-project",
+    documentId: "77777777-7777-4777-8777-777777777777",
+    revision,
+    graph: {
+      schema: "skenion.graph",
+      schemaVersion: "0.1.0",
+      id: "root",
+      revision,
+      nodes: [],
+      edges: []
+    },
+    viewState: {
+      schema: "skenion.view-state",
+      schemaVersion: "0.1.0",
+      canvas: {
+        nodes: {}
+      }
+    },
+    patchLibrary: []
+  };
+}
