@@ -1,0 +1,94 @@
+.panel {
+  position: fixed;
+  display: flex;
+  min-width: 220px;
+  min-height: 180px;
+  flex-direction: column;
+  border: 1px solid var(--sk-border);
+  background: var(--sk-surface);
+  box-shadow: 0 18px 44px var(--sk-shadow);
+  color: var(--sk-text);
+}
+
+.header {
+  display: flex;
+  height: 30px;
+  min-height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--sk-border);
+  background: color-mix(in srgb, var(--sk-surface) 94%, var(--sk-surface-muted));
+}
+
+.dragHandle {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  cursor: grab;
+  user-select: none;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.title {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding-right: 3px;
+}
+
+.body {
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: 12px;
+  overflow: auto;
+}
+
+.resizeHandle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  overflow: hidden;
+  cursor: nwse-resize;
+}
+
+.resizeHandle::before,
+.resizeHandle::after {
+  position: absolute;
+  display: block;
+  border-right: 2px solid var(--sk-text-muted);
+  border-bottom: 2px solid var(--sk-text-muted);
+  content: "";
+}
+
+.resizeHandle::before {
+  right: 4px;
+  bottom: 4px;
+  width: 9px;
+  height: 9px;
+  opacity: 0.85;
+}
+
+.resizeHandle::after {
+  right: 8px;
+  bottom: 8px;
+  width: 4px;
+  height: 4px;
+  opacity: 0.6;
+}

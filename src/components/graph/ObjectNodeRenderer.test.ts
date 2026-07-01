@@ -4,8 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 import type { DisplayGraphNodeV01 as GraphNodeV01 } from "../../graph/patchLibrary";
 import type { NodeCardView } from "../node/nodeTypes";
-import { genericObjectTextForNode } from "../../graph/objectTextDisplay";
-import { UNRESOLVED_OBJECT_NODE_KIND } from "../../graph/objectTextNode";
+import { genericObjectSpecForNode } from "../../graph/objectSpecDisplay";
 import { ObjectNodeRenderer, isPrimaryPointerButton } from "./ObjectNodeRenderer";
 
 describe("ObjectNodeRenderer interaction guards", () => {
@@ -96,30 +95,71 @@ describe("ObjectNodeRenderer interaction guards", () => {
     });
     container.remove();
   });
+
+  it("marks Runtime resolution issues without requiring a separate unresolved kind", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    let root: Root | null = createRoot(container);
+
+    await act(async () => {
+      root?.render(
+        createElement(ObjectNodeRenderer, {
+          card: genericCard(),
+          layoutEditable: true,
+          node: genericNode("object.external", {}, {
+            objectResolution: {
+              status: "unresolved",
+              selectedSpec: "gain",
+              candidates: [],
+              issues: [
+                {
+                  code: "resolution-unresolved",
+                  message: "gain matched multiple objects",
+                  severity: "error"
+                }
+              ]
+            },
+            objectSpec: "gain"
+          }),
+          onObjectSpecCommit: () => undefined
+        })
+      );
+    });
+
+    const genericObject = Array.from(container.querySelectorAll("div")).find((element) =>
+      String(element.className).includes("genericObject")
+    );
+    expect(genericObject?.className).toContain("unresolvedObject");
+    expect(genericObject?.getAttribute("title")).toBe("gain matched multiple objects");
+    expect(container.textContent).toContain("gain");
+
+    await act(async () => {
+      root?.unmount();
+      root = null;
+    });
+    container.remove();
+  });
 });
 
-describe("generic object text", () => {
-  it("uses explicit object text before display labels", () => {
+describe("generic object spec", () => {
+  it("uses explicit object spec before display labels", () => {
     expect(
-      genericObjectTextForNode(
-        genericNode("core.video-decode", {
-          label: "Decode",
-          objectText: "video.decode"
-        })
+      genericObjectSpecForNode(
+        genericNode("core.video-decode", { label: "Decode" }, { objectSpec: "video.decode" })
       )
     ).toBe("video.decode");
   });
 
-  it("falls back to labels, then node kind, without adding card metadata", () => {
-    expect(genericObjectTextForNode(genericNode("core.gpu-upload", { label: "Upload" }))).toBe("upload");
-    expect(genericObjectTextForNode(genericNode("core.preview", {}))).toBe("preview");
-    expect(genericObjectTextForNode(genericNode("user.manipulator", { label: "Manipulator" }))).toBe("Manipulator");
+  it("falls back to labels, then node kind, without adding card metadata or aliases", () => {
+    expect(genericObjectSpecForNode(genericNode("core.gpu-upload", { label: "Upload" }))).toBe("Upload");
+    expect(genericObjectSpecForNode(genericNode("core.preview", {}))).toBe("core.preview");
+    expect(genericObjectSpecForNode(genericNode("user.manipulator", { label: "Manipulator" }))).toBe("Manipulator");
   });
 
-  it("commits generic object text edits from double click input", async () => {
+  it("commits generic object spec edits from double click input", async () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const onObjectTextCommit = vi.fn();
+    const onObjectSpecCommit = vi.fn();
     let root: Root | null = createRoot(container);
 
     await act(async () => {
@@ -128,7 +168,7 @@ describe("generic object text", () => {
           card: genericCard(),
           layoutEditable: true,
           node: genericNode("core.video-decode", { label: "Decode" }),
-          onObjectTextCommit
+          onObjectSpecCommit
         })
       );
     });
@@ -143,7 +183,7 @@ describe("generic object text", () => {
     await act(async () => {
       genericObject.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     });
-    const input = container.querySelector("input[aria-label='Object text']") as HTMLInputElement | null;
+    const input = container.querySelector("input[aria-label='Object spec']") as HTMLInputElement | null;
     expect(input).not.toBeNull();
 
     await act(async () => {
@@ -152,7 +192,7 @@ describe("generic object text", () => {
       input!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     });
 
-    expect(onObjectTextCommit).toHaveBeenCalledWith("node_1", "upload");
+    expect(onObjectSpecCommit).toHaveBeenCalledWith("node_1", "upload");
 
     await act(async () => {
       root?.unmount();
@@ -161,10 +201,56 @@ describe("generic object text", () => {
     container.remove();
   });
 
-  it("cancels generic object text edits on Escape", async () => {
+  it("opens an empty unresolved Object in object spec edit mode", async () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const onObjectTextCommit = vi.fn();
+    const onObjectSpecCommit = vi.fn();
+    const onObjectSpecEditComplete = vi.fn();
+    let root: Root | null = createRoot(container);
+
+    await act(async () => {
+      root?.render(
+        createElement(ObjectNodeRenderer, {
+          card: genericCard(),
+          editingObjectSpec: true,
+          layoutEditable: true,
+          node: genericNode("object", {}, {
+            objectResolution: {
+              status: "unresolved",
+              candidates: [],
+              issues: []
+            }
+          }),
+          onObjectSpecCommit,
+          onObjectSpecEditComplete
+        })
+      );
+    });
+
+    const input = container.querySelector("input[aria-label='Object spec']") as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    expect(input?.value).toBe("");
+
+    await act(async () => {
+      input!.value = "+ 1";
+      input!.dispatchEvent(new Event("input", { bubbles: true }));
+      input!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+
+    expect(onObjectSpecCommit).toHaveBeenCalledWith("node_1", "+ 1");
+    expect(onObjectSpecEditComplete).toHaveBeenCalledWith("node_1");
+
+    await act(async () => {
+      root?.unmount();
+      root = null;
+    });
+    container.remove();
+  });
+
+  it("cancels generic object spec edits on Escape", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const onObjectSpecCommit = vi.fn();
     let root: Root | null = createRoot(container);
 
     await act(async () => {
@@ -173,7 +259,7 @@ describe("generic object text", () => {
           card: genericCard(),
           layoutEditable: true,
           node: genericNode("core.video-decode", { label: "Decode" }),
-          onObjectTextCommit
+          onObjectSpecCommit
         })
       );
     });
@@ -184,7 +270,7 @@ describe("generic object text", () => {
     await act(async () => {
       genericObject?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     });
-    const input = container.querySelector("input[aria-label='Object text']") as HTMLInputElement;
+    const input = container.querySelector("input[aria-label='Object spec']") as HTMLInputElement;
 
     await act(async () => {
       input.value = "upload";
@@ -192,8 +278,8 @@ describe("generic object text", () => {
       input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
 
-    expect(onObjectTextCommit).not.toHaveBeenCalled();
-    expect(container.querySelector("input[aria-label='Object text']")).toBeNull();
+    expect(onObjectSpecCommit).not.toHaveBeenCalled();
+    expect(container.querySelector("input[aria-label='Object spec']")).toBeNull();
 
     await act(async () => {
       root?.unmount();
@@ -212,11 +298,25 @@ describe("generic object text", () => {
         createElement(ObjectNodeRenderer, {
           card: genericCard(),
           layoutEditable: true,
-          node: genericNode(UNRESOLVED_OBJECT_NODE_KIND, {
-            objectText: "user.manipulator",
-            diagnosticMessage: "user.manipulator is unavailable"
-          }),
-          onObjectTextCommit: () => undefined
+          node: genericNode(
+            "object",
+            { issueMessage: "user.manipulator is unavailable" },
+            {
+              objectSpec: "user.manipulator",
+              objectResolution: {
+                status: "unresolved",
+                selectedSpec: "user.manipulator",
+                issues: [
+                  {
+                    code: "resolution-unresolved",
+                    message: "user.manipulator is unavailable",
+                    severity: "error"
+                  }
+                ]
+              }
+            }
+          ),
+          onObjectSpecCommit: () => undefined
         })
       );
     });
@@ -291,12 +391,17 @@ function genericCard(): NodeCardView {
   };
 }
 
-function genericNode(kind: string, params: Record<string, unknown>): GraphNodeV01 {
+function genericNode(
+  kind: string,
+  params: Record<string, unknown>,
+  extra: Record<string, unknown> = {}
+): GraphNodeV01 {
   return {
     id: "node_1",
     kind,
     kindVersion: "0.1.0",
     params,
-    ports: []
+    ports: [],
+    ...extra
   };
 }

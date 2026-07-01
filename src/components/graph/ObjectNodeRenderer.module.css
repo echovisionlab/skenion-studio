@@ -340,9 +340,14 @@
 }
 
 .unresolvedObject {
-  border-color: #f08c00;
-  background: #fff3bf;
-  color: #5f3dc4;
+  border-color: var(--sk-warning);
+  background: var(--sk-surface);
+  color: var(--sk-text);
+  box-shadow: inset 0 0 0 1px var(--sk-warning-ring);
+}
+
+.unresolvedObject .genericText {
+  color: var(--sk-text-muted);
 }
 
 .genericObject .content {
@@ -358,7 +363,7 @@
   white-space: nowrap;
 }
 
-.objectTextInput {
+.objectSpecInput {
   width: 100%;
   min-width: 72px;
   max-width: 240px;
@@ -369,6 +374,11 @@
   color: inherit;
   font: inherit;
   font-weight: 700;
+}
+
+.objectSpecInput::placeholder {
+  color: var(--sk-text-muted);
+  opacity: 1;
 }
 
 .routingBadges {

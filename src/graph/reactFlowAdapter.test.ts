@@ -46,7 +46,17 @@ describe("React Flow adapter", () => {
       animated: false,
       style: {
         stroke: "#495057",
-        strokeWidth: 2
+        strokeWidth: 2,
+        "--skenion-selected-edge-stroke-width": "2.25px"
+      },
+      labelStyle: {
+        fill: "var(--sk-text)",
+        fontWeight: 600
+      },
+      labelBgStyle: {
+        fill: "var(--sk-edge-label-bg)",
+        stroke: "var(--sk-edge-label-border)",
+        strokeWidth: 1
       }
     });
     expect(viewModel.edges[1].animated).toBe(true);
@@ -197,8 +207,7 @@ describe("React Flow adapter", () => {
       canvas: {
         nodes: {
           value_1: { x: 10, y: 20 }
-        },
-        viewport: { x: 0, y: 0, zoom: 1 }
+        }
       }
     });
 
@@ -224,6 +233,7 @@ describe("React Flow adapter", () => {
     expect(flowColor("resource")).toBe("#7950f2");
     expect(flowColor("value")).toBe("#495057");
     expect(flowColor("resource", "gpu.texture2d")).toBe("#7048e8");
+    expect(flowName("control")).toBe("value");
     expect(flowName("resource")).toBe("resource");
     expect(flowName("resource", "gpu.texture2d")).toBe("gpu resource");
   });

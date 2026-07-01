@@ -45,11 +45,45 @@ export interface ConnectionCheck {
 }
 
 export function typeLabel(type: DataTypeV01): string {
-  return `${type.flow}<${type.dataKind}>`;
+  return `${displayFlow(type)}<${displayDataKind(type.dataKind)}>`;
 }
 
 export function typeKey(type: DataTypeV01): string {
-  return `${type.flow}:${type.dataKind}:${JSON.stringify(type.format ?? null)}`;
+  return `${displayFlow(type)}:${displayDataKind(type.dataKind)}:${JSON.stringify(type.format ?? null)}`;
+}
+
+function displayFlow(type: DataTypeV01): string {
+  return type.flow === "control" ? "value" : type.flow;
+}
+
+function displayDataKind(dataKind: string): string {
+  switch (dataKind) {
+    case "value.core.float8":
+    case "value.core.float16":
+    case "value.core.float32":
+    case "value.core.float64":
+      return "number.float";
+    case "value.core.int8":
+    case "value.core.int16":
+    case "value.core.int32":
+    case "value.core.int64":
+      return "number.int";
+    case "value.core.uint8":
+    case "value.core.uint16":
+    case "value.core.uint32":
+    case "value.core.uint64":
+      return "number.int";
+    case "value.core.bool":
+      return "boolean";
+    case "value.core.color":
+      return "color";
+    case "value.core.message":
+      return "message.any";
+    case "value.core.string":
+      return "string";
+    default:
+      return dataKind;
+  }
 }
 
 export function portKey(nodeId: string, portId: string): string {
@@ -261,11 +295,11 @@ export function checkConnection(graph: DisplayGraphDocumentV01, patch: GraphPatc
     };
   }
 
-  const semanticDiagnostic = connectionSemanticCheck(graph, patch);
-  if (semanticDiagnostic) {
+  const semanticIssue = connectionSemanticCheck(graph, patch);
+  if (semanticIssue) {
     return {
       ok: false,
-      message: `${semanticDiagnostic.code}: ${semanticDiagnostic.message}`
+      message: `${semanticIssue.code}: ${semanticIssue.message}`
     };
   }
 
@@ -322,8 +356,22 @@ function isDisplayGraphDocument(graph: Partial<DisplayGraphDocumentV01>): graph 
     graph.schemaVersion === CURRENT_CONTRACT_SCHEMA_VERSION &&
     Array.isArray(graph.nodes) &&
     Array.isArray(graph.edges) &&
+    graph.edges.every(isDisplayEdge) &&
     typeof graph.id === "string" &&
     typeof graph.revision === "string"
+  );
+}
+
+function isDisplayEdge(edge: unknown): edge is DisplayEdgeV01 {
+  if (!edge || typeof edge !== "object") {
+    return false;
+  }
+  const candidate = edge as Partial<DisplayEdgeV01>;
+  return (
+    typeof candidate.from?.node === "string" &&
+    typeof candidate.from.port === "string" &&
+    typeof candidate.to?.node === "string" &&
+    typeof candidate.to.port === "string"
   );
 }
 

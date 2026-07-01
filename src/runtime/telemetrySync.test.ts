@@ -41,7 +41,7 @@ describe("runtime telemetry sync", () => {
     expect(hasTelemetryRenderError(telemetry({ render: { lastError: "surface lost" } }))).toBe(true);
     expect(hasTelemetryRenderError(telemetry({
       render: {
-        diagnostics: [
+        issues: [
           {
             severity: "error",
             phase: "wgsl-compile",
@@ -96,7 +96,7 @@ function telemetry(
       lastFrameMs: 16.7,
       lastError: null,
       sourceNodeId: "clear_1",
-      diagnostics: [],
+      issues: [],
       generatedSourceAvailable: false,
       controlRevision: 1,
       previewControlRevision: 1,
@@ -108,6 +108,6 @@ function telemetry(
       runtimeVersion: "0.11.0",
       uptimeMs: 1200
     },
-    diagnostics: []
+    issues: []
   };
 }

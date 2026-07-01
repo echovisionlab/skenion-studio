@@ -16,7 +16,7 @@ The first scaffold includes:
 - a node registry palette backed by v0.1 node definitions
 - explicit React Flow view-model conversion
 - connection validation through `@skenion/contracts`
-- inspector diagnostics for graph and port compatibility
+- inspector issues for graph and port compatibility
 
 React Flow is only the visual interaction layer. `skenion graph v0.1` remains the saved document format.
 
@@ -95,7 +95,7 @@ The command records Runtime binary path, version, and git branch/commit/dirty
 evidence when the binary is from a checkout. It does not change default builds,
 CI, or release packaging.
 
-Desktop sidecar diagnostics and profile behavior are documented in
+Desktop sidecar issues and profile behavior are documented in
 [`docs/desktop-runtime-profiles.md`](docs/desktop-runtime-profiles.md).
 
 ## License And Credit

@@ -25,16 +25,25 @@ import {
   typeLabel,
   validateGraph
 } from "./skenionGraph";
-import { UNRESOLVED_OBJECT_NODE_KIND } from "./objectTextNode";
-import { displayGraphToContractGraph } from "./patchLibrary";
+import { displayGraphToContractGraph, type DisplayGraphDocumentV01 } from "./patchLibrary";
 
 describe("skenion graph helpers", () => {
   it("formats type and port keys", () => {
-    const type = { flow: "value", dataKind: "number.float", format: "float32" } as const;
+    const type = { flow: "control", dataKind: "number.float", format: "float32" } as const;
 
     expect(typeLabel(type)).toBe("value<number.float>");
     expect(typeKey(type)).toBe('value:number.float:"float32"');
     expect(typeKey({ flow: "event", dataKind: "event.bang" })).toBe("event:event.bang:null");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.float32" })).toBe("value<number.float>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.float8" })).toBe("value<number.float>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.int32" })).toBe("value<number.int>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.int8" })).toBe("value<number.int>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.uint32" })).toBe("value<number.int>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.uint8" })).toBe("value<number.int>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.bool" })).toBe("value<boolean>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.color" })).toBe("value<color>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.message" })).toBe("value<message.any>");
+    expect(typeLabel({ flow: "control", dataKind: "value.core.string" })).toBe("value<string>");
     expect(portKey("node", "out")).toBe("node:out");
   });
 
@@ -117,7 +126,7 @@ describe("skenion graph helpers", () => {
             {
               id: "out",
               direction: "output",
-              type: { flow: "value", dataKind: "number.float" },
+              type: { flow: "control", dataKind: "number.float" },
               description: "Preserved current port help text."
             }
           ]
@@ -140,7 +149,7 @@ describe("skenion graph helpers", () => {
             {
               id: "in",
               direction: "input",
-              type: { flow: "value", dataKind: "number.float" },
+              type: { flow: "control", dataKind: "number.float" },
               required: true,
               description: "Requires an upstream value."
             }
@@ -151,6 +160,7 @@ describe("skenion graph helpers", () => {
     });
 
     expect(validateGraph(activeDisplayGraph)).toEqual({ ok: true, value: activeDisplayGraph });
+    expect(validateGraph({ ...activeDisplayGraph, edges: [null] }).ok).toBe(false);
     expect(result.ok).toBe(false);
     expect(result.ok ? [] : result.errors).toEqual([
       "missing-required-input: input collector_1:in requires at least 1 connection(s)"
@@ -255,17 +265,13 @@ describe("skenion graph helpers", () => {
       nodeId: "decode_1",
       node: {
         ...decode,
-        params: {
-          objectText: "decode"
-        }
+        objectSpec: "decode"
       },
       edgePolicy: "removeInvalidEdges"
     });
     expect(replacedDecode.nodes.find((node) => node.id === "decode_1")).toMatchObject({
       kind: "core.video-decode",
-      params: {
-        objectText: "decode"
-      }
+      objectSpec: "decode"
     });
     expect(replacedDecode.edges).toHaveLength(sampleGraph.edges.length);
 
@@ -274,18 +280,29 @@ describe("skenion graph helpers", () => {
       nodeId: "decode_1",
       node: {
         id: "decode_1",
-        kind: UNRESOLVED_OBJECT_NODE_KIND,
+        kind: "object",
         kindVersion: "0.1.0",
+        objectSpec: "nope",
+        objectResolution: {
+          status: "unresolved",
+          selectedSpec: "nope",
+          issues: [
+            {
+              severity: "error",
+              code: "resolution-unresolved",
+              message: "nope is unavailable"
+            }
+          ]
+        },
         params: {
-          objectText: "nope",
-          diagnosticMessage: "nope is unavailable",
-          requestedKind: "nope"
+          issueMessage: "nope is unavailable",
+          requestedObject: "nope"
         },
         ports: []
       },
       edgePolicy: "removeInvalidEdges"
     });
-    expect(unresolvedDecode.nodes.find((node) => node.id === "decode_1")?.kind).toBe(UNRESOLVED_OBJECT_NODE_KIND);
+    expect(unresolvedDecode.nodes.find((node) => node.id === "decode_1")?.kind).toBe("object");
     expect(unresolvedDecode.edges.some((edge) => edge.from.node === "decode_1" || edge.to.node === "decode_1")).toBe(
       false
     );
@@ -350,6 +367,69 @@ describe("skenion graph helpers", () => {
     ).toEqual({
       ok: true,
       message: "value<number.float> connected to event<message.any>."
+    });
+    const floatToAddGraph = {
+      schema: "skenion.graph",
+      schemaVersion: "0.1.0",
+      id: "float-to-add",
+      revision: "1",
+      nodes: [
+        {
+          id: "float",
+          kind: "object.core.float",
+          kindVersion: "0.1.0",
+          objectSpec: "float",
+          params: {},
+          ports: [
+            {
+              id: "value",
+              direction: "output",
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
+              label: "Value"
+            }
+          ]
+        },
+        {
+          id: "add",
+          kind: "object.core.operator.add",
+          kindVersion: "0.1.0",
+          objectSpec: "+ 1",
+          params: {},
+          ports: [
+            {
+              id: "in",
+              direction: "input",
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
+              label: "In"
+            },
+            {
+              id: "right",
+              direction: "input",
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
+              label: "Right"
+            },
+            {
+              id: "out",
+              direction: "output",
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
+              label: "Out"
+            }
+          ]
+        }
+      ],
+      edges: []
+    } satisfies DisplayGraphDocumentV01;
+    expect(
+      checkConnection(floatToAddGraph, {
+        type: "addEdge",
+        edge: {
+          from: { node: "float", port: "value" },
+          to: { node: "add", port: "in" }
+        }
+      })
+    ).toEqual({
+      ok: true,
+      message: "value<number.float> connected to value<number.float>."
     });
     const secondBang = createGraphNodeFromDefinition(
       nodeRegistry.find((candidate) => candidate.id === "core.bang")!,

@@ -1,9 +1,9 @@
 import type {
   RuntimeConnectionProfile,
   RuntimeEndpointMetadata
-} from "@skenion/contracts";
+} from "../runtime/types";
 
-export interface RuntimeSidecarDiagnostic {
+export interface RuntimeSidecarIssue {
   severity: "error" | "warning" | "info" | string;
   message: string;
   code?: string;
@@ -38,7 +38,7 @@ export interface RuntimeSidecarStartupResponse {
     url: string;
     scope: string;
   };
-  diagnostics: RuntimeSidecarDiagnostic[];
+  issues: RuntimeSidecarIssue[];
 }
 
 export interface RuntimeSidecarStopResponse {
@@ -46,5 +46,5 @@ export interface RuntimeSidecarStopResponse {
   stopped: boolean;
   profileId?: string;
   runtimeUrl?: string;
-  diagnostics: RuntimeSidecarDiagnostic[];
+  issues: RuntimeSidecarIssue[];
 }

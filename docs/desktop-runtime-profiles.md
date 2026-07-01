@@ -11,7 +11,7 @@ skenion studio desktop uses Tauri as the shell. Runtime graph/session authority 
 - `local-shared`: Studio connects to an already-running local Runtime endpoint and never stops it.
 - `remote`: Studio connects to the configured Runtime URL and starts no local process.
 
-## Diagnostics
+## Issues
 
 For local-managed desktop runs, make the Runtime binary discoverable in one of these ways:
 

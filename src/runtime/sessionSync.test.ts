@@ -20,14 +20,14 @@ const viewState: ViewStateV01 = {
   schema: "skenion.view-state",
   schemaVersion: "0.1.0",
   canvas: {
-    nodes: {},
-    viewport: { x: 0, y: 0, zoom: 1 }
+    nodes: {}
   }
 };
 const project: ProjectDocumentV01 = {
   schema: "skenion.project",
   schemaVersion: "0.1.0",
   id: "graph",
+  documentId: "55555555-5555-4555-8555-555555555555",
   revision: "1",
   graph,
   viewState,
@@ -41,10 +41,11 @@ const loadedSession = {
     viewRevision: 1,
     controlRevision: 0,
     project,
-    diagnostics: [],
+    bindingFormats: [],
+    issues: [],
     plan: null
   },
-  diagnostics: [],
+  issues: [],
   report: null
 } satisfies RuntimeSessionResponse;
 

@@ -12,17 +12,17 @@ import {
 import type { RuntimeSidecarStartupResponse } from "./sidecarTypes";
 
 describe("runtimeProfiles", () => {
-  it("defaults to local-managed with explicit local-shared and remote profiles", () => {
+  it("defaults to local with explicit remote profile", () => {
     const state = createRuntimeProfileState({ defaultRuntimeUrl: " http://localhost:3761/ " });
 
-    expect(state.activeProfileId).toBe("local-managed");
-    expect(state.profiles["local-managed"].ownership).toBe("owned-child");
-    expect(state.profiles["local-shared"].ownership).toBe("external");
+    expect(state.activeProfileId).toBe("local");
+    expect(Object.keys(state.profiles)).toEqual(["local", "remote"]);
+    expect(state.profiles.local.ownership).toBe("owned-child");
     expect(state.profiles.remote.ownership).toBe("remote");
-    expect(state.profiles["local-managed"].url).toBe("http://localhost:3761");
+    expect(state.profiles.local.url).toBe("http://localhost:3761");
   });
 
-  it("plans local-managed startup before connecting", () => {
+  it("plans local sidecar startup before connecting", () => {
     const state = createRuntimeProfileState();
     const transition = planRuntimeConnect(state, {
       isolated: true,
@@ -34,14 +34,14 @@ describe("runtimeProfiles", () => {
       {
         isolated: true,
         ownerWindowId: "window-1",
-        profileId: "local-managed",
+        profileId: "local",
         type: "startManagedSidecar"
       }
     ]);
     expect(transition.state.managedSidecar.status).toBe("starting");
   });
 
-  it("uses a started managed sidecar endpoint for local-managed reconnects", () => {
+  it("uses a started sidecar endpoint for local reconnects", () => {
     const start = planRuntimeConnect(createRuntimeProfileState(), {
       ownerWindowId: "window-1"
     });
@@ -55,12 +55,12 @@ describe("runtimeProfiles", () => {
     });
 
     expect(started.managedSidecar.status).toBe("running");
-    expect(started.profiles["local-managed"].url).toBe("http://127.0.0.1:49321");
+    expect(started.profiles.local.url).toBe("http://127.0.0.1:49321");
     expect(reconnect.connectUrl).toBe("http://127.0.0.1:49321");
     expect(reconnect.effects).toEqual([]);
   });
 
-  it("stops only owned local-managed sidecars when switching profiles", () => {
+  it("stops only owned local sidecars when switching profiles", () => {
     const start = planRuntimeConnect(createRuntimeProfileState(), {
       ownerWindowId: "window-1"
     });
@@ -76,7 +76,7 @@ describe("runtimeProfiles", () => {
     expect(switched.state.managedSidecar.status).toBe("stopping");
     expect(switched.effects).toEqual([
       {
-        profileId: "local-managed",
+        profileId: "local",
         reason: "profile-switch",
         type: "stopManagedSidecar"
       }
@@ -84,7 +84,7 @@ describe("runtimeProfiles", () => {
     expect(applyRuntimeSidecarStopped(switched.state).managedSidecar.status).toBe("stopped");
   });
 
-  it("connects remote and local-shared profiles without sidecar lifecycle effects", () => {
+  it("connects remote profiles without sidecar lifecycle effects", () => {
     const state = updateRuntimeProfileUrl(
       createRuntimeProfileState({ activeProfileId: "remote" }),
       "remote",
@@ -93,12 +93,6 @@ describe("runtimeProfiles", () => {
 
     expect(planRuntimeConnect(state, { ownerWindowId: "window-1" })).toMatchObject({
       connectUrl: "https://runtime.example.test",
-      effects: []
-    });
-
-    const localShared = switchRuntimeProfile(state, "local-shared").state;
-    expect(planRuntimeConnect(localShared, { ownerWindowId: "window-1" })).toMatchObject({
-      connectUrl: "http://localhost:3761",
       effects: []
     });
   });
@@ -122,13 +116,23 @@ describe("runtimeProfiles", () => {
     });
     expect(endpointMetadataForRuntimeUrl("http://127.0.0.1:49152/").port).toBe(49152);
   });
+
+  it("builds local sidecar contract profile from the public local profile", () => {
+    const profile = runtimeConnectionProfileForStudioProfile(createRuntimeProfileState().profiles.local);
+
+    expect(profile).toMatchObject({
+      displayName: "skenion runtime local sidecar",
+      mode: "local-managed",
+      ownership: "owned-child"
+    });
+  });
 });
 
 function startup(url: string): RuntimeSidecarStartupResponse {
   return {
     defaultSessionId: "default",
     defaultSessionUrl: `${url}/v0/sessions/default`,
-    diagnostics: [],
+    issues: [],
     endpoint: {
       canonicalUrl: url,
       host: "127.0.0.1",

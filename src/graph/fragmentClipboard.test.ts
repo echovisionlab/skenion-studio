@@ -80,6 +80,7 @@ describe("fragmentClipboard", () => {
       }
     );
 
+    expect(result.fragment, result.issues.map((issue) => issue.message).join("; ")).not.toBeNull();
     expect(result.fragment?.metadata).not.toHaveProperty("source");
     expect(result.fragment?.nodes.flatMap((node) => node.ports.map((port) => [port.id, port.rate]))).toEqual([
       ["event_out", "event"],
@@ -108,10 +109,10 @@ describe("fragmentClipboard", () => {
       id: "metadata-fragment",
       revision: "1",
       nodes: [
-        {
+        coreNode({
           id: "source",
-          kind: "core.metadata-source",
-          kindVersion: "0.1.0",
+          objectId: "metadata-source",
+          objectSpec: "metadata-source",
           params: { label: "Source" },
           portGroups: [
             {
@@ -127,7 +128,7 @@ describe("fragmentClipboard", () => {
               id: "out",
               direction: "output",
               label: "Out",
-              type: { flow: "value", dataKind: "number.float", format: "f32" },
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
               accepts: ["number.int"],
               description: "Preserved output description.",
               fanOutPolicy: "allow",
@@ -140,18 +141,18 @@ describe("fragmentClipboard", () => {
               triggerMode: "passive"
             }
           ]
-        } as unknown as GraphDocumentV01["nodes"][number],
-        {
+        }),
+        coreNode({
           id: "sink",
-          kind: "core.metadata-sink",
-          kindVersion: "0.1.0",
+          objectId: "metadata-sink",
+          objectSpec: "metadata-sink",
           params: { label: "Sink" },
           ports: [
             {
               id: "in",
               direction: "input",
               label: "In",
-              type: { flow: "value", dataKind: "number.float", format: "f32" },
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
               defaultValue: 0.25,
               description: "Preserved input description.",
               latch: true,
@@ -163,7 +164,7 @@ describe("fragmentClipboard", () => {
               triggerMode: "latched"
             }
           ]
-        } as unknown as GraphDocumentV01["nodes"][number]
+        })
       ],
       edges: [
         {
@@ -188,10 +189,10 @@ describe("fragmentClipboard", () => {
     );
 
     expect(result.fragment?.nodes[0]?.portGroups).toEqual([
-      { id: "control", direction: "output", type: "number.float", minPorts: 1, label: "Control" }
+      { id: "control", direction: "output", type: "value.core.float32", minPorts: 1, label: "Control" }
     ]);
     expect(result.fragment?.nodes[0]?.ports[0]).toMatchObject({
-      accepts: ["number.int"],
+      accepts: ["value.core.int32"],
       description: "Preserved output description.",
       fanOutPolicy: "allow",
       group: "control",
@@ -219,7 +220,7 @@ describe("fragmentClipboard", () => {
       feedback: { enabled: true, boundary: "manual" },
       label: "metadata",
       order: 2,
-      resolvedType: "number.float",
+      resolvedType: "value.core.float32",
       styleOverride: "float-cable"
     });
   });
@@ -232,10 +233,10 @@ describe("fragmentClipboard", () => {
     );
 
     expect(result.fragment).toBeNull();
-    expect(result.diagnostics[0]?.code).toBe("empty-selection");
+    expect(result.issues[0]?.code).toBe("empty-selection");
   });
 
-  it("returns diagnostics when selected fragment validation fails", () => {
+  it("returns issues when selected fragment validation fails", () => {
     const invalidGraph: GraphDocumentV01 = {
       ...testGraph,
       edges: [
@@ -253,7 +254,7 @@ describe("fragmentClipboard", () => {
     );
 
     expect(result.fragment).toBeNull();
-    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing-target-port")).toBe(true);
+    expect(result.issues.some((issue) => issue.code === "missing-target-port")).toBe(true);
   });
 
   it("keeps help source immutable while a volatile working copy can move and edit", () => {
@@ -309,13 +310,15 @@ describe("fragmentClipboard", () => {
     expect(graphClipboardShortcutAction(event({ key: "c", metaKey: true, target: select }))).toBeNull();
     expect(graphClipboardShortcutAction(event({ key: "c", metaKey: true, target: textarea }))).toBeNull();
     expect(graphClipboardShortcutAction(event({ key: "c", metaKey: true, target: editable }))).toBeNull();
+    expect(graphClipboardShortcutAction(event({ key: "c", metaKey: true }), { selectedText: "Runtime returned an unsupported response shape." })).toBeNull();
+    expect(graphClipboardShortcutAction(event({ key: "v", metaKey: true }), { selectedText: "selected text" })).toBeNull();
     expect(graphClipboardShortcutAction(event({ key: "c", metaKey: true, shiftKey: true }))).toBeNull();
   });
 
-  it("reports the runtime session.operation missing path before paste", () => {
+  it("reports the realtime paste capability missing path before paste", () => {
     expect(
       graphFragmentPasteAvailability({
-        capabilities: ["session.operation"],
+        capabilities: ["session.graph.pasteFragment.realtime.v0.1"],
         connected: false,
         sessionLoaded: true,
         sessionSynced: true
@@ -323,7 +326,7 @@ describe("fragmentClipboard", () => {
     ).toEqual({ ok: false, reason: "Connect Runtime before pasting graph fragments." });
     expect(
       graphFragmentPasteAvailability({
-        capabilities: ["session.operation"],
+        capabilities: ["session.graph.pasteFragment.realtime.v0.1"],
         connected: true,
         sessionLoaded: false,
         sessionSynced: true
@@ -338,12 +341,12 @@ describe("fragmentClipboard", () => {
       })
     ).toEqual({
       ok: false,
-      reason: "Runtime does not support session.operation graph fragment paste."
+      reason: "Runtime does not support realtime graph fragment paste."
     });
 
     expect(
       graphFragmentPasteAvailability({
-        capabilities: ["session.operation"],
+        capabilities: ["session.graph.pasteFragment.realtime.v0.1"],
         connected: true,
         sessionLoaded: true,
         sessionSynced: true
@@ -386,25 +389,25 @@ const portFlowGraph: GraphDocumentV01 = {
     flowNode("signal", "signal_out", { flow: "signal", dataKind: "signal.audio" }),
     flowNode("resource", "resource_out", { flow: "resource", dataKind: "resource.asset.video" }),
     flowNode("stream", "stream_out", { flow: "stream", dataKind: "video.frame" }),
-    {
+    coreNode({
       id: "latched",
-      kind: "core.float",
-      kindVersion: "0.1.0",
+      objectId: "float",
+      objectSpec: "float",
       params: { label: "Latched" },
       ports: [
         {
           id: "latched_in",
           direction: "input",
           label: "Latched",
-          type: { flow: "value", dataKind: "number.float", format: "f32" },
+          type: { flow: "control", dataKind: "number.float", format: "f32" },
           activation: "latched"
         }
       ]
-    },
-    {
+    }),
+    coreNode({
       id: "resource_sink",
-      kind: "core.video-asset",
-      kindVersion: "0.1.0",
+      objectId: "video-asset",
+      objectSpec: "video-asset",
       params: { label: "Resource Sink" },
       ports: [
         {
@@ -414,7 +417,7 @@ const portFlowGraph: GraphDocumentV01 = {
           type: { flow: "resource", dataKind: "resource.asset.video" }
         }
       ]
-    }
+    })
   ],
   edges: [
     {
@@ -430,10 +433,10 @@ const portFlowGraph: GraphDocumentV01 = {
 };
 
 function node(id: string, label: string, ports: "input" | "output" | "both"): GraphDocumentV01["nodes"][number] {
-  return {
+  return coreNode({
     id,
-    kind: "core.float",
-    kindVersion: "0.1.0",
+    objectId: "float",
+    objectSpec: "float",
     params: { label },
     ports: [
       ...(ports === "input" || ports === "both"
@@ -442,7 +445,7 @@ function node(id: string, label: string, ports: "input" | "output" | "both"): Gr
               id: "in",
               direction: "input" as const,
               label: "In",
-              type: { flow: "value" as const, dataKind: "number.float", format: "f32" }
+              type: { flow: "control" as const, dataKind: "number.float", format: "f32" }
             }
           ]
         : []),
@@ -452,12 +455,48 @@ function node(id: string, label: string, ports: "input" | "output" | "both"): Gr
               id: "out",
               direction: "output" as const,
               label: "Out",
-              type: { flow: "value" as const, dataKind: "number.float", format: "f32" }
+              type: { flow: "control" as const, dataKind: "number.float", format: "f32" }
             }
           ]
         : [])
     ]
-  };
+  });
+}
+
+function coreNode(node: {
+  id: string;
+  objectId: string;
+  objectSpec: string;
+  params: Record<string, unknown>;
+  ports: unknown[];
+  portGroups?: unknown[];
+}): GraphDocumentV01["nodes"][number] {
+  return {
+    id: node.id,
+    implementation: {
+      provider: { kind: "core" },
+      objectId: node.objectId,
+      version: "0.1.0"
+    },
+    objectSpec: node.objectSpec,
+    objectResolution: {
+      status: "resolved",
+      selectedSpec: node.objectSpec,
+      candidates: [
+        {
+          implementation: {
+            provider: { kind: "core" },
+            objectId: node.objectId,
+            version: "0.1.0"
+          },
+          objectSpec: node.objectSpec
+        }
+      ]
+    },
+    params: node.params,
+    ports: node.ports,
+    ...(node.portGroups ? { portGroups: node.portGroups } : {})
+  } as unknown as GraphDocumentV01["nodes"][number];
 }
 
 function flowNode(
@@ -466,10 +505,10 @@ function flowNode(
   type: GraphDocumentV01["nodes"][number]["ports"][number]["type"],
   activation?: "trigger"
 ): GraphDocumentV01["nodes"][number] {
-  return {
+  return coreNode({
     id,
-    kind: "core.float",
-    kindVersion: "0.1.0",
+    objectId: "float",
+    objectSpec: "float",
     params: { label: id },
     ports: [
       {
@@ -480,7 +519,7 @@ function flowNode(
         activation
       }
     ]
-  };
+  });
 }
 
 function event(overrides: Partial<Parameters<typeof graphClipboardShortcutAction>[0]> = {}) {

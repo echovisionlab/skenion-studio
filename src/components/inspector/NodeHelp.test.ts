@@ -1,14 +1,14 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MantineProvider } from "@mantine/core";
-import { getBuiltinNodeHelp } from "@skenion/contracts";
 import { describe, expect, it } from "vitest";
+import { getStudioBuiltinNodeHelp } from "../../data/studioBuiltins";
 import { theme } from "../../theme";
 import { NodeHelp } from "./NodeHelp";
 
 describe("NodeHelp", () => {
   it("renders builtin help summary, port docs, and param docs", () => {
-    const help = getBuiltinNodeHelp("core.float");
+    const help = getStudioBuiltinNodeHelp("core.float");
     if (!help) {
       throw new Error("core.float help is missing");
     }

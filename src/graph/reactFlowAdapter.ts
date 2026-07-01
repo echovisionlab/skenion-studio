@@ -17,19 +17,23 @@ import { toNodeCardView } from "./nodeCardView";
 import type { NodeCardView } from "../components/node/nodeTypes";
 import type { RuntimeControlMessage, RuntimeControlValue } from "../runtime/types";
 
+export type StudioDisplayFlow = DataFlow | "value";
+
 export interface SkenionNodeData extends Record<string, unknown> {
   card: NodeCardView;
   node: DisplayGraphNodeV01;
   label: string;
   kind: string;
   kindVersion: string;
+  editingObjectSpec?: boolean;
   layoutEditable?: boolean;
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void> | void;
   onObjectControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectLiveControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectParamChange?: (nodeId: string, key: string, value: unknown) => void;
-  onObjectTextCommit?: (nodeId: string, text: string) => void;
-  primaryFlow: DataFlow;
+  onObjectSpecEditComplete?: (nodeId: string) => void;
+  onObjectSpecCommit?: (nodeId: string, text: string) => void;
+  primaryFlow: StudioDisplayFlow;
   runtimeControlEnabled?: boolean;
   runtimeControlPulseKey?: number;
   runtimeControlValue?: RuntimeControlValue;
@@ -67,7 +71,7 @@ export function defaultPosition(index: number): { x: number; y: number } {
   };
 }
 
-export function flowColor(flow: DataFlow, dataKind?: string): string {
+export function flowColor(flow: StudioDisplayFlow, dataKind?: string): string {
   if (dataKind === "gpu.texture2d") {
     return "#7048e8";
   }
@@ -82,16 +86,17 @@ export function flowColor(flow: DataFlow, dataKind?: string): string {
     case "resource":
       return "#7950f2";
     case "value":
+    case "control":
       return "#495057";
   }
 }
 
-export function flowName(flow: DataFlow, dataKind?: string): string {
+export function flowName(flow: StudioDisplayFlow, dataKind?: string): string {
   if (dataKind === "gpu.texture2d") {
     return "gpu resource";
   }
 
-  return flow;
+  return flow === "control" ? "value" : flow;
 }
 
 function toReactFlowNode(
@@ -113,9 +118,13 @@ function toReactFlowNode(
       label: String(node.params.label ?? node.id),
       kind: node.kind,
       kindVersion: node.kindVersion,
-      primaryFlow: primaryPort?.type.flow ?? "value"
+      primaryFlow: displayFlow(primaryPort?.type.flow)
     }
   };
+}
+
+function displayFlow(flow: DataFlow | undefined): StudioDisplayFlow {
+  return !flow || flow === "control" ? "value" : flow;
 }
 
 function toReactFlowEdge(edge: DisplayEdgeV01, graph: DisplayGraphDocumentV01): Edge {
@@ -151,11 +160,16 @@ function toReactFlowEdge(edge: DisplayEdgeV01, graph: DisplayGraphDocumentV01): 
       stroke: color,
       strokeDasharray: feedback ? "7 4" : undefined,
       strokeWidth,
-      "--skenion-selected-edge-stroke-width": `${strokeWidth + 0.75}px`
+      "--skenion-selected-edge-stroke-width": `${strokeWidth + 0.25}px`
     } as CSSProperties,
     labelStyle: {
-      fill: "#343a40",
+      fill: "var(--sk-text)",
       fontWeight: 600
+    },
+    labelBgStyle: {
+      fill: "var(--sk-edge-label-bg)",
+      stroke: "var(--sk-edge-label-border)",
+      strokeWidth: 1
     },
     data: {
       inspector,

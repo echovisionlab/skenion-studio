@@ -3,7 +3,6 @@ import { FileCode, RotateCcw, ScanSearch, Waypoints } from "lucide-react";
 import { useState } from "react";
 import type { ShaderInterfaceAnalysisV01 } from "@skenion/contracts";
 import type { RuntimeGeneratedShaderResponse } from "../../runtime/types";
-import type { ShaderDiagnosticV01 } from "@skenion/contracts";
 import { Button } from "../core/Button/Button";
 
 export interface FullscreenShaderControlsProps {
@@ -13,7 +12,6 @@ export interface FullscreenShaderControlsProps {
   initialGeneratedVisible?: boolean;
   interfaceSynced: boolean;
   language: string;
-  runtimeDiagnostics?: ShaderDiagnosticV01[];
   source: string;
   onAnalyze: () => void;
   onLoadGeneratedShader?: () => void;
@@ -34,14 +32,12 @@ export function FullscreenShaderControls({
   onResetSource,
   onSourceChange,
   onSyncInputs,
-  runtimeDiagnostics = [],
   source
 }: FullscreenShaderControlsProps) {
   const [analysisVisible, setAnalysisVisible] = useState(false);
   const [generatedVisible, setGeneratedVisible] = useState(initialGeneratedVisible);
   const uniforms = analysis.shaderInterface.uniforms;
-  const hasErrors = analysis.diagnostics.some((diagnostic) => diagnostic.severity === "error");
-  const runtimeErrors = runtimeDiagnostics.some((diagnostic) => diagnostic.severity === "error");
+  const hasErrors = analysis.issues.some((issue) => issue.severity === "error");
 
   return (
     <Stack gap="xs">
@@ -63,11 +59,6 @@ export function FullscreenShaderControls({
             <Badge color={interfaceSynced ? "green" : "yellow"} variant="light">
               {interfaceSynced ? "inputs synced" : "sync needed"}
             </Badge>
-            {runtimeDiagnostics.length > 0 ? (
-              <Badge color={runtimeErrors ? "red" : "yellow"} variant="light">
-                runtime diagnostics
-              </Badge>
-            ) : null}
           </Group>
           <Text c="dimmed" mt={4} size="xs">
             Uniforms: {uniforms.length > 0 ? uniforms.map((uniform) => uniform.id).join(", ") : "none"}
@@ -135,18 +126,6 @@ export function FullscreenShaderControls({
             ) : (
               <Text size="xs">No dynamic input uniforms were found. The node will only expose render output.</Text>
             )}
-            <DiagnosticList diagnostics={analysis.diagnostics} />
-          </Stack>
-        </Alert>
-      ) : null}
-
-      {runtimeDiagnostics.length > 0 ? (
-        <Alert color={runtimeErrors ? "red" : "yellow"} variant="light">
-          <Stack gap={6}>
-            <Text fw={700} size="xs">
-              Runtime Shader Diagnostics
-            </Text>
-            <DiagnosticList diagnostics={runtimeDiagnostics} />
           </Stack>
         </Alert>
       ) : null}
@@ -173,7 +152,6 @@ export function FullscreenShaderControls({
                 Generated WGSL is unavailable until the Runtime has a loaded fullscreen shader session.
               </Text>
             )}
-            {generatedShader?.diagnostics.length ? <DiagnosticList diagnostics={generatedShader.diagnostics} /> : null}
           </Stack>
         </Alert>
       ) : null}
@@ -195,32 +173,4 @@ export function FullscreenShaderControls({
       />
     </Stack>
   );
-}
-
-function DiagnosticList({ diagnostics }: { diagnostics: ShaderDiagnosticV01[] }) {
-  if (diagnostics.length === 0) {
-    return (
-      <Text c="dimmed" size="xs">
-        No diagnostics.
-      </Text>
-    );
-  }
-
-  return (
-    <Stack gap={4}>
-      {diagnostics.map((diagnostic, index) => (
-        <Text key={`${diagnostic.phase}:${diagnostic.code}:${diagnostic.line ?? "global"}:${index}`} size="xs">
-          <Code>{diagnostic.phase}</Code> {diagnostic.severity} {diagnostic.code}
-          {formatDiagnosticLocation(diagnostic)}: {diagnostic.message}
-        </Text>
-      ))}
-    </Stack>
-  );
-}
-
-function formatDiagnosticLocation(diagnostic: ShaderDiagnosticV01): string {
-  if (!diagnostic.line) {
-    return "";
-  }
-  return diagnostic.column ? ` line ${diagnostic.line}:${diagnostic.column}` : ` line ${diagnostic.line}`;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RuntimeViewPatchOperation } from "@skenion/contracts";
+import type { RuntimeViewPatchOperation } from "./types";
 import { createRuntimeViewMutationRequest } from "./mutationRequest";
 
 describe("runtime mutation requests", () => {

@@ -1,5 +1,5 @@
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
-import type { CSSProperties } from "react";
+import { memo, type CSSProperties } from "react";
 import { ObjectNodeRenderer } from "./ObjectNodeRenderer";
 import type { NodePortSide, NodePortView } from "../node/nodeTypes";
 import type { SkenionNodeData } from "../../graph/reactFlowAdapter";
@@ -7,16 +7,18 @@ import socketStyles from "../node/PortSocket.module.css";
 
 type ReactFlowNodeAdapterProps = NodeProps<Node<SkenionNodeData>>;
 
-export function ReactFlowNodeAdapter({ data, selected }: ReactFlowNodeAdapterProps) {
+function ReactFlowNodeAdapterComponent({ data, selected }: ReactFlowNodeAdapterProps) {
   const objectNode = ObjectNodeRenderer({
     card: data.card,
     node: data.node,
+    editingObjectSpec: data.editingObjectSpec,
     layoutEditable: data.layoutEditable,
     onImportAsset: data.onImportAsset,
     onObjectControl: data.onObjectControl,
     onObjectLiveControl: data.onObjectLiveControl,
     onObjectParamChange: data.onObjectParamChange,
-    onObjectTextCommit: data.onObjectTextCommit,
+    onObjectSpecEditComplete: data.onObjectSpecEditComplete,
+    onObjectSpecCommit: data.onObjectSpecCommit,
     runtimeControlEnabled: data.runtimeControlEnabled,
     runtimeControlPulseKey: data.runtimeControlPulseKey,
     runtimeControlValue: data.runtimeControlValue,
@@ -26,6 +28,8 @@ export function ReactFlowNodeAdapter({ data, selected }: ReactFlowNodeAdapterPro
   });
   return objectNode;
 }
+
+export const ReactFlowNodeAdapter = memo(ReactFlowNodeAdapterComponent);
 
 function ReactFlowPortHandle({
   port,

@@ -1,5 +1,5 @@
 import { Select, Stack, Text } from "@mantine/core";
-import { INT_REPRESENTATIONS, type IntRepresentation } from "../../graph/intValue";
+import { INT_REPRESENTATIONS, isUnsignedIntRepresentation, normalizeIntValue, type IntRepresentation } from "../../graph/intValue";
 import { DeferredNumberInput } from "./DeferredNumberInput";
 
 export interface IntegerValueControlsProps {
@@ -15,6 +15,8 @@ export function IntegerValueControls({
   representation,
   value
 }: IntegerValueControlsProps) {
+  const unsigned = isUnsignedIntRepresentation(representation);
+
   return (
     <Stack gap="xs">
       <Text c="dimmed" fw={700} size="xs" tt="uppercase">
@@ -35,7 +37,8 @@ export function IntegerValueControls({
       <DeferredNumberInput
         allowDecimal={false}
         label="Value"
-        normalize={Math.trunc}
+        min={unsigned ? 0 : undefined}
+        normalize={(nextValue) => normalizeIntValue(nextValue, representation)}
         onCommit={onChange}
         size="xs"
         step={1}

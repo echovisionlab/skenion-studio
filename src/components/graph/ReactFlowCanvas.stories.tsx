@@ -19,6 +19,7 @@ import {
 import { createViewStateFromPositions, reconcileViewStateWithGraph } from "../../graph/projectDocument";
 import type { DisplayGraphDocumentV01 } from "../../graph/patchLibrary";
 import type { ConnectionCheck, GraphPatch } from "../../graph/skenionGraph";
+import { DEFAULT_CANVAS_VIEWPORT } from "../../graph/viewport";
 
 const meta = {
   title: "Graph/ReactFlowCanvas",
@@ -81,8 +82,7 @@ export const SavedProjectLayoutGraph: Story = {
           toggle_enabled: { x: 48, y: 236 },
           shader_1: { x: 390, y: 146 },
           output_1: { x: 730, y: 206 }
-        },
-        { x: -24, y: -16, zoom: 0.92 }
+        }
       )}
     />
   )
@@ -111,7 +111,7 @@ export const SelectedEdgeState: Story = {
   )
 };
 
-export const InvalidConnectionDiagnostic: Story = {
+export const InvalidConnectionIssue: Story = {
   render: () => (
     <GraphCanvasStory
       initialConnectionCheck={{
@@ -140,8 +140,11 @@ function GraphCanvasStory({
   const [viewState, setViewState] = useState<ViewStateV01>(
     () => initialViewState ?? createViewStateFromPositions(initialGraph, {})
   );
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(initialSelectedEdgeId);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [viewport, setViewport] = useState(DEFAULT_CANVAS_VIEWPORT);
+  const [selection, setSelection] = useState({
+    edgeIds: initialSelectedEdgeId ? [initialSelectedEdgeId] : [],
+    nodeIds: [] as string[]
+  });
   const [connectionCheck, setConnectionCheck] = useState<ConnectionCheck | null>(
     initialConnectionCheck
   );
@@ -151,7 +154,7 @@ function GraphCanvasStory({
     <div style={{ height: "680px", position: "relative", width: "100vw" }}>
       {connectionCheck ? (
         <div
-          className={`storybook-diagnostic-card ${connectionCheck.ok ? "is-ok" : "is-error"}`}
+          className={`storybook-issue-card ${connectionCheck.ok ? "is-ok" : "is-error"}`}
           style={{
             background: "#ffffff",
             border: `1px solid ${connectionCheck.ok ? "#0ca678" : "#fa5252"}`,
@@ -179,10 +182,10 @@ function GraphCanvasStory({
           setPatches(patches);
         }}
         onViewStateChange={setViewState}
-        onSelectedEdgeChange={setSelectedEdgeId}
-        onSelectedNodeChange={setSelectedNodeId}
-        selectedEdgeId={selectedEdgeId}
-        selectedNodeId={selectedNodeId}
+        onViewportChange={setViewport}
+        onSelectionChange={setSelection}
+        selection={selection}
+        viewport={viewport}
         viewState={viewState}
       />
     </div>

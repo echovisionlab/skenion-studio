@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { computeNodeCatalogRevisionV01 } from "@skenion/contracts";
 import {
   createRuntimeClient,
   isRuntimeSessionEvent,
@@ -9,8 +10,8 @@ import {
   runtimeSessionPath,
   runtimeSessionEventsStreamUrl
 } from "./client";
+import { createRuntimeSessionLoadRequest } from "./payload";
 import type {
-  RuntimeOperationEnvelope,
   RuntimeAsset,
   RuntimeAssetGetResponse,
   RuntimeAssetImportResponse,
@@ -25,7 +26,8 @@ import type {
   RuntimeIoDeviceListResponse,
   RuntimeLogSnapshotResponse,
   RuntimeMutationRequest,
-  RuntimePatchResponse,
+  NodeCatalogSnapshotV01,
+  RuntimeOperationEnvelope,
   RuntimePreviewStatus,
   RuntimeProjectPayload,
   RuntimeSessionInfoResponse,
@@ -40,6 +42,7 @@ const project = {
   schema: "skenion.project",
   schemaVersion: "0.1.0",
   id: "test",
+  documentId: "33333333-3333-4333-8333-333333333333",
   revision: "1",
   graph: {
     schema: "skenion.graph",
@@ -53,8 +56,7 @@ const project = {
     schema: "skenion.view-state",
     schemaVersion: "0.1.0",
     canvas: {
-      nodes: {},
-      viewport: { x: 0, y: 0, zoom: 1 }
+      nodes: {}
     }
   },
   patchLibrary: []
@@ -67,6 +69,7 @@ const mutation: RuntimeMutationRequest = {
     ops: []
   }
 };
+const sessionLoadRequest = createRuntimeSessionLoadRequest(project);
 
 describe("runtime client", () => {
   it("normalizes runtime URLs", () => {
@@ -102,6 +105,17 @@ describe("runtime client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://runtime.local/v0/runtime/info", { method: "GET" });
   });
 
+  it("parses runtime node catalog snapshots", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(nodeCatalogResponse()));
+    const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
+
+    await expect(client.getNodeCatalog()).resolves.toMatchObject({
+      schema: "skenion.node-catalog.snapshot",
+      entries: []
+    });
+    expect(fetchMock).toHaveBeenCalledWith("http://runtime.local/v0/sessions/default/node-catalog", { method: "GET" });
+  });
+
   it("validates runtime session stream events without accepting legacy duplicate fields", () => {
     for (const kind of ["snapshot", "load", "clear", "mutate", "undo", "redo"] satisfies RuntimeSessionEventKind[]) {
       expect(isRuntimeSessionEvent(runtimeSessionEvent({ kind }))).toBe(true);
@@ -119,7 +133,7 @@ describe("runtime client", () => {
     expect(isRuntimeSessionEvent({ ...runtimeSessionEvent(), graphEvent: {} })).toBe(false);
     expect(isRuntimeSessionEvent({ ...runtimeSessionEvent(), history: null })).toBe(false);
     expect(isRuntimeSessionEvent({ ...runtimeSessionEvent(), mutation: null })).toBe(false);
-    expect(isRuntimeSessionEvent({ ...runtimeSessionEvent(), diagnostics: [{ severity: "debug", message: "hidden" }] })).toBe(false);
+    expect(isRuntimeSessionEvent({ ...runtimeSessionEvent(), issues: [{ severity: "debug", message: "hidden" }] })).toBe(false);
     expect(isRuntimeSessionEvent({ ...runtimeSessionEvent(), createdAt: 1 })).toBe(false);
     expect(
       isRuntimeSessionEvent(
@@ -145,6 +159,23 @@ describe("runtime client", () => {
         })
       )
     ).toBe(false);
+    expect(
+      isRuntimeSessionEvent(
+        runtimeSessionEvent({
+          replay: {
+            cursor: "12",
+            previousCursor: "8",
+            replayed: true,
+            gap: {
+              expectedSequence: 9,
+              actualSequence: 12,
+              reason: "retention-overflow"
+            },
+            overflow: true
+          }
+        })
+      )
+    ).toBe(true);
   });
 
   it("uses the default runtime URL and global fetch when options are omitted", async () => {
@@ -169,7 +200,7 @@ describe("runtime client", () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({
         ok: true,
-        diagnostics: [],
+        issues: [],
         plan: null,
         report: null
       })
@@ -191,48 +222,202 @@ describe("runtime client", () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
       String(_input).endsWith("/v0/sessions/default/history")
         ? jsonResponse(historyResponse())
-        : String(_input).endsWith("/v0/sessions/default/mutate") ||
-            String(_input).endsWith("/v0/sessions/default/undo") ||
-            String(_input).endsWith("/v0/sessions/default/redo")
-        ? jsonResponse(patchResponse())
         : jsonResponse(sessionResponse())
     );
     const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
 
     await client.getSession();
-    await client.loadSession(project);
+    await client.loadSession(sessionLoadRequest);
     await client.validateSession();
     await client.planSession();
     await client.runSession(2);
-    await client.mutateSession(mutation);
-    await client.mutateSession({
-      viewPatch: {
-        baseViewRevision: 1,
-        ops: [{ op: "setNodeView", nodeId: "value_1", view: viewStateResponse().canvas.nodes.value_1 ?? { x: 0, y: 0 } }]
-      }
-    });
     await client.getSessionHistory();
-    await client.undoSessionPatch();
-    await client.redoSessionPatch();
     await client.clearSession();
 
     const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
-    expect(fetchMock).toHaveBeenCalledTimes(11);
-    expect(calls[0]).toEqual(["http://runtime.local/v0/sessions/default", { method: "GET" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(calls[0]).toEqual(["http://runtime.local/v0/sessions/default/snapshot", { method: "GET" }]);
     expect(calls[1][0]).toBe("http://runtime.local/v0/sessions/default/load");
-    expect(JSON.parse(String(calls[1][1].body))).toEqual(project);
+    expect(JSON.parse(String(calls[1][1].body))).toEqual(sessionLoadRequest);
     expect(calls[2]).toEqual(["http://runtime.local/v0/sessions/default/validate", { method: "POST" }]);
     expect(calls[3]).toEqual(["http://runtime.local/v0/sessions/default/plan", { method: "POST" }]);
     expect(calls[4][0]).toBe("http://runtime.local/v0/sessions/default/run");
     expect(JSON.parse(String(calls[4][1].body))).toEqual({ frames: 2 });
-    expect(calls[5][0]).toBe("http://runtime.local/v0/sessions/default/mutate");
-    expect(JSON.parse(String(calls[5][1].body))).toEqual(mutation);
-    expect(calls[6][0]).toBe("http://runtime.local/v0/sessions/default/mutate");
-    expect(JSON.parse(String(calls[6][1].body))).toMatchObject({ viewPatch: { baseViewRevision: 1 } });
-    expect(calls[7]).toEqual(["http://runtime.local/v0/sessions/default/history", { method: "GET" }]);
-    expect(calls[8]).toEqual(["http://runtime.local/v0/sessions/default/undo", { method: "POST" }]);
-    expect(calls[9]).toEqual(["http://runtime.local/v0/sessions/default/redo", { method: "POST" }]);
-    expect(calls[10]).toEqual(["http://runtime.local/v0/sessions/default", { method: "DELETE" }]);
+    expect(calls[5]).toEqual(["http://runtime.local/v0/sessions/default/history", { method: "GET" }]);
+    expect(calls[6]).toEqual(["http://runtime.local/v0/sessions/default", { method: "DELETE" }]);
+  });
+
+  it("accepts the Runtime 0.58 empty-session connection response set", async () => {
+    const emptySession = sessionResponse({
+      snapshot: {
+        ...sessionResponse().snapshot,
+        sessionRevision: 0,
+        viewRevision: 0,
+        controlRevision: 0,
+        project: null,
+        bindingFormats: [],
+        issues: [],
+        plan: null
+      }
+    });
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) => {
+      const input = String(_input);
+      if (input.endsWith("/health")) {
+        return jsonResponse({
+          ok: true,
+          service: "skenion-runtime",
+          version: "0.49.0",
+          apiVersion: "0.1.0",
+          contractsBuiltAgainstVersion: "0.58.0",
+          supportedContractsLine: "0.58",
+          supportedContractsRange: ">=0.58.0 <0.59.0"
+        });
+      }
+      if (input.endsWith("/v0/runtime/info")) {
+        return jsonResponse({
+          name: "skenion-runtime",
+          version: "0.49.0",
+          apiVersion: "0.1.0",
+          contractsBuiltAgainstVersion: "0.58.0",
+          supportedContractsLine: "0.58",
+          supportedContractsRange: ">=0.58.0 <0.59.0",
+          capabilities: [
+            "session.load",
+            "session.realtime.websocket",
+            "session.project",
+            "session.nodeCatalog",
+            "session.history",
+            "session.info",
+            "session.preview.status",
+            "session.telemetry"
+          ]
+        });
+      }
+      if (input.endsWith("/info")) {
+        return jsonResponse(
+          sessionInfoResponse({
+            snapshot: emptySession.snapshot,
+            profile: {
+              mode: "local-managed",
+              ownership: "owned-child",
+              displayName: "skenion runtime local sidecar",
+              endpoint: {
+                url: "http://127.0.0.1:3761",
+                canonicalUrl: "http://127.0.0.1:3761",
+                protocol: "http",
+                host: "127.0.0.1",
+                port: 3761,
+                tls: false
+              },
+              process: {
+                ownedByHost: true,
+                pid: 33671,
+                executablePath: "/Volumes/Linear/Skenion/Skenion-runtime/target/debug/skenion-runtime",
+                workingDirectory: "/Volumes/Linear/Skenion/Skenion-runtime",
+                startedAt: "unix-ms:1782873752185",
+                platform: "macos",
+                arch: "aarch64"
+              }
+            },
+            eventReplay: {
+              cursorKind: "sequence",
+              currentCursor: "0",
+              earliestSequence: 1,
+              latestSequence: 0,
+              replayLimit: 256,
+              overflow: false
+            }
+          })
+        );
+      }
+      if (input.endsWith("/snapshot")) {
+        return jsonResponse(emptySession);
+      }
+      if (input.endsWith("/history")) {
+        return jsonResponse(historyResponse({ entries: [], canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0 }));
+      }
+      if (input.endsWith("/preview")) {
+        return jsonResponse(
+          previewResponse({
+            state: "stopped",
+            pid: null,
+            graphId: null,
+            graphRevision: null,
+            sessionRevision: null,
+            previewSessionRevision: null,
+            controlRevision: null,
+            previewControlRevision: null,
+            controlLive: false,
+            lastControlUpdateAt: null,
+            stale: false,
+            startedAt: null,
+            exitedAt: null,
+            exitCode: null,
+            message: null
+          })
+        );
+      }
+      if (input.endsWith("/telemetry")) {
+        return jsonResponse(
+          telemetryResponse({
+            session: {
+              loaded: false,
+              graphId: null,
+              graphRevision: null,
+              sessionRevision: 0,
+              controlRevision: 0
+            },
+            preview: {
+              state: "stopped",
+              pid: null,
+              stale: false,
+              graphId: null,
+              graphRevision: null,
+              sessionRevision: null,
+              previewSessionRevision: null,
+              controlRevision: null,
+              previewControlRevision: null,
+              controlLive: false,
+              lastControlUpdateAt: null
+            },
+            render: {
+              active: false,
+              backend: null,
+              renderer: null,
+              framesRendered: 0,
+              approxFps: null,
+              lastFrameMs: null,
+              lastError: null,
+              sourceNodeId: null,
+              issues: [],
+              generatedSourceAvailable: false,
+              controlRevision: null,
+              previewControlRevision: null,
+              controlLive: false,
+              lastControlUpdateAt: null
+            },
+            process: {
+              runtimeVersion: "0.49.0",
+              uptimeMs: 5410904
+            }
+          })
+        );
+      }
+      if (input.endsWith("/node-catalog")) {
+        return jsonResponse(nodeCatalogResponse());
+      }
+      throw new Error(`unexpected request ${input}`);
+    });
+    const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
+
+    await expect(client.getHealth()).resolves.toMatchObject({ ok: true, service: "skenion-runtime" });
+    await expect(client.getRuntimeInfo()).resolves.toMatchObject({ supportedContractsLine: "0.58" });
+    await expect(client.getSessionInfo()).resolves.toMatchObject({ snapshot: { bindingFormats: [], project: null } });
+    await expect(client.getSession()).resolves.toMatchObject({ snapshot: { bindingFormats: [], project: null } });
+    await expect(client.getSessionHistory()).resolves.toMatchObject({ entries: [], canUndo: false });
+    await expect(client.getPreviewStatus()).resolves.toMatchObject({ state: "stopped", sessionRevision: null });
+    await expect(client.getTelemetry()).resolves.toMatchObject({ session: { loaded: false }, render: { active: false } });
+    await expect(client.getNodeCatalog()).resolves.toMatchObject({ schema: "skenion.node-catalog.snapshot" });
   });
 
   it("targets explicit runtime session endpoints when a session id is provided", async () => {
@@ -260,7 +445,7 @@ describe("runtime client", () => {
 
     await client.getSessionInfo();
     await client.getSession();
-    await client.loadSession(project);
+    await client.loadSession(sessionLoadRequest);
     await client.getSessionHistory();
     await client.getPreviewStatus();
     await client.getGeneratedShader();
@@ -269,7 +454,7 @@ describe("runtime client", () => {
     const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
     expect(calls.map((call) => call[0])).toEqual([
       "http://runtime.local/v0/sessions/alpha/info",
-      "http://runtime.local/v0/sessions/alpha",
+      "http://runtime.local/v0/sessions/alpha/snapshot",
       "http://runtime.local/v0/sessions/alpha/load",
       "http://runtime.local/v0/sessions/alpha/history",
       "http://runtime.local/v0/sessions/alpha/preview",
@@ -279,21 +464,96 @@ describe("runtime client", () => {
     expect(calls[6]?.[1]).toEqual({ method: "DELETE" });
   });
 
-  it("posts paste operations to the runtime session.operation endpoint", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse(pasteOperationResponse()));
-    const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
-    const operation = pasteOperation();
-
-    await expect(client.runSessionOperation(operation)).resolves.toMatchObject({
-      ok: true,
-      applied: true,
-      revisionAfter: "2"
+  it("accepts runtime session info with managed process metadata", async () => {
+    const client = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          sessionInfoResponse({
+            profile: {
+              ...sessionInfoResponse().profile,
+              process: {
+                ownedByHost: true,
+                pid: 1234,
+                executablePath: "/Applications/Skenion Runtime",
+                workingDirectory: "/tmp/skenion",
+                startedAt: "2026-06-30T00:00:00.000Z",
+                ownerWindowId: "main",
+                platform: "darwin",
+                arch: "arm64"
+              }
+            }
+          })
+        )
+      ) as typeof fetch
     });
 
-    const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(calls[0][0]).toBe("http://runtime.local/v0/sessions/default/operation");
-    expect(JSON.parse(String(calls[0][1].body))).toEqual(operation);
+    await expect(client.getSessionInfo()).resolves.toMatchObject({
+      profile: {
+        process: {
+          ownedByHost: true,
+          pid: 1234
+        }
+      }
+    });
+  });
+
+  it("accepts local-shared and remote runtime session profiles", async () => {
+    const localSharedClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          sessionInfoResponse({
+            profile: {
+              displayName: "local shared runtime",
+              endpoint: {
+                url: "http://127.0.0.1:3761",
+                protocol: "http"
+              },
+              mode: "local-shared",
+              ownership: "external",
+              process: null
+            }
+          })
+        )
+      ) as typeof fetch
+    });
+    const remoteClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          sessionInfoResponse({
+            profile: {
+              displayName: "remote runtime",
+              endpoint: {
+                canonicalUrl: "https://runtime.example",
+                host: "runtime.example",
+                protocol: "https",
+                tls: true,
+                url: "https://runtime.example"
+              },
+              mode: "remote",
+              ownership: "remote",
+              process: null
+            }
+          })
+        )
+      ) as typeof fetch
+    });
+
+    await expect(localSharedClient.getSessionInfo()).resolves.toMatchObject({
+      profile: {
+        mode: "local-shared",
+        ownership: "external"
+      }
+    });
+    await expect(remoteClient.getSessionInfo()).resolves.toMatchObject({
+      profile: {
+        endpoint: { protocol: "https" },
+        mode: "remote",
+        ownership: "remote"
+      }
+    });
   });
 
   it("calls runtime control endpoints", async () => {
@@ -522,6 +782,32 @@ describe("runtime client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://runtime.local/v0/extensions", { method: "GET" });
   });
 
+  it("accepts runtime extension descriptor kind and status variants", async () => {
+    const extension = runtimeExtensionListResponse().extensions[0]!;
+    const client = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          runtimeExtensionListResponse({
+            extensions: [
+              { ...extension, id: "skenion/native", kind: "native-runtime", status: "disabled" },
+              { ...extension, id: "skenion/codec", kind: "codec", status: "failed" },
+              { ...extension, id: "skenion/nodes", kind: "node-pack", status: "loaded" }
+            ]
+          })
+        )
+      ) as typeof fetch
+    });
+
+    await expect(client.listExtensions()).resolves.toMatchObject({
+      extensions: [
+        { kind: "native-runtime", status: "disabled" },
+        { kind: "codec", status: "failed" },
+        { kind: "node-pack", status: "loaded" }
+      ]
+    });
+  });
+
   it("accepts runtime IO device responses", async () => {
     const client = createRuntimeClient({
       baseUrl: "http://runtime.local",
@@ -554,7 +840,7 @@ describe("runtime client", () => {
                 transportKind: "inline"
               }
             ],
-            diagnostics: [{ severity: "warning", code: "io-device-name-unavailable", message: "name unavailable" }]
+            issues: [{ severity: "warning", code: "io-device-name-unavailable", message: "name unavailable" }]
           })
         )
       ) as typeof fetch
@@ -563,7 +849,7 @@ describe("runtime client", () => {
     await expect(client.listIoDevices()).resolves.toMatchObject({
       ok: true,
       devices: [{ transportKind: "hid" }, { transportKind: "serial" }, { transportKind: "inline" }],
-      diagnostics: [{ severity: "warning" }]
+      issues: [{ severity: "warning" }]
     });
   });
 
@@ -668,7 +954,7 @@ describe("runtime client", () => {
               lastFrameMs: null,
               lastError: null,
               sourceNodeId: null,
-              diagnostics: [],
+              issues: [],
               generatedSourceAvailable: false,
               controlRevision: null,
               previewControlRevision: null,
@@ -709,14 +995,14 @@ describe("runtime client", () => {
     });
     expect(fetchMock).toHaveBeenCalledWith("http://runtime.local/v0/sessions/default/render/generated-shader", { method: "GET" });
 
-    const diagnosticsClient = createRuntimeClient({
+    const issuesClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         jsonResponse(generatedShaderResponse({
           ok: false,
           source: null,
           sourceMap: null,
-          diagnostics: [
+          issues: [
             {
               severity: "error",
               phase: "interface-analysis",
@@ -740,9 +1026,9 @@ describe("runtime client", () => {
         }))
       ) as typeof fetch
     });
-    await expect(diagnosticsClient.getGeneratedShader()).resolves.toMatchObject({
+    await expect(issuesClient.getGeneratedShader()).resolves.toMatchObject({
       ok: false,
-      diagnostics: [
+      issues: [
         { code: "unsupported-uniform-type" },
         { line: 12, uniformId: "speed" }
       ]
@@ -771,41 +1057,12 @@ describe("runtime client", () => {
     });
   });
 
-  it("accepts runtime patch responses", async () => {
+  it("accepts empty runtime history responses", async () => {
     const client = createRuntimeClient({
       baseUrl: "http://runtime.local",
-      fetchImpl: vi.fn(async () => jsonResponse(patchResponse())) as typeof fetch
+      fetchImpl: vi.fn(async () => jsonResponse(historyResponse({ canUndo: false, undoDepth: 0, entries: [] }))) as typeof fetch
     });
 
-    await expect(client.mutateSession(mutation)).resolves.toMatchObject({
-      ok: true,
-      applied: true,
-      conflict: false,
-      snapshot: {
-        project: {
-          graph: {
-            revision: "2"
-          }
-        },
-        sessionRevision: 2
-      },
-      history: {
-        undoDepth: 1
-      }
-    });
-  });
-
-  it("accepts empty patch events and runtime history responses", async () => {
-    const client = createRuntimeClient({
-      baseUrl: "http://runtime.local",
-      fetchImpl: vi.fn(async (_input: RequestInfo | URL) =>
-        String(_input).endsWith("/v0/sessions/default/history")
-          ? jsonResponse(historyResponse({ canUndo: false, undoDepth: 0, entries: [] }))
-          : jsonResponse(patchResponse())
-      ) as typeof fetch
-    });
-
-    await expect(client.mutateSession(mutation)).resolves.toMatchObject({ applied: true });
     await expect(client.getSessionHistory()).resolves.toMatchObject({
       canUndo: false,
       undoDepth: 0,
@@ -846,28 +1103,24 @@ describe("runtime client", () => {
     };
     const fetchMock = vi.fn(async () =>
       jsonResponse(
-        patchResponse({
-          history: historyResponse({
-            entries: [
-              historyEntry({
-                mutation: moveMutation,
-                inverseMutation: inverseMoveMutation
-              })
-            ]
-          })
+        historyResponse({
+          entries: [
+            historyEntry({
+              mutation: moveMutation,
+              inverseMutation: inverseMoveMutation
+            })
+          ]
         })
       )
     );
     const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
 
-    await expect(client.mutateSession(moveMutation)).resolves.toMatchObject({
-      history: {
-        entries: [{ mutation: moveMutation }]
-      }
+    await expect(client.getSessionHistory()).resolves.toMatchObject({
+      entries: [{ mutation: moveMutation }]
     });
 
     const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
-    expect(JSON.parse(String(calls[0][1].body))).toEqual(moveMutation);
+    expect(calls[0]).toEqual(["http://runtime.local/v0/sessions/default/history", { method: "GET" }]);
   });
 
   it("accepts set node view runtime mutations in history responses", async () => {
@@ -887,22 +1140,54 @@ describe("runtime client", () => {
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         jsonResponse(
-          patchResponse({
-            history: historyResponse({
-              entries: [
-                historyEntry({
-                  mutation: setViewMutation,
-                  inverseMutation: setViewMutation
-                })
-              ]
-            })
+          historyResponse({
+            entries: [
+              historyEntry({
+                mutation: setViewMutation,
+                inverseMutation: setViewMutation
+              })
+            ]
           })
         )
       ) as typeof fetch
     });
 
-    await expect(client.mutateSession(setViewMutation)).resolves.toMatchObject({
-      history: { entries: [{ mutation: setViewMutation }] }
+    await expect(client.getSessionHistory()).resolves.toMatchObject({
+      entries: [{ mutation: setViewMutation }]
+    });
+  });
+
+  it("accepts operation envelopes in runtime history responses", async () => {
+    const operationMutations: RuntimeMutationRequest[] = [
+      pasteMutation({ kind: "root" }),
+      pasteMutation({ kind: "project-patch-definition", patchId: "voice" }),
+      pasteMutation({ kind: "package-patch-definition", packageId: "example/package", patchId: "voice", version: "1.0.0" }),
+      pasteMutation({ kind: "embedded-patch-instance", ownerPath: ["voice_1"], nodeId: "nested" }),
+      pasteMutation({ kind: "help-working-copy", workingCopyId: "help_1", sourcePackageId: "example/package", sourcePatchId: "voice" })
+    ];
+    const client = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          historyResponse({
+            entries: operationMutations.map((mutation, index) =>
+              historyEntry({
+                id: `operation_${index}`,
+                sequence: index + 1,
+                mutation,
+                inverseMutation: mutation
+              })
+            )
+          })
+        )
+      ) as typeof fetch
+    });
+
+    const history = await client.getSessionHistory();
+    expect(history.entries).toHaveLength(5);
+    expect(history.entries[0]?.mutation.operation?.attribution).toMatchObject({
+      actorId: "artist",
+      clientId: "studio"
     });
   });
 
@@ -917,7 +1202,8 @@ describe("runtime client", () => {
               viewRevision: 0,
               controlRevision: 0,
               project: null,
-              diagnostics: [],
+              bindingFormats: [],
+              issues: [],
               plan: null
             }
           })
@@ -928,6 +1214,7 @@ describe("runtime client", () => {
     await expect(client.getSession()).resolves.toMatchObject({
       snapshot: {
         project: null,
+        bindingFormats: [],
         sessionRevision: 0
       }
     });
@@ -959,7 +1246,15 @@ describe("runtime client", () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({
         ok: true,
-        diagnostics: [],
+        issues: [
+          {
+            severity: "info",
+            message: "structured details",
+            details: {
+              nested: [null, "x", true, 1, { ok: false }]
+            }
+          }
+        ],
         plan: { graphId: "test" },
         report: { graphId: "test", frameCount: 1 }
       })
@@ -1003,7 +1298,7 @@ describe("runtime client", () => {
         jsonResponse(
           {
             ok: false,
-            diagnostics: [],
+            issues: [],
             plan: null,
             report: null
           },
@@ -1011,7 +1306,7 @@ describe("runtime client", () => {
         )
       ) as typeof fetch
     });
-    await expect(httpErrorClient.validateProject(project)).rejects.toThrow("Runtime HTTP 500.");
+    await expect(httpErrorClient.validateProject(project)).rejects.toThrow("Runtime HTTP 500 from /v0/validate.");
   });
 
   it("rejects unsupported runtime response shapes", async () => {
@@ -1021,7 +1316,7 @@ describe("runtime client", () => {
     await expect(client.validateProject(project)).rejects.toThrow("unsupported response shape");
   });
 
-  it("rejects unsupported health and diagnostic response shapes", async () => {
+  it("rejects unsupported health and issue response shapes", async () => {
     const invalidHealthClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
@@ -1033,18 +1328,57 @@ describe("runtime client", () => {
     });
     await expect(invalidHealthClient.getHealth()).rejects.toThrow("unsupported response shape");
 
-    const invalidDiagnosticClient = createRuntimeClient({
+    const invalidIssueClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         jsonResponse({
           ok: false,
-          diagnostics: [{ severity: "debug", message: "hidden" }],
+          issues: [{ severity: "debug", message: "hidden" }],
           plan: null,
           report: null
         })
       ) as typeof fetch
     });
-    await expect(invalidDiagnosticClient.validateProject(project)).rejects.toThrow("unsupported response shape");
+    await expect(invalidIssueClient.validateProject(project)).rejects.toThrow("unsupported response shape");
+
+    const invalidIssueEntryClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({
+          ok: false,
+          issues: [null],
+          plan: null,
+          report: null
+        })
+      ) as typeof fetch
+    });
+    await expect(invalidIssueEntryClient.validateProject(project)).rejects.toThrow("unsupported response shape");
+
+    const invalidIssueCodeClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({
+          ok: false,
+          issues: [{ severity: "error", message: "bad code", code: 1 }],
+          plan: null,
+          report: null
+        })
+      ) as typeof fetch
+    });
+    await expect(invalidIssueCodeClient.validateProject(project)).rejects.toThrow("unsupported response shape");
+
+    const invalidDetailsClient = createRuntimeClient({
+      baseUrl: "http://runtime.local",
+      fetchImpl: vi.fn(async () =>
+        objectResponse({
+          ok: false,
+          issues: [{ severity: "error", message: "bad details", details: () => undefined }],
+          plan: null,
+          report: null
+        })
+      ) as typeof fetch
+    });
+    await expect(invalidDetailsClient.validateProject(project)).rejects.toThrow("unsupported response shape");
   });
 
   it("rejects unsupported runtime session response shapes", async () => {
@@ -1053,7 +1387,7 @@ describe("runtime client", () => {
       fetchImpl: vi.fn(async () =>
         jsonResponse({
           ok: true,
-          diagnostics: [],
+          issues: [],
           plan: null,
           report: null
         })
@@ -1079,46 +1413,19 @@ describe("runtime client", () => {
     await expect(legacySessionClient.getSession()).rejects.toThrow("unsupported response shape");
   });
 
-  it("rejects unsupported runtime patch response shapes", async () => {
-    const invalidGraphClient = createRuntimeClient({
-      baseUrl: "http://runtime.local",
-      fetchImpl: vi.fn(async () =>
-        jsonResponse(
-          patchResponse({
-            snapshot: {
-              ...patchResponse().snapshot,
-              project: {
-                ...patchResponse().snapshot.project!,
-                graph: {
-                  schema: "skenion.graph",
-                  schemaVersion: "0.1.0",
-                  id: "test",
-                  revision: "2",
-                  nodes: []
-                } as unknown as NonNullable<RuntimePatchResponse["snapshot"]["project"]>["graph"]
-              }
-            }
-          })
-        )
-      ) as typeof fetch
-    });
-
-    await expect(invalidGraphClient.mutateSession(mutation)).rejects.toThrow("unsupported response shape");
-
+  it("rejects unsupported runtime history summary shapes", async () => {
     const invalidHistoryClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         jsonResponse(
-          patchResponse({
-            history: {
-              ...historyResponse(),
-              undoDepth: "1"
-            } as unknown as RuntimePatchResponse["history"]
-          })
+          {
+            ...historyResponse(),
+            undoDepth: "1"
+          } as unknown as RuntimeHistory
         )
       ) as typeof fetch
     });
-    await expect(invalidHistoryClient.mutateSession(mutation)).rejects.toThrow("unsupported response shape");
+    await expect(invalidHistoryClient.getSessionHistory()).rejects.toThrow("unsupported response shape");
   });
 
   it("rejects unsupported runtime control response shapes", async () => {
@@ -1275,16 +1582,16 @@ describe("runtime client", () => {
     });
     await expect(invalidStateClient.getPreviewStatus()).rejects.toThrow("unsupported response shape");
 
-    const invalidDiagnosticClient = createRuntimeClient({
+    const invalidIssueClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         jsonResponse({
           ...previewResponse(),
-          diagnostics: [{ severity: "trace", message: "hidden" }]
+          issues: [{ severity: "trace", message: "hidden" }]
         })
       ) as typeof fetch
     });
-    await expect(invalidDiagnosticClient.getPreviewStatus()).rejects.toThrow("unsupported response shape");
+    await expect(invalidIssueClient.getPreviewStatus()).rejects.toThrow("unsupported response shape");
   });
 
   it("rejects unsupported runtime asset response shapes", async () => {
@@ -1311,7 +1618,7 @@ describe("runtime client", () => {
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         rawJsonResponse(
-          '{"ok":true,"assets":[{"id":"asset_1","name":"clip.mp4","mimeType":"video/mp4","kind":"video","sizeBytes":1e999,"runtimeUri":"skenion-runtime://assets/asset_1"}],"diagnostics":[]}'
+          '{"ok":true,"assets":[{"id":"asset_1","name":"clip.mp4","mimeType":"video/mp4","kind":"video","sizeBytes":1e999,"runtimeUri":"skenion-runtime://assets/asset_1"}],"issues":[]}'
         )
       ) as typeof fetch
     });
@@ -1330,7 +1637,7 @@ describe("runtime client", () => {
       fetchImpl: vi.fn(async () =>
         jsonResponse(
           assetGetResponse({
-            diagnostics: [{ severity: "debug", message: "hidden" }] as unknown as RuntimeAssetGetResponse["diagnostics"]
+            issues: [{ severity: "debug", message: "hidden" }] as unknown as RuntimeAssetGetResponse["issues"]
           })
         )
       ) as typeof fetch
@@ -1360,17 +1667,17 @@ describe("runtime client", () => {
     });
     await expect(invalidIoDeviceClient.listIoDevices()).rejects.toThrow("unsupported response shape");
 
-    const invalidIoDiagnosticClient = createRuntimeClient({
+    const invalidIoIssueClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         jsonResponse(
           runtimeIoDeviceListResponse({
-            diagnostics: [{ severity: "debug", code: "io", message: "hidden" }] as unknown as RuntimeIoDeviceListResponse["diagnostics"]
+            issues: [{ severity: "debug", code: "io", message: "hidden" }] as unknown as RuntimeIoDeviceListResponse["issues"]
           })
         )
       ) as typeof fetch
     });
-    await expect(invalidIoDiagnosticClient.listIoDevices()).rejects.toThrow("unsupported response shape");
+    await expect(invalidIoIssueClient.listIoDevices()).rejects.toThrow("unsupported response shape");
 
     const invalidIoDeviceObjectClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
@@ -1412,21 +1719,19 @@ describe("runtime client", () => {
         baseUrl: "http://runtime.local",
         fetchImpl: vi.fn(async () =>
           jsonResponse(
-            patchResponse({
-              history: historyResponse({
-                entries: [
-                  historyEntry({
-                    mutation,
-                    inverseMutation: mutation
-                  })
-                ]
-              })
+            historyResponse({
+              entries: [
+                historyEntry({
+                  mutation,
+                  inverseMutation: mutation
+                })
+              ]
             })
           )
         ) as typeof fetch
       });
 
-      await expect(client.mutateSession(mutation)).rejects.toThrow("unsupported response shape");
+      await expect(client.getSessionHistory()).rejects.toThrow("unsupported response shape");
     }
   });
 
@@ -1451,16 +1756,14 @@ describe("runtime client", () => {
         baseUrl: "http://runtime.local",
         fetchImpl: vi.fn(async () =>
           jsonResponse(
-            patchResponse({
-              history: historyResponse({
-                entries: [entry as RuntimeHistoryEntry]
-              })
+            historyResponse({
+              entries: [entry as RuntimeHistoryEntry]
             })
           )
         ) as typeof fetch
       });
 
-      await expect(client.mutateSession(mutation)).rejects.toThrow("unsupported response shape");
+      await expect(client.getSessionHistory()).rejects.toThrow("unsupported response shape");
     }
   });
 
@@ -1515,16 +1818,16 @@ describe("runtime client", () => {
     });
     await expect(invalidProcessClient.getTelemetry()).rejects.toThrow("unsupported response shape");
 
-    const invalidDiagnosticsClient = createRuntimeClient({
+    const invalidIssuesClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         jsonResponse({
           ...telemetryResponse(),
-          diagnostics: [{ severity: "debug", message: "hidden" }]
+          issues: [{ severity: "debug", message: "hidden" }]
         })
       ) as typeof fetch
     });
-    await expect(invalidDiagnosticsClient.getTelemetry()).rejects.toThrow("unsupported response shape");
+    await expect(invalidIssuesClient.getTelemetry()).rejects.toThrow("unsupported response shape");
   });
 
   it("rejects unsupported generated shader response shapes", async () => {
@@ -1543,22 +1846,22 @@ describe("runtime client", () => {
           nodeId: 1,
           language: "glsl",
           source: 1,
-          diagnostics: "none"
+          issues: "none"
         })
       ) as typeof fetch
     });
     await expect(invalidFieldsClient.getGeneratedShader()).rejects.toThrow("unsupported response shape");
 
-    const invalidDiagnosticClient = createRuntimeClient({
+    const invalidIssueClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
       fetchImpl: vi.fn(async () =>
         jsonResponse({
           ...generatedShaderResponse(),
-          diagnostics: [{ severity: "error", phase: "unknown", code: "x", message: "bad", source: "generated" }]
+          issues: [{ severity: "error", phase: "unknown", code: "x", message: "bad", source: "generated" }]
         })
       ) as typeof fetch
     });
-    await expect(invalidDiagnosticClient.getGeneratedShader()).rejects.toThrow("unsupported response shape");
+    await expect(invalidIssueClient.getGeneratedShader()).rejects.toThrow("unsupported response shape");
 
     const invalidSourceMapClient = createRuntimeClient({
       baseUrl: "http://runtime.local",
@@ -1576,7 +1879,7 @@ describe("runtime client", () => {
       fetchImpl: vi.fn(async () =>
         jsonResponse({
           ...generatedShaderResponse(),
-          diagnostics: [
+          issues: [
             {
               severity: "error",
               phase: "wgsl-compile",
@@ -1628,7 +1931,6 @@ function sessionInfoResponse(overrides: Partial<RuntimeSessionInfoResponse> = {}
       sessionAddressing: true,
       eventReplay: true,
       multiWindow: true,
-      profiles: ["local-managed", "local-shared", "remote"],
       authPolicy: "deferred"
     },
     eventReplay: {
@@ -1639,8 +1941,26 @@ function sessionInfoResponse(overrides: Partial<RuntimeSessionInfoResponse> = {}
       replayLimit: 256,
       overflow: false
     },
-    diagnostics: [],
+    issues: [],
     ...overrides
+  };
+}
+
+function nodeCatalogResponse(overrides: Partial<NodeCatalogSnapshotV01> = {}): NodeCatalogSnapshotV01 {
+  const response: NodeCatalogSnapshotV01 = {
+    schema: "skenion.node-catalog.snapshot",
+    schemaVersion: "0.1.0",
+    catalogRevision: {
+      algorithm: "sha256",
+      value: "0".repeat(64)
+    },
+    entries: [],
+    issues: [],
+    ...overrides
+  };
+  return {
+    ...response,
+    catalogRevision: computeNodeCatalogRevisionV01(response)
   };
 }
 
@@ -1655,6 +1975,7 @@ function sessionResponse(overrides: Partial<RuntimeSessionResponse> = {}): Runti
         schema: "skenion.project",
         schemaVersion: "0.1.0",
         id: "test",
+        documentId: "44444444-4444-4444-8444-444444444444",
         revision: "1",
         graph: {
           schema: "skenion.graph",
@@ -1664,14 +1985,18 @@ function sessionResponse(overrides: Partial<RuntimeSessionResponse> = {}): Runti
           nodes: [
             {
               id: "value_1",
-              kind: "core.float",
-              kindVersion: "0.1.0",
+              implementation: {
+                provider: { kind: "core" },
+                objectId: "float",
+                version: "0.1.0"
+              },
+              objectSpec: "float",
               params: { label: "Float" },
               ports: [
                 {
                   id: "value",
                   direction: "output",
-                  type: "number.float",
+                  type: "value.core.float32",
                   rate: "control"
                 }
               ]
@@ -1682,10 +2007,11 @@ function sessionResponse(overrides: Partial<RuntimeSessionResponse> = {}): Runti
         viewState: viewStateResponse(),
         patchLibrary: []
       },
-      diagnostics: [],
+      bindingFormats: [],
+      issues: [],
       plan: null
     },
-    diagnostics: [],
+    issues: [],
     report: null,
     ...overrides
   };
@@ -1709,96 +2035,9 @@ function runtimeSessionEvent(overrides: Partial<RuntimeSessionEvent> = {}): Runt
       gap: null,
       overflow: false
     },
-    diagnostics: [],
+    issues: [],
     createdAt: "unix-ms:0",
     ...overrides
-  };
-}
-
-function patchResponse(overrides: Partial<RuntimePatchResponse> = {}): RuntimePatchResponse {
-  return {
-    ok: true,
-    applied: true,
-    conflict: false,
-    snapshot: {
-      ...sessionResponse().snapshot,
-      sessionRevision: 2,
-      project: {
-        ...sessionResponse().snapshot.project!,
-        revision: "2",
-        graph: {
-          ...sessionResponse().snapshot.project!.graph,
-          revision: "2"
-        }
-      }
-    },
-    history: historyResponse(),
-    diagnostics: [],
-    ...overrides
-  };
-}
-
-function pasteOperation(): RuntimeOperationEnvelope {
-  return {
-    schema: "skenion.runtime.operation",
-    schemaVersion: "0.1.0",
-    id: "operation_1",
-    kind: "pasteGraphFragment",
-    request: {
-      target: {
-        path: { kind: "root" },
-        baseRevision: "1"
-      },
-      fragment: {
-        schema: "skenion.graph.fragment",
-        schemaVersion: "0.1.0",
-        nodes: [
-          {
-            id: "value_1",
-            kind: "core.float",
-            kindVersion: "0.1.0",
-            params: { label: "Float" },
-            ports: [
-              {
-                id: "out",
-                direction: "output",
-                type: "number.float",
-                rate: "control"
-              }
-            ]
-          }
-        ],
-        edges: []
-      },
-      options: {
-        idConflictPolicy: "remap",
-        outsideEndpointPolicy: "omit",
-        preserveRelativePositions: true
-      }
-    }
-  };
-}
-
-function pasteOperationResponse() {
-  return {
-    schema: "skenion.runtime.paste-graph-fragment.response",
-    schemaVersion: "0.1.0",
-    ok: true,
-    applied: true,
-    conflict: false,
-    target: {
-      path: { kind: "root" },
-      baseRevision: "1"
-    },
-    revisionBefore: "1",
-    revisionAfter: "2",
-    historyEntryId: "history_1",
-    idRemap: {
-      nodeIdMap: { value_1: "value_2" },
-      edgeIdMap: {},
-      omittedEdgeIds: []
-    },
-    diagnostics: []
   };
 }
 
@@ -1809,11 +2048,6 @@ function viewStateResponse() {
     canvas: {
       nodes: {
         value_1: { x: 0, y: 0 }
-      },
-      viewport: {
-        x: 0,
-        y: 0,
-        zoom: 1
       }
     }
   } as const;
@@ -1838,7 +2072,7 @@ function controlEventResponse(overrides: Partial<RuntimeControlEventResponse> = 
     changed: true,
     controlRevision: 1,
     emitted: [{ nodeId: "value_1", portId: "value", message: { selector: "float", atoms: [{ type: "float", representation: "f32", value: 1.25 }] } }],
-    diagnostics: [],
+    issues: [],
     ...overrides
   };
 }
@@ -1851,7 +2085,7 @@ function controlStateResponse(overrides: Partial<RuntimeControlStateResponse> = 
       value_1: { type: "float", representation: "f32", value: 1.25 }
     },
     channels: {},
-    diagnostics: [],
+    issues: [],
     ...overrides
   };
 }
@@ -1861,7 +2095,7 @@ function controlReadResponse(overrides: Partial<RuntimeControlReadResponse> = {}
     ok: true,
     address: { nodeId: "value_1", target: "state", id: "value" },
     value: { type: "float", representation: "f32", value: 1.25 },
-    diagnostics: [],
+    issues: [],
     ...overrides
   };
 }
@@ -1882,7 +2116,7 @@ function assetImportResponse(overrides: Partial<RuntimeAssetImportResponse> = {}
   return {
     ok: true,
     asset: runtimeAsset(),
-    diagnostics: [],
+    issues: [],
     ...overrides
   };
 }
@@ -1891,7 +2125,7 @@ function assetListResponse(overrides: Partial<RuntimeAssetListResponse> = {}): R
   return {
     ok: true,
     assets: [runtimeAsset()],
-    diagnostics: [],
+    issues: [],
     ...overrides
   };
 }
@@ -1900,7 +2134,7 @@ function assetGetResponse(overrides: Partial<RuntimeAssetGetResponse> = {}): Run
   return {
     ok: true,
     asset: runtimeAsset(),
-    diagnostics: [],
+    issues: [],
     ...overrides
   };
 }
@@ -1923,7 +2157,7 @@ function previewResponse(overrides: Partial<RuntimePreviewStatus> = {}): Runtime
     exitedAt: null,
     exitCode: null,
     message: null,
-    diagnostics: [],
+    issues: [],
     ...overrides
   };
 }
@@ -1949,7 +2183,6 @@ function runtimeLogSnapshotResponse(
       replayLimit: 200,
       replayLevels: ["warning", "error"]
     },
-    diagnostics: [],
     ...overrides
   };
 }
@@ -1989,7 +2222,7 @@ function telemetryResponse(overrides: Partial<RuntimeTelemetrySnapshot> = {}): R
       lastFrameMs: 16.7,
       lastError: null,
       sourceNodeId: "clear_1",
-      diagnostics: [],
+      issues: [],
       generatedSourceAvailable: false,
       controlRevision: 1,
       previewControlRevision: 1,
@@ -2000,7 +2233,7 @@ function telemetryResponse(overrides: Partial<RuntimeTelemetrySnapshot> = {}): R
       runtimeVersion: "0.11.0",
       uptimeMs: 1000
     },
-    diagnostics: [],
+    issues: [],
     ...overrides
   };
 }
@@ -2017,14 +2250,14 @@ function generatedShaderResponse(
       userSourceStartLine: 32,
       generatedLineOffset: 31
     },
-    diagnostics: [],
+    issues: [],
     ...overrides
   };
 }
 
 function runtimeIoDeviceListResponse(overrides: Partial<RuntimeIoDeviceListResponse> = {}): RuntimeIoDeviceListResponse {
   return {
-    diagnostics: [],
+    issues: [],
     devices: [
       {
         backend: "midir",
@@ -2060,10 +2293,10 @@ function runtimeExtensionListResponse(
         providedTransports: [],
         providedHelp: ["core.value"],
         testIds: ["value-baseline"],
-        diagnostics: []
+        issues: []
       }
     ],
-    diagnostics: [],
+    issues: [],
     ...overrides
   };
 }
@@ -2077,6 +2310,56 @@ function historyEntry(overrides: Partial<RuntimeHistoryEntry> = {}): RuntimeHist
     inverseMutation: mutation,
     createdAt: "unix-ms:0",
     ...overrides
+  };
+}
+
+function pasteMutation(path: RuntimeOperationEnvelope["request"]["target"]["path"]): RuntimeMutationRequest {
+  return {
+    operation: {
+      schema: "skenion.runtime.operation",
+      schemaVersion: "0.1.0",
+      id: "operation_1",
+      kind: "pasteGraphFragment",
+      request: {
+        target: {
+          path,
+          baseRevision: "1",
+          targetRevision: "2"
+        },
+        fragment: {
+          schema: "skenion.graph.fragment",
+          schemaVersion: "0.1.0",
+          nodes: [
+            {
+              id: "value_1",
+              implementation: {
+                provider: { kind: "core" },
+                objectId: "float",
+                version: "0.1.0"
+              },
+              objectSpec: "float",
+              params: { label: "Float" },
+              ports: [
+                {
+                  id: "out",
+                  direction: "output",
+                  type: "value.core.float32",
+                  rate: "control"
+                }
+              ]
+            }
+          ],
+          edges: []
+        }
+      },
+      attribution: {
+        actorId: "artist",
+        clientId: "studio",
+        label: "Paste"
+      },
+      correlationId: "paste-1",
+      createdAt: "2026-06-30T00:00:00.000Z"
+    }
   };
 }
 
@@ -2096,4 +2379,12 @@ function rawJsonResponse(value: string, status = 200): Response {
     },
     status
   });
+}
+
+function objectResponse(value: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => value
+  } as Response;
 }

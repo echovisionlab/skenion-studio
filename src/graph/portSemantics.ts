@@ -1,4 +1,4 @@
-import { planConversion } from "@skenion/contracts";
+import { planConversion, portConnectionPolicyV01 } from "@skenion/contracts";
 import type {
   ConversionPlanV01,
   DataTypeV01,
@@ -8,9 +8,10 @@ import type {
   PortV01,
   TriggerModeV01
 } from "@skenion/contracts";
+import { graphPortToPortSpec } from "./patchLibrary";
 import type { DisplayEdgeV01, DisplayGraphDocumentV01, DisplayGraphNodeV01 } from "./patchLibrary";
 
-export type DiagnosticSeverity = "error" | "warning" | "info";
+export type IssueSeverity = "error" | "warning" | "info";
 
 export interface PortSemantics {
   id: string;
@@ -49,11 +50,11 @@ export interface EdgeConversionPreview {
   target: string;
   lossy: boolean;
   policies: string[];
-  diagnostics: string[];
+  issues: string[];
 }
 
-export interface GraphSemanticDiagnostic {
-  severity: DiagnosticSeverity;
+export interface GraphSemanticIssue {
+  severity: IssueSeverity;
   code: string;
   message: string;
   edgeId?: string;
@@ -134,10 +135,7 @@ export function edgeInspectorModel(graph: DisplayGraphDocumentV01, edge: Display
   const sourceSemantics = sourceNode && sourcePort ? portSemanticsForPort(sourceNode, sourcePort) : null;
   const targetSemantics = targetNode && targetPort ? portSemanticsForPort(targetNode, targetPort) : null;
   const conversion = sourceNode && sourcePort && targetNode && targetPort
-    ? conversionPreview(planConversion(
-        semanticDataTypeForPort(sourceNode, sourcePort),
-        semanticDataTypeForPort(targetNode, targetPort)
-      ))
+    ? edgeConnectionPreview(sourceNode, sourcePort, targetNode, targetPort)
     : null;
 
   return {
@@ -168,8 +166,8 @@ export function findEdgeInspectorModel(
   return edge ? edgeInspectorModel(graph, edge) : null;
 }
 
-export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): GraphSemanticDiagnostic[] {
-  const diagnostics: GraphSemanticDiagnostic[] = [];
+export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): GraphSemanticIssue[] {
+  const issues: GraphSemanticIssue[] = [];
   const incomingByPort = new Map<string, DisplayEdgeV01[]>();
 
   for (const edge of graph.edges) {
@@ -178,7 +176,7 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
     const id = edgeId(edge);
 
     if (!source || !target) {
-      diagnostics.push({
+      issues.push({
         severity: "error",
         code: "missing-edge-endpoint",
         message: `${id} references a missing port.`,
@@ -188,7 +186,7 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
     }
 
     if (source.port.direction !== "output" || target.port.direction !== "input") {
-      diagnostics.push({
+      issues.push({
         severity: "error",
         code: "invalid-edge-direction",
         message: `${id} must run from an outlet to an inlet.`,
@@ -198,15 +196,19 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
 
     const sourceSemantics = portSemanticsForPort(source.node, source.port);
     const targetSemantics = portSemanticsForPort(target.node, target.port);
-    const conversion = planConversion(
+    const connectionPolicy = portConnectionPolicyV01(
+      graphPortToPortSpec(source.port),
+      graphPortToPortSpec(target.port)
+    );
+    const conversionPlan = planConversion(
       semanticDataTypeForPort(source.node, source.port),
       semanticDataTypeForPort(target.node, target.port)
     );
-    if (!conversion.ok) {
-      diagnostics.push({
+    if (!connectionPolicy.accepted && connectionPolicy.reason !== "direction-mismatch" && !conversionPlan.ok) {
+      issues.push({
         severity: "error",
         code: "incompatible-edge-type",
-        message: `${id} connects ${sourceSemantics.type} to ${targetSemantics.type} without an explicit adapter.`,
+        message: `${id} connects ${sourceSemantics.type} to ${targetSemantics.type}: ${connectionPolicy.reason}.`,
         edgeId: id
       });
     }
@@ -221,7 +223,7 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
     const semantics = portSemanticsForPort(target.node, target.port);
     const maxConnections = semantics.maxConnections as number;
     if (incomingEdges.length > maxConnections || (incomingEdges.length > 1 && semantics.mergePolicy === "forbid")) {
-      diagnostics.push({
+      issues.push({
         severity: "error",
         code: "fan-in-forbidden",
         message: `${target.node.id}.${target.port.id} has ${incomingEdges.length} inputs, maxConnections ${semantics.maxConnections}, mergePolicy ${semantics.mergePolicy}.`,
@@ -234,7 +236,7 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
   const cycles = findDirectedCycles(graph);
   for (const cycleEdges of cycles) {
     if (cycleEdges.some((edge) => Boolean(edge.feedback))) {
-      diagnostics.push({
+      issues.push({
         severity: "warning",
         code: "feedback-cycle",
         message: `Cycle ${cycleEdges.map(edgeId).join(" -> ")} is marked as explicit feedback.`
@@ -244,22 +246,22 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
 
     const controlOrValue = cycleEdges.every((edge) => {
       const source = findNodePort(graph, edge.from.node, edge.from.port)!;
-      return ["value", "event"].includes(source.port.type.flow);
+      return ["control", "event"].includes(source.port.type.flow);
     });
-    diagnostics.push({
+    issues.push({
       severity: "error",
       code: controlOrValue ? "ambiguous-algebraic-loop" : "invalid-cycle",
       message: `${cycleEdges.map(edgeId).join(" -> ")} needs an explicit feedback policy.`
     });
   }
 
-  return diagnostics;
+  return issues;
 }
 
 export function connectionSemanticCheck(
   graph: DisplayGraphDocumentV01,
   patch: AddEdgePatch | null
-): GraphSemanticDiagnostic | null {
+): GraphSemanticIssue | null {
   if (!patch || patch.type !== "addEdge") {
     return null;
   }
@@ -268,7 +270,7 @@ export function connectionSemanticCheck(
     ...graph,
     edges: [...graph.edges, patch.edge]
   };
-  return analyzeGraphPortSemantics(draft).find((diagnostic) => diagnostic.severity === "error") ?? null;
+  return analyzeGraphPortSemantics(draft).find((issue) => issue.severity === "error") ?? null;
 }
 
 function findNodePort(
@@ -300,6 +302,9 @@ function artistFacingType(node: DisplayGraphNodeV01, port: PortV01): string {
   if (port.type.flow === "signal" && port.type.dataKind.startsWith("signal.")) {
     return port.type.dataKind;
   }
+  if (port.type.flow === "control") {
+    return `value.${artistFacingDataKind(port.type.dataKind)}`;
+  }
   return `${port.type.flow}.${port.type.dataKind}`;
 }
 
@@ -308,6 +313,25 @@ function semanticDataTypeForPort(node: DisplayGraphNodeV01, port: PortV01): Data
     return {
       flow: "resource",
       dataKind: "render.frame"
+    };
+  }
+  if (port.type.flow === "event" && port.type.dataKind === "event.bang") {
+    return {
+      flow: "control",
+      dataKind: "value.core.bang"
+    };
+  }
+  if (port.type.flow === "event" && port.type.dataKind === "message.any") {
+    return {
+      flow: "control",
+      dataKind: "value.core.message"
+    };
+  }
+  if (port.type.flow === "control") {
+    return {
+      ...port.type,
+      flow: "control",
+      dataKind: canonicalValueDataKind(port.type)
     };
   }
   return port.type;
@@ -324,23 +348,66 @@ function defaultRate(type: string, port: PortV01): string {
   if (type === "gpu.texture2d") {
     return "gpu";
   }
-  if (port.type.flow === "event" || port.type.flow === "value") {
+  if (port.type.flow === "event" || port.type.flow === "control") {
     return "control";
   }
   return port.type.flow;
 }
 
 function storedTypeLabel(type: DataTypeV01): string {
-  return `${type.flow}<${type.dataKind}>`;
+  if (type.flow === "control") {
+    return `value<${artistFacingDataKind(type.dataKind)}>`;
+  }
+  return `${type.flow}<${artistFacingDataKind(type.dataKind)}>`;
 }
 
-function conversionPreview(plan: ConversionPlanV01): EdgeConversionPreview | null {
+function edgeConnectionPreview(
+  sourceNode: DisplayGraphNodeV01,
+  sourcePort: PortV01,
+  targetNode: DisplayGraphNodeV01,
+  targetPort: PortV01
+): EdgeConversionPreview | null {
+  const sourceSpec = graphPortToPortSpec(sourcePort);
+  const targetSpec = graphPortToPortSpec(targetPort);
+  const connectionPolicy = portConnectionPolicyV01(sourceSpec, targetSpec);
+  const conversionPlan = planConversion(
+    semanticDataTypeForPort(sourceNode, sourcePort),
+    semanticDataTypeForPort(targetNode, targetPort)
+  );
+
+  if (!connectionPolicy.accepted) {
+    if (conversionPlan.ok) {
+      return conversionPreviewForPlan(conversionPlan);
+    }
+    return {
+      source: portSemanticsForPort(sourceNode, sourcePort).type,
+      target: portSemanticsForPort(targetNode, targetPort).type,
+      lossy: false,
+      policies: [],
+      issues: [connectionPolicy.reason]
+    };
+  }
+
+  if (connectionPolicy.reason !== "type-match") {
+    return {
+      source: portSemanticsForPort(sourceNode, sourcePort).type,
+      target: portSemanticsForPort(targetNode, targetPort).type,
+      lossy: false,
+      policies: [connectionPolicy.reason],
+      issues: []
+    };
+  }
+
+  return conversionPreviewForPlan(conversionPlan);
+}
+
+export function conversionPreviewForPlan(plan: ConversionPlanV01): EdgeConversionPreview | null {
   if (!plan.ok || plan.steps.every((step) => step.policy === "identity")) {
     return null;
   }
   return {
-    source: `${plan.source.dataKind}/${plan.source.representation}`,
-    target: `${plan.target.dataKind}/${plan.target.representation}`,
+    source: `${conversionDataKindLabel(String(plan.source.dataKind))}/${plan.source.representation}`,
+    target: `${conversionDataKindLabel(String(plan.target.dataKind))}/${plan.target.representation}`,
     lossy: plan.lossy,
     policies: plan.steps.map((step) => [
       step.policy,
@@ -349,9 +416,77 @@ function conversionPreview(plan: ConversionPlanV01): EdgeConversionPreview | nul
       step.quantize ? "quantize" : null,
       step.sanitize ? `sanitize=${step.sanitize}` : null
     ].filter(Boolean).join(" ")),
-    diagnostics: plan.diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+    issues: plan.issues.map((issue) => `${issue.code}: ${issue.message}`)
   };
 }
+
+function artistFacingDataKind(dataKind: string): string {
+  switch (dataKind) {
+    case "value.core.float8":
+    case "value.core.float16":
+    case "value.core.float32":
+    case "value.core.float64":
+      return "number.float";
+    case "value.core.int8":
+    case "value.core.int16":
+    case "value.core.int32":
+    case "value.core.int64":
+      return "number.int";
+    case "value.core.uint8":
+    case "value.core.uint16":
+    case "value.core.uint32":
+    case "value.core.uint64":
+      return "number.int";
+    case "value.core.bool":
+      return "boolean";
+    case "value.core.color":
+      return "color";
+    case "value.core.message":
+      return "message.any";
+    case "value.core.string":
+      return "string";
+    default:
+      return dataKind;
+  }
+}
+
+function canonicalValueDataKind(type: DataTypeV01): string {
+  switch (type.dataKind) {
+    case "number.float":
+      return valueCoreKindForFormat("float", type.format, "32");
+    case "number.int":
+      return valueCoreKindForFormat("int", type.format, "32");
+    case "boolean":
+      return "value.core.bool";
+    case "color":
+      return "value.core.color";
+    case "message.any":
+      return "value.core.message";
+    case "string":
+      return "value.core.string";
+    default:
+      return type.dataKind;
+  }
+}
+
+function valueCoreKindForFormat(
+  family: "float" | "int",
+  format: DataTypeV01["format"],
+  fallbackBits: string
+): string {
+  const text = typeof format === "string" ? format : "";
+  const match = text.match(/^(?:u?float|[fiu])([0-9]+)(?:\\.|$)/u);
+  const bits = match?.[1] ?? fallbackBits;
+  if (family === "int" && text.startsWith("u")) {
+    return `value.core.uint${bits}`;
+  }
+  return `value.core.${family}${bits}`;
+}
+
+function conversionDataKindLabel(dataKind: string): string {
+  return artistFacingDataKind(dataKind);
+}
+
 
 function findDirectedCycles(graph: DisplayGraphDocumentV01): DisplayEdgeV01[][] {
   const adjacency = new Map<string, DisplayEdgeV01[]>();

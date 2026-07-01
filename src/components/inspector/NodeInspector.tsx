@@ -1,10 +1,7 @@
 import { Divider, Group, Stack, Text } from "@mantine/core";
-import { BookOpen, Trash2 } from "lucide-react";
-import { Fragment, useState, type ReactNode } from "react";
-import { getBuiltinNodeHelp, getBuiltinNodeHelpGraph } from "@skenion/contracts";
-import type { GraphFragmentV01, ShaderDiagnosticV01 } from "@skenion/contracts";
+import { Trash2 } from "lucide-react";
+import { Fragment, type ReactNode } from "react";
 import type { RuntimeGeneratedShaderResponse } from "../../runtime/types";
-import type { GraphFragmentBuildResult } from "../../graph/fragmentClipboard";
 import type { DisplayGraphNodeV01 } from "../../graph/patchLibrary";
 import { AssetControls } from "./AssetControls";
 import { BooleanValueControls } from "./BooleanValueControls";
@@ -14,12 +11,10 @@ import { ColorRgbaControls } from "./ColorRgbaControls";
 import { FloatValueControls } from "./FloatValueControls";
 import { FullscreenShaderControls } from "./FullscreenShaderControls";
 import { IntegerValueControls } from "./IntegerValueControls";
-import { NodeHelp } from "./NodeHelp";
 import { PanelControlInspector } from "./PanelControlInspector";
 import { PortTable } from "./PortTable";
 import { RoutingNodeControls } from "./RoutingNodeControls";
 import { StringValueControls } from "./StringValueControls";
-import { UnsignedIntegerValueControls } from "./UnsignedIntegerValueControls";
 import {
   isBoolValueNode,
   readBoolValueParam
@@ -57,11 +52,6 @@ import {
   readIntValueParam
 } from "../../graph/intValue";
 import {
-  isUIntValueNode,
-  readUIntRepresentationParam,
-  readUIntValueParam
-} from "../../graph/uintValue";
-import {
   isMessageNode,
   readMessageValueParam
 } from "../../graph/messageNode";
@@ -73,6 +63,7 @@ import {
   isToggleNode,
   readToggleParam
 } from "../../graph/toggleValue";
+import { genericObjectSpecForNode } from "../../graph/objectSpecDisplay";
 import {
   isBangControlNode,
   isSliderFloatNode,
@@ -81,59 +72,61 @@ import {
 import { isVideoAssetNode } from "../../graph/videoAsset";
 import { isRoutingCapableObjectNode } from "../../graph/controlRouting";
 import { Button } from "../core/Button/Button";
+import type { RuntimeControlValue } from "../../runtime/types";
 
 export function NodeInspector({
   graphLocked = false,
   node,
   onRemoveNode,
   onLoadGeneratedShader,
-  onHelpClipboardWriteError,
-  onHelpCopyFragment,
-  onHelpCopyFragmentError,
   onImportAsset,
-  onOpenHelpGraph,
   onSetNodeParam,
   onSyncShaderInputs,
   generatedShader,
   generatedShaderBusy,
   runtimeAssetImportBusy,
   runtimeAssetImportEnabled,
-  runtimeShaderDiagnostics
+  runtimeControlValue
 }: {
   generatedShader?: RuntimeGeneratedShaderResponse | null;
   generatedShaderBusy?: boolean;
   graphLocked?: boolean;
   node: DisplayGraphNodeV01;
-  runtimeShaderDiagnostics?: ShaderDiagnosticV01[];
+  runtimeControlValue?: RuntimeControlValue;
   onLoadGeneratedShader?: () => void;
-  onHelpClipboardWriteError?: (message: string) => void;
-  onHelpCopyFragment?: (fragment: GraphFragmentV01, result: GraphFragmentBuildResult) => void;
-  onHelpCopyFragmentError?: (message: string) => void;
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void>;
-  onOpenHelpGraph?: (nodeKind: string) => void;
   onRemoveNode: (node: DisplayGraphNodeV01) => void;
   onSetNodeParam: (nodeId: string, key: string, value: unknown) => void;
   onSyncShaderInputs: (nodeId: string, source: string) => void;
   runtimeAssetImportBusy: boolean;
   runtimeAssetImportEnabled: boolean;
 }) {
-  const [helpOpen, setHelpOpen] = useState(false);
   const clearColor = isClearColorNode(node) ? readClearColorParam(node) : null;
   const commentText = isCommentNode(node) ? readCommentTextParam(node) : null;
   const isPanelControl = isBangControlNode(node) || isSliderFloatNode(node) || isToggleControlNode(node);
-  const colorRgba = isColorRgbaNode(node) ? readColorRgbaParam(node) : null;
+  const colorRgba = isColorRgbaNode(node)
+    ? runtimeColorValue(runtimeControlValue) ?? readColorRgbaParam(node)
+    : null;
   const colorRepresentation = isColorRgbaNode(node) ? readColorRepresentationParam(node) : null;
   const colorSpace = isColorRgbaNode(node) ? readColorSpaceParam(node) : null;
-  const floatValue = isFloatValueNode(node) && !isPanelControl ? readFloatValueParam(node) : null;
+  const floatValue = isFloatValueNode(node) && !isPanelControl
+    ? runtimeFloatValue(runtimeControlValue) ?? readFloatValueParam(node)
+    : null;
   const floatRepresentation = isFloatValueNode(node) && !isPanelControl ? readFloatRepresentationParam(node) : null;
-  const intValue = isIntValueNode(node) ? readIntValueParam(node) : null;
+  const intValue = isIntValueNode(node)
+    ? runtimeIntegerValue(runtimeControlValue) ?? readIntValueParam(node)
+    : null;
   const intRepresentation = isIntValueNode(node) ? readIntRepresentationParam(node) : null;
-  const uintValue = isUIntValueNode(node) ? readUIntValueParam(node) : null;
-  const uintRepresentation = isUIntValueNode(node) ? readUIntRepresentationParam(node) : null;
   const toggleValue = isToggleNode(node) ? readToggleParam(node) : null;
-  const boolValue = isBoolValueNode(node) && toggleValue === null ? readBoolValueParam(node) : null;
-  const stringValue = isStringValueNode(node) ? readStringValueParam(node) : null;
-  const messageValue = isMessageNode(node) ? readMessageValueParam(node) : null;
+  const boolValue = isBoolValueNode(node) && toggleValue === null
+    ? runtimeBoolValue(runtimeControlValue) ?? readBoolValueParam(node)
+    : null;
+  const stringValue = isStringValueNode(node)
+    ? runtimeStringValue(runtimeControlValue) ?? readStringValueParam(node)
+    : null;
+  const messageValue = isMessageNode(node)
+    ? runtimeStringValue(runtimeControlValue) ?? readMessageValueParam(node)
+    : null;
   const isAssetNode = isVideoAssetNode(node);
   const shaderSource = isFullscreenShaderNode(node) ? readShaderSourceParam(node) : null;
   const shaderLanguage = isFullscreenShaderNode(node) ? readShaderLanguageParam(node) : null;
@@ -143,8 +136,6 @@ export function NodeInspector({
   const shaderInterfaceSynced = shaderSource !== null
     ? fullscreenShaderPortsAreSynced(node.ports, shaderSource, shaderLanguage ?? "unsupported")
     : false;
-  const help = getBuiltinNodeHelp(node.kind);
-  const helpGraph = getBuiltinNodeHelpGraph(node.kind);
   const hasRoutingSettings = isRoutingCapableObjectNode(node);
   const objectSettingBlocks: ReactNode[] = [];
   const addObjectSettingBlock = (key: string, content: ReactNode) => {
@@ -212,18 +203,6 @@ export function NodeInspector({
         onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
         representation={intRepresentation!}
         value={intValue}
-      />
-    );
-  }
-
-  if (uintValue !== null) {
-    addObjectSettingBlock(
-      "unsigned-integer",
-      <UnsignedIntegerValueControls
-        onChange={(value) => onSetNodeParam(node.id, "value", value)}
-        onRepresentationChange={(representation) => onSetNodeParam(node.id, "representation", representation)}
-        representation={uintRepresentation!}
-        value={uintValue}
       />
     );
   }
@@ -309,7 +288,6 @@ export function NodeInspector({
         onResetSource={() => onSetNodeParam(node.id, "source", DEFAULT_FULLSCREEN_SHADER_SOURCE)}
         onSourceChange={(source) => onSetNodeParam(node.id, "source", source)}
         onSyncInputs={() => onSyncShaderInputs(node.id, shaderSource)}
-        runtimeDiagnostics={runtimeShaderDiagnostics}
         source={shaderSource}
       />
     );
@@ -321,20 +299,10 @@ export function NodeInspector({
         <div>
           <Text fw={800}>{String(node.params.label ?? node.id)}</Text>
           <Text c="dimmed" size="xs">
-            {node.kind}@{node.kindVersion}
+            {inspectorObjectSubtitle(node)}
           </Text>
         </div>
         <Group gap="xs" wrap="nowrap">
-          {help ? (
-            <Button
-              leftSection={<BookOpen size={15} />}
-              onClick={() => setHelpOpen((open) => !open)}
-              size="compact-sm"
-              variant="light"
-            >
-              Help
-            </Button>
-          ) : null}
           <Button
             disabled={graphLocked}
             intent="danger"
@@ -346,17 +314,6 @@ export function NodeInspector({
           </Button>
         </Group>
       </Group>
-
-      {help && helpOpen ? (
-        <NodeHelp
-          help={help}
-          helpGraph={helpGraph}
-          onClipboardWriteError={onHelpClipboardWriteError}
-          onCopyFragment={onHelpCopyFragment}
-          onCopyFragmentError={onHelpCopyFragmentError}
-          onOpenAsEditableCopy={helpGraph && onOpenHelpGraph ? () => onOpenHelpGraph(node.kind) : undefined}
-        />
-      ) : null}
 
       {objectSettingBlocks.length > 0 ? (
         <>
@@ -371,4 +328,31 @@ export function NodeInspector({
 
     </Stack>
   );
+}
+
+function inspectorObjectSubtitle(node: DisplayGraphNodeV01): string {
+  return node.objectSpec?.trim() || genericObjectSpecForNode(node) || "Object";
+}
+
+function runtimeFloatValue(value?: RuntimeControlValue): number | null {
+  return value?.type === "float" ? value.value : null;
+}
+
+function runtimeIntegerValue(value?: RuntimeControlValue): number | null {
+  if (value?.type === "int" || value?.type === "uint") {
+    return value.value;
+  }
+  return null;
+}
+
+function runtimeBoolValue(value?: RuntimeControlValue): boolean | null {
+  return value?.type === "bool" ? value.value : null;
+}
+
+function runtimeColorValue(value?: RuntimeControlValue): [number, number, number, number] | null {
+  return value?.type === "color" ? value.value : null;
+}
+
+function runtimeStringValue(value?: RuntimeControlValue): string | null {
+  return value?.type === "string" ? value.value : null;
 }

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { GraphDocumentV01 } from "@skenion/contracts";
-import { getBuiltinNodeHelpGraph } from "@skenion/contracts";
+import { getStudioBuiltinNodeHelpGraph } from "../../data/studioBuiltins";
 import { HelpGraphViewer } from "./HelpGraphViewer";
 
 const meta = {
@@ -35,25 +35,33 @@ export const DynamicShaderInputs: Story = {
   render: (args) => <HelpGraphViewer {...args} />
 };
 
-const shaderDiagnosticsHelpGraph: GraphDocumentV01 = {
+const shaderIssuesHelpGraph: GraphDocumentV01 = {
   schema: "skenion.graph",
   schemaVersion: "0.1.0",
-  id: "help-shader-diagnostics",
+  id: "help-shader-issues",
   revision: "1",
   nodes: [
     {
       id: "comment_1",
-      kind: "core.comment",
-      kindVersion: "0.1.0",
+      implementation: {
+        provider: { kind: "core" },
+        objectId: "comment",
+        version: "0.1.0"
+      },
+      objectSpec: "comment",
       params: {
-        text: "This shader contains an intentionally unsupported annotation type so diagnostics can point back to the source line."
+        text: "This shader contains an intentionally unsupported annotation type so issues can point back to the source line."
       },
       ports: []
     },
     {
       id: "shader_1",
-      kind: "render.fullscreen-shader",
-      kindVersion: "0.1.0",
+      implementation: {
+        provider: { kind: "core" },
+        objectId: "render.fullscreen-shader",
+        version: "0.1.0"
+      },
+      objectSpec: "fullscreen-shader",
       params: {
         label: "Broken Shader",
         language: "wgsl",
@@ -64,15 +72,19 @@ const shaderDiagnosticsHelpGraph: GraphDocumentV01 = {
           id: "out",
           direction: "output",
           label: "Out",
-          type: "gpu.texture2d",
+          type: "value.core.tensor",
           rate: "gpu"
         }
       ]
     },
     {
       id: "output_1",
-      kind: "render.output",
-      kindVersion: "0.1.0",
+      implementation: {
+        provider: { kind: "core" },
+        objectId: "render.output",
+        version: "0.1.0"
+      },
+      objectSpec: "render-output",
       params: {
         label: "Render Output"
       },
@@ -81,10 +93,9 @@ const shaderDiagnosticsHelpGraph: GraphDocumentV01 = {
           id: "in",
           direction: "input",
           label: "In",
-          type: "gpu.texture2d",
+          type: "value.core.tensor",
           rate: "gpu",
-          required: true,
-          triggerMode: "latched"
+          required: true
         }
       ]
     }
@@ -104,15 +115,15 @@ const shaderDiagnosticsHelpGraph: GraphDocumentV01 = {
   ]
 };
 
-export const ShaderDiagnostics: Story = {
+export const ShaderIssues: Story = {
   args: {
-    graph: shaderDiagnosticsHelpGraph
+    graph: shaderIssuesHelpGraph
   },
   render: (args) => <HelpGraphViewer {...args} />
 };
 
 function getRequiredHelpGraph(id: string) {
-  const graph = getBuiltinNodeHelpGraph(id);
+  const graph = getStudioBuiltinNodeHelpGraph(id);
   if (!graph) {
     throw new Error(`Missing builtin help graph ${id}`);
   }

@@ -1,4 +1,4 @@
-import { Alert, Badge, Code, Group, Stack, Text } from "@mantine/core";
+import { Alert, Badge, Group, Stack, Text } from "@mantine/core";
 import { MonitorPlay, RefreshCw, RotateCw, Square } from "lucide-react";
 import {
   canRestartPreview,
@@ -56,23 +56,6 @@ export function RuntimePreviewPanel({
         </Group>
       </Group>
 
-      <Code block className="runtime-json">
-        {JSON.stringify(
-          {
-            pid: previewStatus?.pid ?? null,
-            graphRevision: previewStatus?.graphRevision ?? null,
-            sessionRevision: previewStatus?.sessionRevision ?? null,
-            previewSessionRevision: previewStatus?.previewSessionRevision ?? null,
-            controlRevision: previewStatus?.controlRevision ?? null,
-            previewControlRevision: previewStatus?.previewControlRevision ?? null,
-            controlLive: previewStatus?.controlLive ?? false,
-            lastControlUpdateAt: previewStatus?.lastControlUpdateAt ?? null
-          },
-          null,
-          2
-        )}
-      </Code>
-
       <Group gap="xs" grow>
         <Button disabled={!connected} leftSection={<RefreshCw size={15} />} loading={busyAction === "previewStatus"} onClick={onRefreshPreview} size="xs" variant="light">
           Refresh Status
@@ -91,11 +74,11 @@ export function RuntimePreviewPanel({
         </Button>
       </Group>
 
-      {previewStatus?.diagnostics.length ? (
+      {previewStatus?.issues.length ? (
         <Stack gap={4}>
-          {previewStatus.diagnostics.slice(0, 3).map((diagnostic) => (
-            <Alert color={diagnostic.severity === "error" ? "red" : "yellow"} key={diagnostic.message} variant="light">
-              {diagnostic.message}
+          {previewStatus.issues.slice(0, 3).map((issue) => (
+            <Alert color={issue.severity === "error" ? "red" : "yellow"} key={issue.message} variant="light">
+              {issue.message}
             </Alert>
           ))}
         </Stack>

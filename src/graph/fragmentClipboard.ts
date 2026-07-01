@@ -3,7 +3,7 @@ import {
   validateGraphFragmentV01,
   type CanvasNodeViewV01,
   type EdgeSpecV01,
-  type GraphFragmentDiagnosticV01,
+  type GraphFragmentIssueV01,
   type GraphFragmentOmittedEdgeV01,
   type GraphFragmentV01,
   type ViewStateV01
@@ -20,6 +20,7 @@ import {
   type DisplayGraphDocumentV01
 } from "./patchLibrary";
 import { edgeId } from "./portSemantics";
+import { hasPrimaryModifier, hasSelectedText, isEditableShortcutTarget } from "../shortcuts/keyboard";
 
 export interface GraphSelection {
   edgeIds: string[];
@@ -27,7 +28,7 @@ export interface GraphSelection {
 }
 
 export interface GraphFragmentBuildResult {
-  diagnostics: GraphFragmentDiagnosticV01[];
+  issues: GraphFragmentIssueV01[];
   fragment: GraphFragmentV01 | null;
   omittedEdges: GraphFragmentOmittedEdgeV01[];
 }
@@ -42,6 +43,10 @@ export interface GraphClipboardShortcutEvent {
 }
 
 export type GraphClipboardShortcutAction = "copy" | "paste";
+
+export interface GraphClipboardShortcutContext {
+  selectedText?: string | null;
+}
 
 export interface GraphFragmentPasteAvailabilityInput {
   capabilities: string[] | null | undefined;
@@ -59,21 +64,21 @@ export function graphFragmentPasteAvailability(
   if (!input.sessionLoaded || !input.sessionSynced) {
     return { ok: false, reason: "Load and sync a Runtime session before pasting graph fragments." };
   }
-  if (!input.capabilities?.includes("session.operation")) {
-    return { ok: false, reason: "Runtime does not support session.operation graph fragment paste." };
+  if (!input.capabilities?.includes("session.graph.pasteFragment.realtime.v0.1")) {
+    return { ok: false, reason: "Runtime does not support realtime graph fragment paste." };
   }
   return { ok: true };
 }
 
 export function graphClipboardShortcutAction(
-  event: GraphClipboardShortcutEvent
+  event: GraphClipboardShortcutEvent,
+  context: GraphClipboardShortcutContext = {}
 ): GraphClipboardShortcutAction | null {
-  if (isEditableShortcutTarget(event.target) || event.altKey || event.shiftKey) {
+  if (hasSelectedText(context.selectedText) || isEditableShortcutTarget(event.target) || event.altKey || event.shiftKey) {
     return null;
   }
 
-  const primaryModifier = event.metaKey || event.ctrlKey;
-  if (!primaryModifier) {
+  if (!hasPrimaryModifier(event)) {
     return null;
   }
 
@@ -85,14 +90,6 @@ export function graphClipboardShortcutAction(
     return "paste";
   }
   return null;
-}
-
-export function isEditableShortcutTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  const tagName = target.tagName.toLowerCase();
-  return target.isContentEditable || tagName === "input" || tagName === "select" || tagName === "textarea";
 }
 
 export function createGraphFragmentFromSelection(
@@ -125,7 +122,7 @@ export function createGraphFragmentFromSelection(
 
   if (nodes.length === 0) {
     return {
-      diagnostics: [
+      issues: [
         {
           severity: "warning",
           code: "empty-selection",
@@ -156,7 +153,7 @@ export function createGraphFragmentFromSelection(
   const analysis = analyzeGraphFragmentV01(fragment, { outsideEndpointPolicy: "omit" });
 
   return {
-    diagnostics: validation.ok ? analysis.diagnostics : analysis.diagnostics,
+    issues: validation.ok ? analysis.issues : analysis.issues,
     fragment: validation.ok ? fragment : null,
     omittedEdges
   };

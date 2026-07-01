@@ -51,7 +51,7 @@ function parseRuntimeUrl(value: string | null): string {
 }
 
 function parseProfileId(value: string | null): RuntimeProfileId {
-  return value === "local-shared" || value === "remote" ? value : "local-managed";
+  return value === "remote" || value === "local-shared" ? "remote" : "local";
 }
 
 function parseSessionId(value: string | null): string {

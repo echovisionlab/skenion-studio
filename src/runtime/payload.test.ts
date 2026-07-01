@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { validateProjectDocumentV01 } from "@skenion/contracts";
+import { validateProjectDocumentV01, validateRuntimeSessionLoadRequestV01 } from "@skenion/contracts";
 import { sampleGraph } from "../data/sampleGraph";
 import { createProjectDocument, createViewStateFromPositions } from "../graph/projectDocument";
-import { createRuntimeProjectPayload } from "./payload";
+import { createRuntimeProjectPayload, createRuntimeSessionLoadRequest } from "./payload";
 import type { RuntimeApiResponse } from "./types";
 
 describe("runtime payload", () => {
@@ -26,7 +26,7 @@ describe("runtime payload", () => {
     const payload = createRuntimeProjectPayload(activeProject);
     const response = {
       ok: true,
-      diagnostics: [],
+      issues: [],
       plan: null,
       report: null
     } satisfies RuntimeApiResponse;
@@ -36,5 +36,40 @@ describe("runtime payload", () => {
     expect(payload.graph.schemaVersion).toBe("0.1.0");
     expect(payload.patchLibrary).toEqual([]);
     expect(response.ok).toBe(true);
+  });
+
+  it("wraps project documents in the Runtime session-load envelope", () => {
+    const activeProject = createProjectDocument(sampleGraph, createViewStateFromPositions(sampleGraph, {}));
+    const request = createRuntimeSessionLoadRequest(activeProject);
+
+    expect(validateRuntimeSessionLoadRequestV01(request).ok).toBe(true);
+    expect(request).toEqual({
+      schema: "skenion.runtime.session-load-request",
+      schemaVersion: "0.1.0",
+      project: activeProject,
+      mode: "loadIfEmpty"
+    });
+    expect(request.project).not.toBe(activeProject);
+    expect(request.project.graph).not.toBe(activeProject.graph);
+  });
+
+  it("preserves explicit Runtime session-load mode and preconditions", () => {
+    const activeProject = createProjectDocument(sampleGraph, createViewStateFromPositions(sampleGraph, {}));
+    const request = createRuntimeSessionLoadRequest(activeProject, {
+      mode: "replaceIfMatch",
+      precondition: {
+        documentId: activeProject.documentId,
+        sessionRevision: "1",
+        graphRevision: activeProject.graph.revision
+      }
+    });
+
+    expect(validateRuntimeSessionLoadRequestV01(request).ok).toBe(true);
+    expect(request.mode).toBe("replaceIfMatch");
+    expect(request.precondition).toEqual({
+      documentId: activeProject.documentId,
+      sessionRevision: "1",
+      graphRevision: activeProject.graph.revision
+    });
   });
 });

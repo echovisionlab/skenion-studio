@@ -1,3 +1,6 @@
+import { hasPrimaryModifier, isEditableShortcutTarget } from "../shortcuts/keyboard";
+export { isEditableShortcutTarget } from "../shortcuts/keyboard";
+
 export type RuntimeHistoryShortcutAction = "undo" | "redo";
 
 export interface RuntimeHistoryShortcutEvent {
@@ -17,8 +20,7 @@ export function runtimeHistoryShortcutAction(
   }
 
   const key = event.key.toLowerCase();
-  const primaryModifier = event.metaKey || event.ctrlKey;
-  if (!primaryModifier) {
+  if (!hasPrimaryModifier(event)) {
     return null;
   }
 
@@ -33,12 +35,4 @@ export function runtimeHistoryShortcutAction(
   }
 
   return null;
-}
-
-export function isEditableShortcutTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  const tagName = target.tagName.toLowerCase();
-  return target.isContentEditable || tagName === "input" || tagName === "select" || tagName === "textarea";
 }

@@ -29,9 +29,9 @@ function node(kind: string, id: string, label: string, params: Record<string, un
   };
 }
 
-export const MULTI_UNIFORM_SHADER_SOURCE = `// @skenion.uniform speed number.float default=0.25 min=0 max=2 step=0.01 label="Speed"
-// @skenion.uniform phase number.float default=0.65 min=0 max=1 step=0.01 label="Phase"
-// @skenion.uniform tint color default=[0.95,0.25,0.12,1] label="Tint"
+export const MULTI_UNIFORM_SHADER_SOURCE = `// @skenion.uniform speed value.core.float32 default=0.25 min=0 max=2 step=0.01 label="Speed"
+// @skenion.uniform phase value.core.float32 default=0.65 min=0 max=1 step=0.01 label="Phase"
+// @skenion.uniform tint value.core.color default=[0.95,0.25,0.12,1] label="Tint"
 @fragment
 fn fs_main() -> @location(0) vec4<f32> {
   let pulse = 0.5 + 0.5 * sin(skenion.time * (1.0 + skenion.speed * 2.0) + skenion.phase * 6.28318);
@@ -39,8 +39,8 @@ fn fs_main() -> @location(0) vec4<f32> {
   return vec4<f32>(mix(base, skenion.tint.rgb, 0.5), skenion.tint.a);
 }`;
 
-export const OBJECT_ROUTING_PANEL_SHADER_SOURCE = `// @skenion.uniform speed number.float default=0.75 min=0 max=2 step=0.01
-// @skenion.uniform enabled boolean default=true
+export const OBJECT_ROUTING_PANEL_SHADER_SOURCE = `// @skenion.uniform speed value.core.float32 default=0.75 min=0 max=2 step=0.01
+// @skenion.uniform enabled value.core.bool default=true
 @fragment
 fn fs_main() -> @location(0) vec4<f32> {
   let pulse = 0.5 + 0.5 * sin(skenion.time * skenion.speed);

@@ -1,13 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Divider, Stack } from "@mantine/core";
+import { Stack } from "@mantine/core";
 import type { ClockStateV01 } from "../../runtime/types";
 import { createRuntimeProfileState } from "../../desktop/runtimeProfiles";
 import { RuntimeLogsPanel, RuntimeSettingsPanel } from "../RuntimePanel";
-import { sampleGraph } from "../../data/sampleGraph";
 import { ClockStateDisplay } from "./ClockStateDisplay";
 import { RuntimeConnectionPanel } from "./RuntimeConnectionPanel";
 import { RuntimePreviewPanel } from "./RuntimePreviewPanel";
-import { RuntimeSessionPanel } from "./RuntimeSessionPanel";
 import { RuntimeTelemetryPanel } from "./RuntimeTelemetryPanel";
 import {
   noop,
@@ -43,8 +41,8 @@ export const Disconnected: Story = {
       connected={false}
       desktopAvailable={false}
       onConnect={noop}
-      onOpenIsolatedWindow={noop}
-      onOpenSharedWindow={noop}
+      onOpenNewRuntimeWindow={noop}
+      onOpenNewWindow={noop}
       onProfileChange={noop}
       onRefreshSession={noop}
       onUrlChange={noop}
@@ -59,40 +57,26 @@ export const Disconnected: Story = {
   )
 };
 
-export const ConnectionAndSession: Story = {
+export const ConnectedRuntime: Story = {
   render: () => (
-    <Stack gap="sm">
-      <RuntimeConnectionPanel
-        busyAction={null}
-        connected
-        desktopAvailable={false}
-        onConnect={noop}
-        onOpenIsolatedWindow={noop}
-        onOpenSharedWindow={noop}
-        onProfileChange={noop}
-        onRefreshSession={noop}
-        onUrlChange={noop}
-        profileState={profileState}
-        sessionId="default"
-        sidecarStatus="stopped"
-        status="connected"
-        url="http://localhost:3761"
-        windowCount={2}
-        windowMode="shared-session"
-      />
-      <Divider />
-      <RuntimeSessionPanel
-        busyAction={null}
-        connected
-        onClearSession={noop}
-        onPlanSession={noop}
-        onRunSession={noop}
-        onValidateSession={noop}
-        session={runtimeSession}
-        sessionLoaded
-        sessionSynced={false}
-      />
-    </Stack>
+    <RuntimeConnectionPanel
+      busyAction={null}
+      connected
+      desktopAvailable={false}
+      onConnect={noop}
+      onOpenNewRuntimeWindow={noop}
+      onOpenNewWindow={noop}
+      onProfileChange={noop}
+      onRefreshSession={noop}
+      onUrlChange={noop}
+      profileState={profileState}
+      sessionId="default"
+      sidecarStatus="stopped"
+      status="connected"
+      url="http://localhost:3761"
+      windowCount={2}
+      windowMode="shared-session"
+    />
   )
 };
 
@@ -125,26 +109,20 @@ export const RuntimeSettings: Story = {
       desktopAvailable={false}
       error={null}
       info={runtimeInfo}
-      onClearSession={noop}
       onConnect={noop}
-      onOpenIsolatedWindow={noop}
-      onOpenSharedWindow={noop}
-      onPlanSession={noop}
+      onOpenNewRuntimeWindow={noop}
+      onOpenNewWindow={noop}
       onProfileChange={noop}
       onRefreshPreview={noop}
       onRefreshSession={noop}
       onRestartPreview={noop}
-      onRunSession={noop}
       onStartPreview={noop}
       onStopPreview={noop}
       onUrlChange={noop}
-      onValidateSession={noop}
       previewStatus={runtimePreviewStatus}
       profileState={profileState}
-      result={null}
       session={runtimeSession}
       sessionId="default"
-      sessionSynced={false}
       sidecarStatus="stopped"
       status="connected"
       url="http://localhost:3761"
@@ -158,16 +136,7 @@ export const RuntimeLogs: Story = {
   render: () => (
     <RuntimeLogsPanel
       clientLines={[]}
-      error={null}
-      info={runtimeInfo}
-      previewStatus={runtimePreviewStatus}
-      result={null}
       runtimeLines={[]}
-      semanticDiagnostics={[]}
-      session={runtimeSession}
-      status="connected"
-      telemetry={runtimeTelemetry}
-      validation={{ ok: true, value: sampleGraph }}
     />
   )
 };

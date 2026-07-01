@@ -6,9 +6,22 @@
 }
 
 .count {
+  display: inline-flex;
   min-width: 34px;
   height: 24px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
   color: var(--sk-text-muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.count:hover {
+  background: var(--sk-surface-subtle);
 }
 
 .count[data-kind="warning"][data-active] {
@@ -19,8 +32,7 @@
   color: #c92a2a;
 }
 
-.lock,
-.logs {
+.lock {
   height: 24px;
   min-width: 24px;
   width: 24px;

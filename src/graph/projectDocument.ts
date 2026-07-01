@@ -5,7 +5,6 @@ import {
 } from "@skenion/contracts";
 import type {
   CanvasNodeViewV01,
-  CanvasViewportV01,
   GraphDocumentV01,
   ProjectDocumentV01,
   ViewStateV01
@@ -21,7 +20,7 @@ export type ViewPositions = Record<string, { x: number; y: number }>;
 export type ContractDocumentKind = "graph" | "project";
 export type ContractDocumentErrorCode = "invalid-current-document" | "unsupported-schema-version";
 
-export interface ContractDocumentDiagnostic {
+export interface ContractDocumentIssue {
   code: ContractDocumentErrorCode;
   errors: string[];
   expectedSchemaVersion: typeof CURRENT_CONTRACT_SCHEMA_VERSION;
@@ -32,12 +31,12 @@ export interface ContractDocumentDiagnostic {
 }
 
 export class ContractDocumentError extends Error {
-  readonly diagnostic: ContractDocumentDiagnostic;
+  readonly issue: ContractDocumentIssue;
 
-  constructor(diagnostic: ContractDocumentDiagnostic) {
-    super(diagnostic.message);
+  constructor(issue: ContractDocumentIssue) {
+    super(issue.message);
     this.name = "ContractDocumentError";
-    this.diagnostic = diagnostic;
+    this.issue = issue;
   }
 }
 
@@ -55,8 +54,7 @@ export function viewPositionsFromViewState(viewState: ViewStateV01): ViewPositio
 
 export function createViewStateFromPositions(
   graph: DisplayGraphDocumentV01,
-  positions: ViewPositions,
-  viewport?: CanvasViewportV01
+  positions: ViewPositions
 ): ViewStateV01 {
   const defaults = createDefaultViewStateForDisplayGraph(graph);
   const nodes = Object.fromEntries(
@@ -72,8 +70,7 @@ export function createViewStateFromPositions(
   return {
     ...defaults,
     canvas: {
-      nodes,
-      viewport: viewport ?? defaults.canvas.viewport
+      nodes
     }
   };
 }
@@ -97,8 +94,7 @@ export function reconcileViewStateWithGraph(
     schema: "skenion.view-state",
     schemaVersion: "0.1.0",
     canvas: {
-      nodes,
-      viewport: viewState.canvas.viewport ?? defaults.canvas.viewport
+      nodes
     }
   };
 }
@@ -124,30 +120,18 @@ export function updateViewStateNodePosition(
   });
 }
 
-export function updateViewStateViewport(
-  graph: DisplayGraphDocumentV01,
-  viewState: ViewStateV01,
-  viewport: CanvasViewportV01
-): ViewStateV01 {
-  return reconcileViewStateWithGraph(graph, {
-    ...viewState,
-    canvas: {
-      ...viewState.canvas,
-      viewport
-    }
-  });
-}
-
 export function createProjectDocument(
   graph: DisplayGraphDocumentV01,
   viewState: ViewStateV01,
-  now = new Date()
+  now = new Date(),
+  documentId = createDocumentId()
 ): ProjectDocumentV01 {
   const timestamp = now.toISOString();
   return {
     schema: "skenion.project",
     schemaVersion: CURRENT_CONTRACT_SCHEMA_VERSION,
     id: graph.id,
+    documentId,
     revision: graph.revision,
     metadata: {
       title: graph.id,
@@ -164,7 +148,8 @@ export function createProjectDocument(
 export function createProjectDocumentFromContractGraph(
   graph: GraphDocumentV01,
   viewState?: ViewStateV01,
-  now = new Date()
+  now = new Date(),
+  documentId = createDocumentId()
 ): ProjectDocumentV01 {
   const displayGraph = contractGraphToDisplayGraph(graph);
   const timestamp = now.toISOString();
@@ -172,6 +157,7 @@ export function createProjectDocumentFromContractGraph(
     schema: "skenion.project",
     schemaVersion: CURRENT_CONTRACT_SCHEMA_VERSION,
     id: graph.id,
+    documentId,
     revision: graph.revision,
     metadata: {
       title: graph.id,
@@ -223,7 +209,7 @@ export function parseGraphDocumentAsActiveProject(document: unknown): ProjectDoc
     return createProjectDocumentFromContractGraph(result.value);
   }
 
-  throw new ContractDocumentError(contractDocumentDiagnostic("graph", document, result.errors));
+  throw new ContractDocumentError(contractDocumentIssue("graph", document, result.errors));
 }
 
 export function parseProjectDocument(document: unknown): ProjectDocumentV01 {
@@ -232,7 +218,7 @@ export function parseProjectDocument(document: unknown): ProjectDocumentV01 {
     return reconcileActiveProject(result.value);
   }
 
-  throw new ContractDocumentError(contractDocumentDiagnostic("project", document, result.errors));
+  throw new ContractDocumentError(contractDocumentIssue("project", document, result.errors));
 }
 
 export function parseViewState(document: unknown): ViewStateV01 {
@@ -271,17 +257,16 @@ function createDefaultViewStateForDisplayGraph(graph: DisplayGraphDocumentV01): 
             y: 96 + Math.floor(index / 4) * 180
           }
         ])
-      ),
-      viewport: { x: 0, y: 0, zoom: 1 }
+      )
     }
   };
 }
 
-function contractDocumentDiagnostic(
+function contractDocumentIssue(
   kind: ContractDocumentKind,
   document: unknown,
   errors: string[]
-): ContractDocumentDiagnostic {
+): ContractDocumentIssue {
   const version = isRecord(document) && typeof document.schemaVersion === "string"
     ? document.schemaVersion
     : "unknown";
@@ -304,4 +289,8 @@ function contractDocumentDiagnostic(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function createDocumentId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? "00000000-0000-4000-8000-000000000000";
 }

@@ -3,11 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from "react";
 import { readCommentTextParam } from "../../graph/commentNode";
 import { FLOAT_VALUE_NODE_KIND, readFloatRepresentationParam, readFloatValueParam } from "../../graph/floatValue";
-import { INT_VALUE_NODE_KIND, readIntRepresentationParam, readIntValueParam } from "../../graph/intValue";
+import { INT_VALUE_NODE_KIND, isUnsignedIntRepresentation, readIntRepresentationParam, readIntValueParam } from "../../graph/intValue";
 import { BOOL_VALUE_NODE_KIND, readBoolValueParam } from "../../graph/boolValue";
 import { COLOR_NODE_KIND, readColorRgbaParam } from "../../graph/colorRgba";
 import { STRING_VALUE_NODE_KIND, readStringValueParam } from "../../graph/stringValue";
-import { UINT_VALUE_NODE_KIND, readUIntRepresentationParam, readUIntValueParam } from "../../graph/uintValue";
 import { MESSAGE_NODE_KIND, readMessageValueParam } from "../../graph/messageNode";
 import {
   isBangControlNode,
@@ -30,8 +29,7 @@ import {
   readVideoAssetParams
 } from "../../graph/videoAsset";
 import { PANEL_NODE_KIND, readPanelParams } from "../../graph/panelNode";
-import { genericObjectTextForNode } from "../../graph/objectTextDisplay";
-import { isUnresolvedObjectNode } from "../../graph/objectTextNode";
+import { genericObjectSpecForNode } from "../../graph/objectSpecDisplay";
 import type { NodeCardView, NodePortHandleRenderer, NodePortView } from "../node/nodeTypes";
 import type { RuntimeControlMessage, RuntimeControlValue } from "../../runtime/types";
 import { bangControlMessage, controlMessageFromValue } from "../../runtime/controlMessage";
@@ -42,13 +40,15 @@ import socketStyles from "../node/PortSocket.module.css";
 
 export interface ObjectNodeRendererProps {
   card: NodeCardView;
+  editingObjectSpec?: boolean;
   layoutEditable?: boolean;
   node: DisplayGraphNodeV01;
   onObjectControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void> | void;
   onObjectLiveControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectParamChange?: (nodeId: string, key: string, value: unknown) => void;
-  onObjectTextCommit?: (nodeId: string, text: string) => void;
+  onObjectSpecEditComplete?: (nodeId: string) => void;
+  onObjectSpecCommit?: (nodeId: string, text: string) => void;
   runtimeControlEnabled?: boolean;
   runtimeControlPulseKey?: number;
   runtimeControlValue?: RuntimeControlValue;
@@ -59,13 +59,15 @@ export interface ObjectNodeRendererProps {
 
 export function ObjectNodeRenderer({
   card,
+  editingObjectSpec = false,
   layoutEditable = false,
   node,
   onImportAsset,
   onObjectControl,
   onObjectLiveControl,
   onObjectParamChange,
-  onObjectTextCommit,
+  onObjectSpecEditComplete,
+  onObjectSpecCommit,
   runtimeControlEnabled = false,
   runtimeControlPulseKey = 0,
   runtimeControlValue,
@@ -76,7 +78,7 @@ export function ObjectNodeRenderer({
   const viewSpec = objectViewSpecForNode(node);
   if (node.kind === "core.comment") {
     return (
-      <ObjectBox
+      <ObjectFrame
         className={styles.commentObject}
         chromePolicy={viewSpec.chromePolicy}
         inputPorts={card.inputs}
@@ -85,14 +87,14 @@ export function ObjectNodeRenderer({
         selected={selected}
       >
         <div className={styles.commentText}>{readCommentTextParam(node) || "Comment"}</div>
-      </ObjectBox>
+      </ObjectFrame>
     );
   }
 
   if (node.kind === PANEL_NODE_KIND) {
     const panel = readPanelParams(node);
     return (
-      <ObjectBox
+      <ObjectFrame
         className={styles.panelObject}
         chromePolicy={viewSpec.chromePolicy}
         inputPorts={card.inputs}
@@ -102,13 +104,13 @@ export function ObjectNodeRenderer({
         style={{ background: panel.color }}
       >
         {panel.label ? <div className={styles.panelTitle}>{panel.label}</div> : null}
-      </ObjectBox>
+      </ObjectFrame>
     );
   }
 
   if (node.kind === MESSAGE_NODE_KIND) {
     return (
-      <ObjectBox
+      <ObjectFrame
         className={styles.messageObject}
         chromePolicy={viewSpec.chromePolicy}
         disabled={!runtimeControlEnabled}
@@ -127,7 +129,7 @@ export function ObjectNodeRenderer({
         selected={selected}
       >
         {readMessageValueParam(node) || "message"}
-      </ObjectBox>
+      </ObjectFrame>
     );
   }
 
@@ -153,7 +155,7 @@ export function ObjectNodeRenderer({
     const value = controlBoolValue(runtimeControlValue) ?? readToggleControlValue(toggleNode);
     const nodeId = toggleNode.id;
     return (
-      <ObjectBox
+      <ObjectFrame
         className={styles.toggleObject}
         chromePolicy={viewSpec.chromePolicy}
         disabled={!runtimeControlEnabled}
@@ -175,7 +177,7 @@ export function ObjectNodeRenderer({
         {readPanelLabelParam(toggleNode) !== toggleNode.id ? (
           <span className={styles.toggleLabel}>{readPanelLabelParam(toggleNode)}</span>
         ) : null}
-      </ObjectBox>
+      </ObjectFrame>
     );
   }
 
@@ -200,7 +202,7 @@ export function ObjectNodeRenderer({
   const valueNode = node as DisplayGraphNodeV01;
   if (isValueObject(valueNode)) {
     return (
-      <ObjectBox
+      <ObjectFrame
         className={styles.valueObject}
         chromePolicy={viewSpec.chromePolicy}
         disabled={!runtimeControlEnabled}
@@ -218,7 +220,7 @@ export function ObjectNodeRenderer({
           runtimeControlValue={runtimeControlValue}
         />
         <RoutingBadges node={valueNode} />
-      </ObjectBox>
+      </ObjectFrame>
     );
   }
 
@@ -240,12 +242,14 @@ export function ObjectNodeRenderer({
   }
 
   return (
-    <GenericObjectBox
+    <GenericObjectFrame
       card={card}
       chromePolicy={viewSpec.chromePolicy}
+      editingObjectSpec={editingObjectSpec}
       layoutEditable={layoutEditable}
       node={fallbackNode}
-      onObjectTextCommit={onObjectTextCommit}
+      onObjectSpecEditComplete={onObjectSpecEditComplete}
+      onObjectSpecCommit={onObjectSpecCommit}
       renderInputHandle={renderInputHandle}
       renderOutputHandle={renderOutputHandle}
       selected={selected}
@@ -253,39 +257,51 @@ export function ObjectNodeRenderer({
   );
 }
 
-function GenericObjectBox({
+function GenericObjectFrame({
   card,
   chromePolicy,
+  editingObjectSpec,
   layoutEditable,
   node,
-  onObjectTextCommit,
+  onObjectSpecEditComplete,
+  onObjectSpecCommit,
   renderInputHandle,
   renderOutputHandle,
   selected
 }: {
   card: NodeCardView;
   chromePolicy: ObjectChromePolicy;
+  editingObjectSpec: boolean;
   layoutEditable: boolean;
   node: DisplayGraphNodeV01;
-  onObjectTextCommit?: (nodeId: string, text: string) => void;
+  onObjectSpecEditComplete?: (nodeId: string) => void;
+  onObjectSpecCommit?: (nodeId: string, text: string) => void;
   renderInputHandle?: NodePortHandleRenderer;
   renderOutputHandle?: NodePortHandleRenderer;
   selected?: boolean;
 }) {
-  const displayText = genericObjectTextForNode(node);
-  const unresolved = isUnresolvedObjectNode(node);
-  const diagnosticMessage = typeof node.params.diagnosticMessage === "string" ? node.params.diagnosticMessage : undefined;
+  const rawObjectSpec = typeof node.objectSpec === "string" ? node.objectSpec.trim() : "";
+  const hasObjectSpec = rawObjectSpec.length > 0;
+  const fallbackDisplayText = genericObjectSpecForNode(node);
+  const resolutionStatus = node.objectResolution?.status;
+  const unresolved = resolutionStatus !== undefined && resolutionStatus !== "resolved";
+  const displayText = hasObjectSpec ? fallbackDisplayText : unresolved ? "Object" : fallbackDisplayText;
+  const editableText = hasObjectSpec ? fallbackDisplayText : "";
+  const resolutionIssue = node.objectResolution?.issues?.[0];
+  const issueMessage = typeof node.params.issueMessage === "string"
+    ? node.params.issueMessage
+    : resolutionIssue?.message;
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(displayText);
+  const [draft, setDraft] = useState(editableText);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const finishedEditRef = useRef(false);
-  const editable = layoutEditable && Boolean(onObjectTextCommit);
+  const editable = layoutEditable && Boolean(onObjectSpecCommit);
 
   useEffect(() => {
     if (!editing) {
-      setDraft(displayText);
+      setDraft(editableText);
     }
-  }, [displayText, editing]);
+  }, [editableText, editing]);
 
   useEffect(() => {
     if (editing) {
@@ -294,12 +310,21 @@ function GenericObjectBox({
     }
   }, [editing]);
 
+  useEffect(() => {
+    if (!editingObjectSpec || !editable || editing) {
+      return;
+    }
+    finishedEditRef.current = false;
+    setDraft(editableText);
+    setEditing(true);
+  }, [editable, editableText, editing, editingObjectSpec]);
+
   const beginEdit = () => {
     if (!editable) {
       return;
     }
     finishedEditRef.current = false;
-    setDraft(displayText);
+    setDraft(editableText);
     setEditing(true);
   };
 
@@ -308,8 +333,9 @@ function GenericObjectBox({
       return;
     }
     finishedEditRef.current = true;
-    setDraft(displayText);
+    setDraft(editableText);
     setEditing(false);
+    onObjectSpecEditComplete?.(node.id);
   };
 
   const commitEdit = (value = draft) => {
@@ -319,14 +345,15 @@ function GenericObjectBox({
     finishedEditRef.current = true;
     const nextText = value.trim();
     setEditing(false);
-    if (nextText.length === 0 || nextText === displayText) {
+    onObjectSpecEditComplete?.(node.id);
+    if (nextText.length === 0 || nextText === editableText) {
       return;
     }
-    onObjectTextCommit?.(node.id, nextText);
+    onObjectSpecCommit?.(node.id, nextText);
   };
 
   return (
-    <ObjectBox
+    <ObjectFrame
       className={[styles.genericObject, unresolved ? styles.unresolvedObject : ""].filter(Boolean).join(" ")}
       chromePolicy={chromePolicy}
       inputPorts={card.inputs}
@@ -336,13 +363,13 @@ function GenericObjectBox({
       renderInputHandle={renderInputHandle}
       renderOutputHandle={renderOutputHandle}
       selected={selected}
-      title={diagnosticMessage}
+      title={issueMessage}
     >
       {editing ? (
         <input
           ref={inputRef}
-          aria-label="Object text"
-          className={[styles.objectTextInput, "nodrag", "nopan"].join(" ")}
+          aria-label="Object spec"
+          className={[styles.objectSpecInput, "nodrag", "nopan"].join(" ")}
           onBlur={(event) => commitEdit(event.currentTarget.value)}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onDoubleClick={(event) => event.stopPropagation()}
@@ -359,12 +386,13 @@ function GenericObjectBox({
             }
           }}
           onPointerDown={(event) => event.stopPropagation()}
+          placeholder="+ 1"
           value={draft}
         />
       ) : (
         <span className={styles.genericText}>{displayText}</span>
       )}
-    </ObjectBox>
+    </ObjectFrame>
   );
 }
 
@@ -454,7 +482,7 @@ function VideoAssetObject({
   };
 
   return (
-    <ObjectBox
+    <ObjectFrame
       className={styles.assetObject}
       chromePolicy={chromePolicy}
       inputPorts={card.inputs}
@@ -507,7 +535,7 @@ function VideoAssetObject({
           type="button"
         />
       ) : null}
-    </ObjectBox>
+    </ObjectFrame>
   );
 }
 
@@ -546,7 +574,7 @@ function SliderControlObject({
   const percent = range === 0 ? 0 : Math.min(100, Math.max(0, ((value - slider.min) / range) * 100));
 
   return (
-    <ObjectBox
+    <ObjectFrame
       className={styles.sliderObject}
       chromePolicy={chromePolicy}
       disabled={!runtimeControlEnabled}
@@ -586,7 +614,7 @@ function SliderControlObject({
         value={value}
       />
       <div className={styles.sliderValue}>{formatValue(value)}</div>
-    </ObjectBox>
+    </ObjectFrame>
   );
 }
 
@@ -686,7 +714,7 @@ function BangControlObject({
   };
 
   return (
-    <ObjectBox
+    <ObjectFrame
       className={styles.bangObject}
       chromePolicy={chromePolicy}
       disabled={!runtimeControlEnabled}
@@ -725,11 +753,11 @@ function BangControlObject({
           style={{ borderRadius: bangParams.radius }}
         />
       </button>
-    </ObjectBox>
+    </ObjectFrame>
   );
 }
 
-function ObjectBox({
+function ObjectFrame({
   children,
   chromePolicy,
   className,
@@ -885,7 +913,6 @@ function isValueObject(node: DisplayGraphNodeV01): boolean {
   return [
     FLOAT_VALUE_NODE_KIND,
     INT_VALUE_NODE_KIND,
-    UINT_VALUE_NODE_KIND,
     BOOL_VALUE_NODE_KIND,
     COLOR_NODE_KIND,
     STRING_VALUE_NODE_KIND
@@ -918,17 +945,6 @@ function ValueObjectContent({
     return (
       <NumericValueDragObject
         mode="int"
-        node={node}
-        onLiveControl={onLiveControl}
-        runtimeControlEnabled={runtimeControlEnabled}
-        runtimeControlValue={runtimeControlValue}
-      />
-    );
-  }
-  if (node.kind === UINT_VALUE_NODE_KIND) {
-    return (
-      <NumericValueDragObject
-        mode="uint"
         node={node}
         onLiveControl={onLiveControl}
         runtimeControlEnabled={runtimeControlEnabled}
@@ -976,7 +992,7 @@ function NumericValueDragObject({
   runtimeControlEnabled,
   runtimeControlValue
 }: {
-  mode: "float" | "int" | "uint";
+  mode: "float" | "int";
   node: DisplayGraphNodeV01;
   onLiveControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   runtimeControlEnabled: boolean;
@@ -1002,24 +1018,28 @@ function NumericValueDragObject({
       };
     }
     if (mode === "int") {
+      const representation = readIntRepresentationParam(node);
+      if (isUnsignedIntRepresentation(representation)) {
+        return {
+          type: "uint",
+          representation,
+          value: Math.max(0, Math.trunc(value))
+        };
+      }
       return {
         type: "int",
-        representation: readIntRepresentationParam(node),
+        representation,
         value: Math.trunc(value)
       };
     }
-    return {
-      type: "uint",
-      representation: readUIntRepresentationParam(node),
-      value: Math.max(0, Math.trunc(value))
-    };
+    throw new Error(`unsupported numeric value mode: ${mode}`);
   };
 
   const normalize = (value: number): number => {
     if (mode === "float") {
       return value;
     }
-    if (mode === "uint") {
+    if (isUnsignedIntRepresentation(readIntRepresentationParam(node))) {
       return Math.max(0, Math.trunc(value));
     }
     return Math.trunc(value);
@@ -1086,7 +1106,7 @@ function NumericValueDragObject({
 }
 
 function numericDisplayValue(
-  mode: "float" | "int" | "uint",
+  mode: "float" | "int",
   node: DisplayGraphNodeV01,
   runtimeControlValue?: RuntimeControlValue
 ): number {
@@ -1094,9 +1114,9 @@ function numericDisplayValue(
     return controlFloatValue(runtimeControlValue) ?? readFloatValueParam(node);
   }
   if (mode === "int") {
-    return controlIntValue(runtimeControlValue) ?? readIntValueParam(node);
+    return controlIntegerValue(runtimeControlValue) ?? readIntValueParam(node);
   }
-  return controlUIntValue(runtimeControlValue) ?? readUIntValueParam(node);
+  throw new Error(`unsupported numeric display mode: ${mode}`);
 }
 
 function resizeAssetBox(
@@ -1160,12 +1180,11 @@ function controlFloatValue(value?: RuntimeControlValue): number | null {
   return value?.type === "float" ? value.value : null;
 }
 
-function controlIntValue(value?: RuntimeControlValue): number | null {
-  return value?.type === "int" ? value.value : null;
-}
-
-function controlUIntValue(value?: RuntimeControlValue): number | null {
-  return value?.type === "uint" ? value.value : null;
+function controlIntegerValue(value?: RuntimeControlValue): number | null {
+  if (value?.type === "int" || value?.type === "uint") {
+    return value.value;
+  }
+  return null;
 }
 
 function controlBoolValue(value?: RuntimeControlValue): boolean | null {

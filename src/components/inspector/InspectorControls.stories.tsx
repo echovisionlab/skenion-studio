@@ -1,15 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack } from "@mantine/core";
 import { BooleanValueControls } from "./BooleanValueControls";
 import { ClearColorControls } from "./ClearColorControls";
 import { CommentControls } from "./CommentControls";
 import { ColorRgbaControls } from "./ColorRgbaControls";
-import { ConnectionDiagnosticsPanel } from "./ConnectionDiagnosticsPanel";
 import { EdgeInspector } from "./EdgeInspector";
 import { FeedbackPolicyDialog } from "./FeedbackPolicyDialog";
 import { FloatValueControls } from "./FloatValueControls";
 import { FullscreenShaderControls } from "./FullscreenShaderControls";
-import { GraphDiagnosticsPanel } from "./GraphDiagnosticsPanel";
 import { InspectorShell } from "./InspectorShell";
 import { IntegerValueControls } from "./IntegerValueControls";
 import { NodeInspector } from "./NodeInspector";
@@ -25,10 +22,7 @@ import { renderSampleGraph } from "../../data/sampleGraph";
 import {
   edgeInspectorModel,
   feedbackEdgeInspectorModel,
-  noop,
-  semanticDiagnostics,
-  validationFailed,
-  validationOk
+  noop
 } from "../../stories/storyFixtures";
 
 const meta = {
@@ -51,7 +45,7 @@ const asyncNoop = async () => undefined;
 
 export const NodeControls: Story = {
   render: () => (
-    <InspectorShell edgeCount={1} nodeCount={2}>
+    <InspectorShell>
       <NodeInspector
         node={renderSampleGraph.nodes[0]!}
         onRemoveNode={noop}
@@ -106,7 +100,7 @@ export const MessageNodeInspector: Story = {
   render: () => {
     const definition = nodeRegistry.find((candidate) => candidate.id === "core.message");
     return (
-      <InspectorShell edgeCount={1} nodeCount={2}>
+      <InspectorShell>
         <NodeInspector
           node={createGraphNodeFromDefinition(definition!, [])}
           onRemoveNode={noop}
@@ -139,7 +133,7 @@ export const FullscreenShaderControl: Story = {
   )
 };
 
-export const FullscreenShaderDiagnostics: Story = {
+export const FullscreenShaderIssues: Story = {
   render: () => (
     <FullscreenShaderControls
       analysis={analyzeFullscreenShaderInterface(
@@ -154,7 +148,7 @@ export const FullscreenShaderDiagnostics: Story = {
           userSourceStartLine: 5,
           generatedLineOffset: 4
         },
-        diagnostics: [
+        issues: [
           {
             severity: "error",
             phase: "wgsl-compile",
@@ -174,15 +168,6 @@ export const FullscreenShaderDiagnostics: Story = {
       onResetSource={noop}
       onSourceChange={noop}
       onSyncInputs={noop}
-      runtimeDiagnostics={[
-        {
-          severity: "error",
-          phase: "render-pipeline",
-          code: "fullscreen-shader-initialization-failed",
-          message: "failed to initialize fullscreen shader renderer",
-          source: "runtime"
-        }
-      ]}
       source={
         "// @skenion.uniform bad vec3\n@fragment\nfn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }"
       }
@@ -190,34 +175,15 @@ export const FullscreenShaderDiagnostics: Story = {
   )
 };
 
-export const ValidationPanel: Story = {
-  render: () => (
-    <Stack gap="sm">
-      <GraphDiagnosticsPanel semanticDiagnostics={[]} validation={validationOk} />
-      <GraphDiagnosticsPanel
-        semanticDiagnostics={semanticDiagnostics}
-        validation={validationFailed}
-      />
-      <ConnectionDiagnosticsPanel
-        connectionCheck={{
-          ok: false,
-          message: "fan-in-forbidden: render.output.in accepts one render.frame input"
-        }}
-      />
-    </Stack>
-  )
-};
-
 export const EdgeInspectorDefault: Story = {
   render: () => (
-    <EdgeInspector diagnostics={[]} edge={edgeInspectorModel} onOpenFeedbackDialog={noop} />
+    <EdgeInspector edge={edgeInspectorModel} onOpenFeedbackDialog={noop} />
   )
 };
 
 export const EdgeInspectorFeedback: Story = {
   render: () => (
     <EdgeInspector
-      diagnostics={semanticDiagnostics}
       edge={feedbackEdgeInspectorModel}
       onOpenFeedbackDialog={noop}
     />

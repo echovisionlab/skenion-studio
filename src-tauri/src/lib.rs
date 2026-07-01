@@ -76,12 +76,12 @@ struct RuntimeSidecarStopResponse {
     profile_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     runtime_url: Option<String>,
-    diagnostics: Vec<RuntimeSidecarDiagnostic>,
+    issues: Vec<RuntimeSidecarIssue>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct RuntimeSidecarDiagnostic {
+struct RuntimeSidecarIssue {
     severity: &'static str,
     message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -195,7 +195,7 @@ fn stop_runtime_sidecar(
         stopped: stopped.is_some(),
         profile_id: Some(request.profile_id),
         runtime_url: stopped,
-        diagnostics: Vec::new(),
+        issues: Vec::new(),
     })
 }
 

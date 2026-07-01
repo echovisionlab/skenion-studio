@@ -1,158 +1,145 @@
-import { useMemo, useState, type FormEvent } from "react";
-import { Badge, Divider, Group, ScrollArea, Stack, Text, TextInput, Tooltip } from "@mantine/core";
-import { HelpCircle, Plus } from "lucide-react";
-import { type NodeDefinitionManifestV01 } from "@skenion/contracts";
-import { paletteDirectDefinitions } from "../data/palette";
+import { useMemo } from "react";
+import { Group, ScrollArea, Stack, Text } from "@mantine/core";
+import { Plus } from "lucide-react";
+import { type NodeCatalogEntryV01 } from "@skenion/contracts";
 import { dataTypeFromPortSpec } from "../graph/patchLibrary";
-import { flowColor, flowName } from "../graph/reactFlowAdapter";
-import { createGraphNodeFromObjectText, isUnresolvedObjectNode } from "../graph/objectTextNode";
+import { flowColor } from "../graph/reactFlowAdapter";
 import { Button } from "./core/Button/Button";
-import { IconButton } from "./core/IconButton/IconButton";
 
 interface PalettePanelProps {
   addDisabled?: boolean;
-  registry: NodeDefinitionManifestV01[];
-  onAddNode: (definitionId: string) => void;
-  onAddObjectText: (objectText: string) => void;
-  onShowHelp: (definitionId: string) => void;
+  catalogEntries?: NodeCatalogEntryV01[];
+  onAddObject: () => boolean | Promise<boolean | void> | void;
+  onAddObjectSpec: (objectSpec: string) => boolean | Promise<boolean | void> | void;
 }
 
 export function PalettePanel({
   addDisabled = false,
-  registry,
-  onAddNode,
-  onAddObjectText,
-  onShowHelp
+  catalogEntries = [],
+  onAddObject,
+  onAddObjectSpec
 }: PalettePanelProps) {
-  const [objectText, setObjectText] = useState("");
-  const directDefinitions = useMemo(() => paletteDirectDefinitions(registry), [registry]);
-  const categories = Array.from(new Set(directDefinitions.map((definition) => definition.category)));
-  const objectTextInput = objectText.trim();
-  const objectTextAnalysis = useMemo(
-    () => (objectTextInput ? createGraphNodeFromObjectText(objectTextInput, [], registry) : null),
-    [objectTextInput, registry]
-  );
-  const objectTextDiagnostic = objectTextAnalysis?.diagnostics.find((diagnostic) => diagnostic.severity === "error") ??
-    objectTextAnalysis?.diagnostics[0] ??
-    null;
-  const objectTextCanCreate = objectTextInput.length > 0 && !addDisabled;
-  const objectTextBadge = objectTextAnalysis?.node
-    ? isUnresolvedObjectNode(objectTextAnalysis.node)
-      ? "unresolved"
-      : objectTextAnalysis.node.kind
-    : null;
-
-  function submitObjectText(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!objectTextCanCreate) {
-      return;
-    }
-    onAddObjectText(objectTextInput);
-    setObjectText("");
-  }
+  const catalogMode = catalogEntries.length > 0;
+  const nodeTools = useMemo(() => resolveNodeTools(catalogEntries), [catalogEntries]);
+  const availableNodeCount = nodeTools.length + 1;
 
   return (
     <Stack className="panel-shell" gap="md">
-      <div>
-        <Text fw={800} size="sm">
-          Objects
-        </Text>
-        <Text c="dimmed" size="xs">
-          {directDefinitions.length} direct · {registry.length - directDefinitions.length} text-only
-        </Text>
-      </div>
-
-      <form onSubmit={submitObjectText}>
-        <Stack gap={6}>
-          <Group justify="space-between">
-            <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-              Object Box
-            </Text>
-            {objectTextBadge ? (
-              <Badge size="xs" variant="light">
-                {objectTextBadge}
-              </Badge>
-            ) : null}
-          </Group>
-          <TextInput
-            aria-label="Object box text"
-            disabled={addDisabled}
-            error={objectTextDiagnostic?.severity === "error" ? objectTextDiagnostic.message : undefined}
-            onChange={(event) => setObjectText(event.currentTarget.value)}
-            placeholder="+ 1, +~, osc~ 440"
-            size="xs"
-            value={objectText}
-          />
-          {objectTextDiagnostic && objectTextDiagnostic.severity !== "error" ? (
-            <Text c="dimmed" size="xs">
-              {objectTextDiagnostic.message}
-            </Text>
-          ) : null}
-          <Button disabled={!objectTextCanCreate} fullWidth size="compact-sm" type="submit">
-            Create Object
-          </Button>
-        </Stack>
-      </form>
-
-      <Divider />
+      <Text c="dimmed" size="xs">
+        {availableNodeCount} available node{availableNodeCount === 1 ? "" : "s"}
+      </Text>
 
       <ScrollArea className="palette-scroll" offsetScrollbars>
-        <Stack gap="md">
-          {categories.map((category) => (
-            <Stack gap="xs" key={category}>
-              <Group justify="space-between">
-                <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-                  {category}
-                </Text>
-                <Badge size="xs" variant="light">
-                  {directDefinitions.filter((definition) => definition.category === category).length}
-                </Badge>
-              </Group>
-              {directDefinitions
-                .filter((definition) => definition.category === category)
-                .map((definition) => {
-                  const primaryPort = definition.ports.find((port) => port.direction === "output") ?? definition.ports[0];
-                  const primaryType = primaryPort ? dataTypeFromPortSpec(primaryPort) : null;
-                  const swatchColor = primaryType ? flowColor(primaryType.flow, primaryType.dataKind) : "#868e96";
+        <Stack gap="xs">
+          <Group gap={6} wrap="nowrap">
+            <Button
+              className="palette-node"
+              color="gray"
+              disabled={addDisabled}
+              fullWidth
+              justify="space-between"
+              leftSection={<span className="flow-swatch" style={{ background: "#868e96" }} />}
+              onClick={() => onAddObject()}
+              rightSection={<Plus size={15} />}
+              size="compact-md"
+            >
+              <Text component="span" fw={700} size="sm">
+                Object
+              </Text>
+            </Button>
+          </Group>
 
-                  return (
-                    <Group gap={6} key={definition.id} wrap="nowrap">
-                      <Button
-                        className="palette-node"
-                        color="gray"
-                        disabled={addDisabled}
-                        fullWidth
-                        justify="space-between"
-                        leftSection={<span className="flow-swatch" style={{ background: swatchColor }} />}
-                        onClick={() => onAddNode(definition.id)}
-                        rightSection={<Plus size={15} />}
-                        size="compact-md"
-                      >
-                        <span>
-                          <Text component="span" fw={700} size="sm">
-                            {definition.displayName}
-                          </Text>
-                          <Text c="dimmed" component="span" display="block" size="xs">
-                            {primaryType ? flowName(primaryType.flow, primaryType.dataKind) : definition.execution.model}
-                          </Text>
-                        </span>
-                      </Button>
-                      <Tooltip label={`Help: ${definition.displayName}`}>
-                        <IconButton
-                          icon={<HelpCircle size={16} />}
-                          label={`Show help for ${definition.displayName}`}
-                          onClick={() => onShowHelp(definition.id)}
-                          size={34}
-                        />
-                      </Tooltip>
-                    </Group>
-                  );
-                })}
-              <Divider />
-            </Stack>
-          ))}
+          {catalogMode ? (
+            nodeTools.map(({ entry, tool }) => {
+              const primaryPort = entry.definition.ports.find((port) => port.direction === "output") ?? entry.definition.ports[0];
+              const primaryType = primaryPort ? dataTypeFromPortSpec(primaryPort) : null;
+              const swatchColor = primaryType ? flowColor(primaryType.flow, primaryType.dataKind) : "#868e96";
+              const primaryObjectSpec = objectSpecForCatalogEntry(entry);
+
+              return (
+                <Group gap={6} key={entry.catalogId} wrap="nowrap">
+                  <Button
+                    className="palette-node"
+                    color="gray"
+                    disabled={addDisabled}
+                    fullWidth
+                    justify="space-between"
+                    leftSection={<span className="flow-swatch" style={{ background: swatchColor }} />}
+                    onClick={() => onAddObjectSpec(primaryObjectSpec)}
+                    rightSection={<Plus size={15} />}
+                    size="compact-md"
+                  >
+                    <Text component="span" fw={700} size="sm">
+                      {tool.label}
+                    </Text>
+                  </Button>
+                </Group>
+              );
+            })
+          ) : (
+            <Text c="dimmed" size="xs">
+              Runtime catalog unavailable.
+            </Text>
+          )}
         </Stack>
       </ScrollArea>
     </Stack>
   );
+}
+
+interface NodeToolDefinition {
+  key: string;
+  label: string;
+  match: string[];
+}
+
+const NODE_TOOL_DEFINITIONS: NodeToolDefinition[] = [
+  { key: "bang", label: "Bang", match: ["bang", "b", "core.bang"] },
+  { key: "toggle", label: "Toggle", match: ["toggle", "tgl", "core.toggle"] },
+  { key: "message", label: "Message", match: ["message", "msg", "core.message"] },
+  { key: "float", label: "Float", match: ["float", "f", "core.float"] },
+  { key: "int", label: "Integer", match: ["int", "integer", "i", "core.int"] },
+  { key: "comment", label: "Comment", match: ["comment", "core.comment"] },
+  { key: "inlet", label: "Inlet", match: ["inlet", "core.inlet"] },
+  { key: "outlet", label: "Outlet", match: ["outlet", "core.outlet"] }
+];
+
+interface ResolvedNodeTool {
+  entry: NodeCatalogEntryV01;
+  tool: NodeToolDefinition;
+}
+
+function resolveNodeTools(entries: NodeCatalogEntryV01[]): ResolvedNodeTool[] {
+  return NODE_TOOL_DEFINITIONS.flatMap((tool) => {
+    const entry = entries.find((candidate) => catalogEntryMatchesTool(candidate, tool));
+    return entry ? [{ entry, tool }] : [];
+  });
+}
+
+function catalogEntryMatchesTool(entry: NodeCatalogEntryV01, tool: NodeToolDefinition): boolean {
+  const accepted = new Set(tool.match.map(normalizedSpec));
+  return catalogEntryLookupValues(entry).some((value) => accepted.has(normalizedSpec(value)));
+}
+
+function catalogEntryLookupValues(entry: NodeCatalogEntryV01): string[] {
+  return [
+    entry.catalogId,
+    entry.objectId,
+    entry.definition.id,
+    entry.definition.displayName,
+    entry.display.title,
+    ...catalogEntrySpecs(entry)
+  ].filter((value): value is string => typeof value === "string" && value.length > 0);
+}
+
+function catalogEntrySpecs(entry: NodeCatalogEntryV01): string[] {
+  return [entry.primaryObjectSpec, ...(entry.aliases ?? [])];
+}
+
+function objectSpecForCatalogEntry(entry: NodeCatalogEntryV01): string {
+  return entry.primaryObjectSpec;
+}
+
+function normalizedSpec(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/gu, " ");
 }

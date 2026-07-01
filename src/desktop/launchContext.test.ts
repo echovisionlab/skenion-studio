@@ -19,14 +19,23 @@ describe("launchContext", () => {
     });
   });
 
-  it("falls back to local-managed default session for invalid launch params", () => {
+  it("falls back to local default session for invalid launch params", () => {
     expect(
       readDesktopLaunchContext("?runtimeUrl=%20&sessionId=&runtimeProfile=bad&windowMode=unknown")
     ).toMatchObject({
-      profileId: "local-managed",
+      profileId: "local",
       runtimeUrl: "http://localhost:3761",
       sessionId: "default",
       windowMode: "shared-session"
+    });
+  });
+
+  it("maps legacy local-shared launch params to remote URL connections", () => {
+    expect(
+      readDesktopLaunchContext("?runtimeUrl=http%3A%2F%2F192.168.1.10%3A3761&runtimeProfile=local-shared")
+    ).toMatchObject({
+      profileId: "remote",
+      runtimeUrl: "http://192.168.1.10:3761"
     });
   });
 

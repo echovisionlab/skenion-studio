@@ -64,10 +64,10 @@ describe("fullscreen shader graph helpers", () => {
 
     expect(analysis.ok).toBe(true);
     expect(analysis.shaderInterface.uniforms.map((uniform) => [uniform.id, uniform.type.dataKind])).toEqual([
-      ["speed", "number.float"],
-      ["enabled", "boolean"],
-      ["iterations", "number.int"],
-      ["tint", "color"]
+      ["speed", "value.core.float32"],
+      ["enabled", "value.core.bool"],
+      ["iterations", "value.core.int32"],
+      ["tint", "value.core.color"]
     ]);
     expect(ports.map((port) => port.id)).toEqual(["speed", "enabled", "iterations", "tint", "out"]);
     expect(patch).toMatchObject({
@@ -80,11 +80,12 @@ describe("fullscreen shader graph helpers", () => {
   });
 
   it("falls back to output-only ports when shader analysis fails", () => {
-    const source = "// @skenion.uniform out number.float\n@fragment\nfn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }";
+    const source =
+      "// @skenion.uniform out value.core.float32\n@fragment\nfn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }";
     const analysis = analyzeFullscreenShaderInterface(source);
 
     expect(analysis.ok).toBe(false);
-    expect(analyzeFullscreenShaderInterface(source, "glsl").diagnostics[0]?.code).toBe("unsupported-language");
+    expect(analyzeFullscreenShaderInterface(source, "glsl").issues[0]?.code).toBe("unsupported-language");
     expect(portsForFullscreenShaderSource(source).map((port) => port.id)).toEqual(["out"]);
     expect(createReplaceShaderInterfacePatch("shader_1", source)).toBeNull();
     expect(fullscreenShaderPortsAreSynced(portsForFullscreenShaderSource(source), source)).toBe(false);

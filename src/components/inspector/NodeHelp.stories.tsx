@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getBuiltinNodeHelp, getBuiltinNodeHelpGraph } from "@skenion/contracts";
+import { getStudioBuiltinNodeHelp, getStudioBuiltinNodeHelpGraph } from "../../data/studioBuiltins";
 import { NodeHelp } from "./NodeHelp";
 
 const meta = {
@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>;
 export const Float: Story = {
   args: {
     help: getRequiredHelp("core.float"),
-    helpGraph: getBuiltinNodeHelpGraph("core.float")
+    helpGraph: getStudioBuiltinNodeHelpGraph("core.float")
   },
   render: (args) => <NodeHelp {...args} />
 };
@@ -31,7 +31,7 @@ export const Float: Story = {
 export const Toggle: Story = {
   args: {
     help: getRequiredHelp("core.bool"),
-    helpGraph: getBuiltinNodeHelpGraph("core.bool")
+    helpGraph: getStudioBuiltinNodeHelpGraph("core.bool")
   },
   render: (args) => <NodeHelp {...args} />
 };
@@ -39,7 +39,7 @@ export const Toggle: Story = {
 export const Bang: Story = {
   args: {
     help: getRequiredHelp("core.bang"),
-    helpGraph: getBuiltinNodeHelpGraph("core.bang")
+    helpGraph: getStudioBuiltinNodeHelpGraph("core.bang")
   },
   render: (args) => <NodeHelp {...args} />
 };
@@ -47,7 +47,7 @@ export const Bang: Story = {
 export const Message: Story = {
   args: {
     help: getRequiredHelp("core.message"),
-    helpGraph: getBuiltinNodeHelpGraph("core.message")
+    helpGraph: getStudioBuiltinNodeHelpGraph("core.message")
   },
   render: (args) => <NodeHelp {...args} />
 };
@@ -55,7 +55,7 @@ export const Message: Story = {
 export const Panel: Story = {
   args: {
     help: getRequiredHelp("core.panel"),
-    helpGraph: getBuiltinNodeHelpGraph("core.panel")
+    helpGraph: getStudioBuiltinNodeHelpGraph("core.panel")
   },
   render: (args) => <NodeHelp {...args} />
 };
@@ -63,13 +63,13 @@ export const Panel: Story = {
 export const FullscreenShader: Story = {
   args: {
     help: getRequiredHelp("render.fullscreen-shader"),
-    helpGraph: getBuiltinNodeHelpGraph("render.fullscreen-shader")
+    helpGraph: getStudioBuiltinNodeHelpGraph("render.fullscreen-shader")
   },
   render: (args) => <NodeHelp {...args} />
 };
 
 function getRequiredHelp(id: string) {
-  const help = getBuiltinNodeHelp(id);
+  const help = getStudioBuiltinNodeHelp(id);
   if (!help) {
     throw new Error(`Missing builtin help ${id}`);
   }

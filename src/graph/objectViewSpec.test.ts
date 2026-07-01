@@ -35,10 +35,6 @@ describe("objectViewSpecForNode", () => {
       chromePolicy: "box",
       interaction: "numeric-drag"
     });
-    expect(objectViewSpecForNode(node("core.uint", {}))).toEqual({
-      chromePolicy: "box",
-      interaction: "numeric-drag"
-    });
     expect(objectViewSpecForNode(node("core.message", {}))).toEqual({
       chromePolicy: "box",
       interaction: "message-trigger"

@@ -17,8 +17,8 @@ skenion studio keeps graph semantics separate from the visual canvas integration
 `InspectorPanel` composes smaller pure panels:
 
 - `InspectorShell`
-- `GraphDiagnosticsPanel`
-- `ConnectionDiagnosticsPanel`
+- `GraphIssuesPanel`
+- `ConnectionIssuesPanel`
 - `NodeInspector`
 - `PortTable`
 - `ClearColorControls`
@@ -41,7 +41,7 @@ Inspector controls should receive graph/node/edge data and callbacks as props. T
 - `RuntimeStatelessToolsPanel`
 - `RuntimeResultSummary`
 
-Runtime subpanels do not create runtime clients. Network orchestration stays in the app state layer, and panels receive status, payload summaries, diagnostics, and callbacks as props.
+Runtime subpanels do not create runtime clients. Network orchestration stays in the app state layer, and panels receive status, payload summaries, issues, and callbacks as props.
 
 ## Storybook Policy
 
@@ -84,8 +84,8 @@ Runtime stories should cover:
 
 Inspector stories should cover:
 
-- valid graph diagnostics
-- invalid graph diagnostics
+- valid graph issues
+- invalid graph issues
 - edge inspector metadata
 - clear color controls
 - fullscreen shader controls

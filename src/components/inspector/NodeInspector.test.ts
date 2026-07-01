@@ -92,7 +92,7 @@ function node(): GraphNodeV01 {
         direction: "input",
         type: {
           dataKind: "number.float",
-          flow: "value"
+          flow: "control"
         }
       },
       {
@@ -100,7 +100,7 @@ function node(): GraphNodeV01 {
         direction: "output",
         type: {
           dataKind: "number.float",
-          flow: "value"
+          flow: "control"
         }
       }
     ]
