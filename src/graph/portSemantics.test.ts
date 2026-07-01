@@ -4,6 +4,7 @@ import type {
   DisplayGraphDocumentV01 as GraphDocumentV01,
   DisplayGraphNodeV01 as GraphNodeV01
 } from "./patchLibrary";
+import { graphPortToPortSpec } from "./patchLibrary";
 import { renderSampleGraph, sampleGraph } from "../data/sampleGraph";
 import {
   analyzeGraphPortSemantics,
@@ -217,6 +218,24 @@ describe("port and edge semantics", () => {
     ).toEqual([]);
   });
 
+  it("allows scalar value outputs to message selector inlets", () => {
+    const target = sampleGraph.nodes.find((node) => node.id === "target_1")!;
+    const targetIn = target.ports.find((port) => port.id === "in")!;
+    const diagnostics = analyzeGraphPortSemantics(sampleGraph);
+    const inspector = edgeInspectorModel(sampleGraph, sampleGraph.edges[0]!);
+
+    expect(graphPortToPortSpec(targetIn).type).toBe("value.core.message");
+    expect(diagnostics).not.toContainEqual(expect.objectContaining({ code: "incompatible-edge-type" }));
+    expect(inspector.targetPort).toMatchObject({
+      storedType: "event<message.any>",
+      type: "message.any"
+    });
+    expect(inspector.conversion).toMatchObject({
+      policies: ["message-selector"],
+      diagnostics: []
+    });
+  });
+
   it("builds edge inspector metadata with current defaults and explicit overrides", () => {
     const edge = {
       ...renderSampleGraph.edges[0],
@@ -256,7 +275,7 @@ describe("port and edge semantics", () => {
     expect(findEdgeInspectorModel(graph, "missing")).toBeNull();
   });
 
-  it("shows implicit numeric conversion metadata in the edge inspector", () => {
+  it("reports numeric type differences through the connection policy", () => {
     const graph: GraphDocumentV01 = {
       schema: "skenion.graph",
       schemaVersion: "0.1.0",
@@ -297,16 +316,21 @@ describe("port and edge semantics", () => {
     const conversion = edgeInspectorModel(graph, graph.edges[0]!).conversion;
 
     expect(conversion).toMatchObject({
-      source: "number.float/f32",
-      target: "number.uint/u8",
-      lossy: true,
-      policies: ["float-to-integer clamp=saturating trunc=toward-zero sanitize=nan-inf-to-finite"]
+      source: "value.number.float",
+      target: "value.number.uint",
+      lossy: false,
+      policies: [],
+      diagnostics: ["incompatible-type"]
     });
-    expect(conversion?.diagnostics[0]).toContain("implicit-lossy-conversion");
-    expect(analyzeGraphPortSemantics(graph)).toEqual([]);
+    expect(analyzeGraphPortSemantics(graph)).toMatchObject([
+      {
+        code: "incompatible-edge-type",
+        edgeId: "float_1.value->uint_1.in"
+      }
+    ]);
   });
 
-  it("shows signedness and color representation conversion policies", () => {
+  it("reports signedness and color format differences through the connection policy", () => {
     const graph: GraphDocumentV01 = {
       schema: "skenion.graph",
       schemaVersion: "0.1.0",
@@ -374,13 +398,18 @@ describe("port and edge semantics", () => {
       ]
     };
 
-    expect(edgeInspectorModel(graph, graph.edges[0]!).conversion?.policies).toEqual([
-      "integer-signedness clamp=saturating"
+    expect(edgeInspectorModel(graph, graph.edges[0]!).conversion?.diagnostics).toEqual([
+      "incompatible-type"
     ]);
     expect(edgeInspectorModel(graph, graph.edges[1]!).conversion?.policies).toEqual([
       "color-cast clamp=unit quantize sanitize=nan-inf-to-finite"
     ]);
-    expect(analyzeGraphPortSemantics(graph)).toEqual([]);
+    expect(analyzeGraphPortSemantics(graph)).toMatchObject([
+      {
+        code: "incompatible-edge-type",
+        edgeId: "int_1.value->uint_1.in"
+      }
+    ]);
   });
 
   it("reports fan-in and type diagnostics without mutating graph documents", () => {

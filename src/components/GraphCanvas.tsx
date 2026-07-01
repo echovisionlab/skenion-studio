@@ -52,8 +52,8 @@ interface GraphCanvasProps {
   selectedNodeId: string | null;
   selectedNodeIds?: string[];
   onConnectionCheck: (check: ConnectionCheck | null) => void;
-  onAddNodeAtPosition?: (
-    definitionId: string,
+  onAddObjectSpecAtPosition?: (
+    objectSpec: string,
     position: { x: number; y: number },
     paramsOverride?: Record<string, unknown>
   ) => void;
@@ -65,7 +65,6 @@ interface GraphCanvasProps {
   runtimeControlEnabled?: boolean;
   runtimeControlPulses?: Record<string, number>;
   runtimeControlValues?: Record<string, RuntimeControlValue>;
-  onShowNodeHelp?: (definitionId: string) => void;
   onSelectedEdgeChange: (edgeId: string | null) => void;
   onSelectedEdgesChange?: (edgeIds: string[]) => void;
   onGraphChange: (graph: DisplayGraphDocumentV01, patches?: GraphPatch[]) => void;
@@ -83,7 +82,7 @@ export function GraphCanvas({
   selectedNodeId,
   selectedNodeIds = selectedNodeId ? [selectedNodeId] : [],
   onConnectionCheck,
-  onAddNodeAtPosition,
+  onAddObjectSpecAtPosition,
   onImportAsset,
   onObjectControl,
   onObjectLiveControl,
@@ -92,7 +91,6 @@ export function GraphCanvas({
   runtimeControlEnabled = false,
   runtimeControlPulses = {},
   runtimeControlValues = {},
-  onShowNodeHelp,
   onSelectedEdgeChange,
   onSelectedEdgesChange,
   onGraphChange,
@@ -357,8 +355,8 @@ export function GraphCanvas({
     [graph, graphLocked, onGraphChange, onSelectedEdgeChange, onSelectedNodeChange]
   );
 
-  const addNodeAtMenuPosition = useCallback(
-    (definitionId: string, paramsOverride: Record<string, unknown> = {}) => {
+  const addObjectSpecAtMenuPosition = useCallback(
+    (objectSpec: string, paramsOverride: Record<string, unknown> = {}) => {
       if (!contextMenu || contextMenu.type !== "pane") {
         return;
       }
@@ -370,10 +368,10 @@ export function GraphCanvas({
         });
         return;
       }
-      onAddNodeAtPosition?.(definitionId, contextMenu.flowPosition, paramsOverride);
+      onAddObjectSpecAtPosition?.(objectSpec, contextMenu.flowPosition, paramsOverride);
       setContextMenu(null);
     },
-    [contextMenu, graphLocked, onAddNodeAtPosition, onConnectionCheck]
+    [contextMenu, graphLocked, onAddObjectSpecAtPosition, onConnectionCheck]
   );
 
   const deleteNodeById = useCallback(
@@ -569,7 +567,7 @@ export function GraphCanvas({
       ) : null}
       <ReactFlowContextMenu
         menu={contextMenu}
-        onAddNode={addNodeAtMenuPosition}
+        onAddObjectSpec={addObjectSpecAtMenuPosition}
         onClose={() => setContextMenu(null)}
         onCopy={(text) => {
           void navigator.clipboard?.writeText(text);
@@ -587,10 +585,6 @@ export function GraphCanvas({
         onInspectNode={(nodeId) => {
           onSelectedNodeChange(nodeId);
           onSelectedEdgeChange(null);
-          setContextMenu(null);
-        }}
-        onShowHelp={(definitionId) => {
-          onShowNodeHelp?.(definitionId);
           setContextMenu(null);
         }}
       />
@@ -623,7 +617,7 @@ type CanvasContextMenuState =
 function ReactFlowContextMenu({
   layoutEditable,
   menu,
-  onAddNode,
+  onAddObjectSpec,
   onClose,
   onCopy,
   onDeleteEdge,
@@ -631,11 +625,10 @@ function ReactFlowContextMenu({
   onDuplicateNode,
   onInspectEdge,
   onInspectNode,
-  onShowHelp
 }: {
   layoutEditable: boolean;
   menu: CanvasContextMenuState | null;
-  onAddNode: (definitionId: string, paramsOverride?: Record<string, unknown>) => void;
+  onAddObjectSpec: (objectSpec: string, paramsOverride?: Record<string, unknown>) => void;
   onClose: () => void;
   onCopy: (text: string) => void;
   onDeleteEdge: (edgeId: string) => void;
@@ -643,7 +636,6 @@ function ReactFlowContextMenu({
   onDuplicateNode: (nodeId: string) => void;
   onInspectEdge: (edgeId: string) => void;
   onInspectNode: (nodeId: string) => void;
-  onShowHelp: (definitionId: string) => void;
 }) {
   const { fitView } = useReactFlow();
   if (!menu) {
@@ -659,7 +651,6 @@ function ReactFlowContextMenu({
       {menu.type === "node" ? (
         <>
           <button onClick={() => onInspectNode(menu.nodeId)} type="button">Inspect</button>
-          <button onClick={() => onShowHelp(menu.nodeKind)} type="button">Help</button>
           {layoutEditable ? <button onClick={() => onDuplicateNode(menu.nodeId)} type="button">Duplicate</button> : null}
           <button onClick={() => onCopy(menu.nodeId)} type="button">Copy Node ID</button>
           <button onClick={() => onCopy(`node:${menu.nodeId}`)} type="button">Copy Node Address</button>
@@ -677,19 +668,19 @@ function ReactFlowContextMenu({
         <>
           {layoutEditable ? (
             <>
-              <button onClick={() => onAddNode("core.comment")} type="button">Add Comment</button>
-              <button onClick={() => onAddNode("core.panel")} type="button">Add Panel</button>
-              <button onClick={() => onAddNode("core.message")} type="button">Add Message</button>
-              <button onClick={() => onAddNode("core.bang")} type="button">Add Bang</button>
-              <button onClick={() => onAddNode("core.bool", { label: "Enabled", widget: "toggle" })} type="button">Add Toggle</button>
+              <button onClick={() => onAddObjectSpec("comment")} type="button">Add Comment</button>
+              <button onClick={() => onAddObjectSpec("panel")} type="button">Add Panel</button>
+              <button onClick={() => onAddObjectSpec("message")} type="button">Add Message</button>
+              <button onClick={() => onAddObjectSpec("bang")} type="button">Add Bang</button>
+              <button onClick={() => onAddObjectSpec("bool", { label: "Enabled", widget: "toggle" })} type="button">Add Toggle</button>
               <button
-                onClick={() => onAddNode("core.float", { label: "Value", max: 1, min: 0, step: 0.01, widget: "slider" })}
+                onClick={() => onAddObjectSpec("float", { label: "Value", max: 1, min: 0, step: 0.01, widget: "slider" })}
                 type="button"
               >
                 Add Slider
               </button>
-              <button onClick={() => onAddNode("core.float")} type="button">Add Float</button>
-              <button onClick={() => onAddNode("core.video-asset")} type="button">Add Video Asset</button>
+              <button onClick={() => onAddObjectSpec("float")} type="button">Add Float</button>
+              <button onClick={() => onAddObjectSpec("video-asset")} type="button">Add Video Asset</button>
             </>
           ) : null}
           <button onClick={() => { fitView({ padding: 0.2 }); onClose(); }} type="button">Fit View</button>

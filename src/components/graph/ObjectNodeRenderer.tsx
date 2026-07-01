@@ -31,7 +31,6 @@ import {
 } from "../../graph/videoAsset";
 import { PANEL_NODE_KIND, readPanelParams } from "../../graph/panelNode";
 import { genericObjectSpecForNode } from "../../graph/objectSpecDisplay";
-import { isUnresolvedObjectNode } from "../../graph/objectNode";
 import type { NodeCardView, NodePortHandleRenderer, NodePortView } from "../node/nodeTypes";
 import type { RuntimeControlMessage, RuntimeControlValue } from "../../runtime/types";
 import { bangControlMessage, controlMessageFromValue } from "../../runtime/controlMessage";
@@ -274,7 +273,7 @@ function GenericObjectFrame({
 }) {
   const displayText = genericObjectSpecForNode(node);
   const resolutionStatus = node.objectResolution?.status;
-  const unresolved = isUnresolvedObjectNode(node) || (resolutionStatus !== undefined && resolutionStatus !== "resolved");
+  const unresolved = resolutionStatus !== undefined && resolutionStatus !== "resolved";
   const resolutionDiagnostic = node.objectResolution?.diagnostics?.[0];
   const diagnosticMessage = typeof node.params.diagnosticMessage === "string"
     ? node.params.diagnosticMessage

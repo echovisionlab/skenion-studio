@@ -15,19 +15,19 @@ interface DefinitionOptions {
 }
 
 export const studioBuiltinNodeDefinitionsV01: NodeDefinitionManifestV01[] = [
-  valueDefinition("core.float", "Float", "number.float"),
-  valueDefinition("core.int", "Int", "number.int"),
-  valueDefinition("core.uint", "UInt", "number.uint"),
-  valueDefinition("core.bool", "Bool", "boolean"),
-  valueDefinition("core.color", "Color", "color", "Color"),
-  valueDefinition("core.string", "String", "string"),
+  valueDefinition("core.float", "Float", "value.core.float32"),
+  valueDefinition("core.int", "Int", "value.core.int32"),
+  valueDefinition("core.uint", "UInt", "value.core.uint32"),
+  valueDefinition("core.bool", "Bool", "value.core.bool"),
+  valueDefinition("core.color", "Color", "value.core.color", "Color"),
+  valueDefinition("core.string", "String", "value.core.string"),
   defineNode({
     id: "core.message",
     displayName: "Message",
     category: "Control",
     palette: true,
     model: "event",
-    ports: [optionalInput("in", "In", "message.any"), output("out", "Message", "message.any")]
+    ports: [messageInput("in", "In"), output("out", "Message", "value.core.message")]
   }),
   defineNode({
     id: "core.bang",
@@ -35,7 +35,7 @@ export const studioBuiltinNodeDefinitionsV01: NodeDefinitionManifestV01[] = [
     category: "Events",
     palette: true,
     model: "event",
-    ports: [optionalInput("in", "In", "message.any"), output("out", "Bang", "event.bang")]
+    ports: [messageInput("in", "In"), output("out", "Bang", "value.core.bang")]
   }),
   defineNode({
     id: "core.comment",
@@ -43,14 +43,14 @@ export const studioBuiltinNodeDefinitionsV01: NodeDefinitionManifestV01[] = [
     category: "Control",
     palette: true,
     model: "event",
-    ports: [optionalInput("in", "In", "message.any")]
+    ports: [messageInput("in", "In")]
   }),
   defineNode({
     id: "core.panel",
     displayName: "Panel",
     category: "Control",
     palette: true,
-    ports: [optionalInput("in", "In", "message.any")]
+    ports: [messageInput("in", "In")]
   }),
   defineNode({
     id: "core.operator.add",
@@ -58,9 +58,9 @@ export const studioBuiltinNodeDefinitionsV01: NodeDefinitionManifestV01[] = [
     category: "Operators",
     capabilities: ["pd.control.operator.v0.1"],
     ports: [
-      optionalInput("in", "In", "message.any"),
-      optionalInput("right", "Right", "number.float"),
-      output("out", "Value", "number.float")
+      messageInput("in", "In"),
+      optionalInput("right", "Right", "value.core.float32"),
+      output("out", "Value", "value.core.float32")
     ]
   }),
   defineNode({
@@ -84,7 +84,7 @@ export const studioBuiltinNodeDefinitionsV01: NodeDefinitionManifestV01[] = [
     model: "audio_block",
     clock: "audio",
     capabilities: ["pd.audio.v0.1"],
-    ports: [optionalInput("frequency", "Frequency", "number.float"), output("out", "Signal", "signal.audio")]
+    ports: [optionalInput("frequency", "Frequency", "value.core.float32"), output("out", "Signal", "signal.audio")]
   }),
   defineNode({
     id: "core.video-asset",
@@ -161,7 +161,7 @@ function valueDefinition(
     displayName,
     category: "Values",
     palette: true,
-    ports: [optionalInput("in", "In", type), optionalInput("cold", "Cold", type), output("value", outputLabel, type)]
+    ports: [messageInput("in", "In"), optionalInput("cold", "Cold", type), output("value", outputLabel, type)]
   });
 }
 
@@ -196,6 +196,24 @@ function defineNode({
 
 function optionalInput(id: string, label: string, type: string): PortSpecV01 {
   return { id, direction: "input", label, type, required: false };
+}
+
+function messageInput(id: string, label: string): PortSpecV01 {
+  return {
+    id,
+    direction: "input",
+    label,
+    type: "value.core.message",
+    required: false,
+    triggerMode: "trigger",
+    messageKeys: {
+      accepted: ["bang", "set", "message"],
+      trigger: ["bang"],
+      silent: ["set"],
+      store: ["set"],
+      emit: ["message"]
+    }
+  };
 }
 
 function requiredInput(id: string, label: string, type: string): PortSpecV01 {

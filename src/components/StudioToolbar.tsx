@@ -2,26 +2,19 @@ import {
   Badge,
   FileButton,
   Group,
-  Menu,
   Text,
   Tooltip,
   useComputedColorScheme,
   useMantineColorScheme
 } from "@mantine/core";
 import {
-  Cable,
   Download,
   FolderOpen,
-  Library,
-  MonitorPlay,
   Moon,
-  Palette,
   PanelRightClose,
   PanelRightOpen,
-  RefreshCcw,
   Save,
   Settings,
-  SlidersHorizontal,
   Sun,
   Upload
 } from "lucide-react";
@@ -38,12 +31,6 @@ interface StudioToolbarProps {
   onImport: (file: File | null) => void;
   onOpenProject: (file: File | null) => void;
   onSaveProject: () => void;
-  onLoadRenderSample: () => void;
-  onLoadObjectRoutingPanelSample: () => void;
-  onLoadShaderMultiUniformSample: () => void;
-  onLoadShaderUniformSample: () => void;
-  onLoadPortDemoSample: () => void;
-  onReset: () => void;
   onOpenSettings: () => void;
   onToggleInspector: () => void;
   inspectorOpen: boolean;
@@ -58,12 +45,6 @@ export function StudioToolbar({
   onImport,
   onOpenProject,
   onSaveProject,
-  onLoadPortDemoSample,
-  onLoadRenderSample,
-  onLoadObjectRoutingPanelSample,
-  onLoadShaderMultiUniformSample,
-  onLoadShaderUniformSample,
-  onReset,
   onOpenSettings,
   onToggleInspector,
   inspectorOpen
@@ -134,42 +115,6 @@ export function StudioToolbar({
             onClick={onExport}
           />
         </Tooltip>
-        <Tooltip label="Restore sample graph">
-          <IconButton
-            disabled={graphActionDisabled}
-            icon={<RefreshCcw size={18} />}
-            label="Restore sample graph"
-            onClick={onReset}
-          />
-        </Tooltip>
-        <Menu position="bottom-end" shadow="md" width={220} withinPortal>
-          <Menu.Target>
-            <IconButton
-              disabled={graphActionDisabled}
-              icon={<Library size={18} />}
-              label="Load sample graph"
-              title="Load sample graph"
-            />
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Label>Samples</Menu.Label>
-            <Menu.Item leftSection={<MonitorPlay size={14} />} onClick={onLoadRenderSample}>
-              Render
-            </Menu.Item>
-            <Menu.Item leftSection={<SlidersHorizontal size={14} />} onClick={onLoadShaderUniformSample}>
-              Shader Uniform
-            </Menu.Item>
-            <Menu.Item leftSection={<Palette size={14} />} onClick={onLoadShaderMultiUniformSample}>
-              Multi-Uniform Shader
-            </Menu.Item>
-            <Menu.Item leftSection={<Cable size={14} />} onClick={onLoadObjectRoutingPanelSample}>
-              Object Routing Panel
-            </Menu.Item>
-            <Menu.Item leftSection={<Cable size={14} />} onClick={onLoadPortDemoSample}>
-              Port Demo
-            </Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
         <Tooltip label="Open Settings">
           <IconButton
             color="blue"

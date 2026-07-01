@@ -1,10 +1,8 @@
 import { Divider, Group, Stack, Text } from "@mantine/core";
-import { BookOpen, Trash2 } from "lucide-react";
-import { Fragment, useState, type ReactNode } from "react";
-import type { GraphFragmentV01, ShaderDiagnosticV01 } from "@skenion/contracts";
-import { getStudioBuiltinNodeHelp, getStudioBuiltinNodeHelpGraph } from "../../data/studioBuiltins";
+import { Trash2 } from "lucide-react";
+import { Fragment, type ReactNode } from "react";
+import type { ShaderDiagnosticV01 } from "@skenion/contracts";
 import type { RuntimeGeneratedShaderResponse } from "../../runtime/types";
-import type { GraphFragmentBuildResult } from "../../graph/fragmentClipboard";
 import type { DisplayGraphNodeV01 } from "../../graph/patchLibrary";
 import { AssetControls } from "./AssetControls";
 import { BooleanValueControls } from "./BooleanValueControls";
@@ -14,7 +12,6 @@ import { ColorRgbaControls } from "./ColorRgbaControls";
 import { FloatValueControls } from "./FloatValueControls";
 import { FullscreenShaderControls } from "./FullscreenShaderControls";
 import { IntegerValueControls } from "./IntegerValueControls";
-import { NodeHelp } from "./NodeHelp";
 import { PanelControlInspector } from "./PanelControlInspector";
 import { PortTable } from "./PortTable";
 import { RoutingNodeControls } from "./RoutingNodeControls";
@@ -88,11 +85,7 @@ export function NodeInspector({
   node,
   onRemoveNode,
   onLoadGeneratedShader,
-  onHelpClipboardWriteError,
-  onHelpCopyFragment,
-  onHelpCopyFragmentError,
   onImportAsset,
-  onOpenHelpGraph,
   onSetNodeParam,
   onSyncShaderInputs,
   generatedShader,
@@ -107,18 +100,13 @@ export function NodeInspector({
   node: DisplayGraphNodeV01;
   runtimeShaderDiagnostics?: ShaderDiagnosticV01[];
   onLoadGeneratedShader?: () => void;
-  onHelpClipboardWriteError?: (message: string) => void;
-  onHelpCopyFragment?: (fragment: GraphFragmentV01, result: GraphFragmentBuildResult) => void;
-  onHelpCopyFragmentError?: (message: string) => void;
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void>;
-  onOpenHelpGraph?: (nodeKind: string) => void;
   onRemoveNode: (node: DisplayGraphNodeV01) => void;
   onSetNodeParam: (nodeId: string, key: string, value: unknown) => void;
   onSyncShaderInputs: (nodeId: string, source: string) => void;
   runtimeAssetImportBusy: boolean;
   runtimeAssetImportEnabled: boolean;
 }) {
-  const [helpOpen, setHelpOpen] = useState(false);
   const clearColor = isClearColorNode(node) ? readClearColorParam(node) : null;
   const commentText = isCommentNode(node) ? readCommentTextParam(node) : null;
   const isPanelControl = isBangControlNode(node) || isSliderFloatNode(node) || isToggleControlNode(node);
@@ -144,8 +132,6 @@ export function NodeInspector({
   const shaderInterfaceSynced = shaderSource !== null
     ? fullscreenShaderPortsAreSynced(node.ports, shaderSource, shaderLanguage ?? "unsupported")
     : false;
-  const help = getStudioBuiltinNodeHelp(node.kind);
-  const helpGraph = getStudioBuiltinNodeHelpGraph(node.kind);
   const hasRoutingSettings = isRoutingCapableObjectNode(node);
   const objectSettingBlocks: ReactNode[] = [];
   const addObjectSettingBlock = (key: string, content: ReactNode) => {
@@ -326,16 +312,6 @@ export function NodeInspector({
           </Text>
         </div>
         <Group gap="xs" wrap="nowrap">
-          {help ? (
-            <Button
-              leftSection={<BookOpen size={15} />}
-              onClick={() => setHelpOpen((open) => !open)}
-              size="compact-sm"
-              variant="light"
-            >
-              Help
-            </Button>
-          ) : null}
           <Button
             disabled={graphLocked}
             intent="danger"
@@ -347,17 +323,6 @@ export function NodeInspector({
           </Button>
         </Group>
       </Group>
-
-      {help && helpOpen ? (
-        <NodeHelp
-          help={help}
-          helpGraph={helpGraph}
-          onClipboardWriteError={onHelpClipboardWriteError}
-          onCopyFragment={onHelpCopyFragment}
-          onCopyFragmentError={onHelpCopyFragmentError}
-          onOpenAsEditableCopy={helpGraph && onOpenHelpGraph ? () => onOpenHelpGraph(node.kind) : undefined}
-        />
-      ) : null}
 
       {objectSettingBlocks.length > 0 ? (
         <>

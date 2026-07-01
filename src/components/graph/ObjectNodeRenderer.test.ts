@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { DisplayGraphNodeV01 as GraphNodeV01 } from "../../graph/patchLibrary";
 import type { NodeCardView } from "../node/nodeTypes";
 import { genericObjectSpecForNode } from "../../graph/objectSpecDisplay";
-import { OBJECT_DISPLAY_KIND } from "../../graph/objectNode";
 import { ObjectNodeRenderer, isPrimaryPointerButton } from "./ObjectNodeRenderer";
 
 describe("ObjectNodeRenderer interaction guards", () => {
@@ -151,9 +150,9 @@ describe("generic object spec", () => {
     ).toBe("video.decode");
   });
 
-  it("falls back to labels, then node kind, without adding card metadata", () => {
-    expect(genericObjectSpecForNode(genericNode("core.gpu-upload", { label: "Upload" }))).toBe("upload");
-    expect(genericObjectSpecForNode(genericNode("core.preview", {}))).toBe("preview");
+  it("falls back to labels, then node kind, without adding card metadata or aliases", () => {
+    expect(genericObjectSpecForNode(genericNode("core.gpu-upload", { label: "Upload" }))).toBe("Upload");
+    expect(genericObjectSpecForNode(genericNode("core.preview", {}))).toBe("core.preview");
     expect(genericObjectSpecForNode(genericNode("user.manipulator", { label: "Manipulator" }))).toBe("Manipulator");
   });
 
@@ -254,7 +253,7 @@ describe("generic object spec", () => {
           card: genericCard(),
           layoutEditable: true,
           node: genericNode(
-            OBJECT_DISPLAY_KIND,
+            "object",
             { diagnosticMessage: "user.manipulator is unavailable" },
             {
               objectSpec: "user.manipulator",

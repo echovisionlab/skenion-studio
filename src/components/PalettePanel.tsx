@@ -1,25 +1,22 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Badge, Divider, Group, ScrollArea, Stack, Text, TextInput, Tooltip } from "@mantine/core";
-import { HelpCircle, Plus } from "lucide-react";
+import { Badge, Divider, Group, ScrollArea, Stack, Text, TextInput } from "@mantine/core";
+import { Plus } from "lucide-react";
 import { type NodeCatalogEntryV01 } from "@skenion/contracts";
 import { objectSpecForCatalogEntry } from "@skenion/sdk";
 import { dataTypeFromPortSpec } from "../graph/patchLibrary";
 import { flowColor } from "../graph/reactFlowAdapter";
 import { Button } from "./core/Button/Button";
-import { IconButton } from "./core/IconButton/IconButton";
 
 interface PalettePanelProps {
   addDisabled?: boolean;
   catalogEntries?: NodeCatalogEntryV01[];
   onAddObjectSpec: (objectSpec: string) => boolean | Promise<boolean | void> | void;
-  onShowHelp: (definitionId: string) => void;
 }
 
 export function PalettePanel({
   addDisabled = false,
   catalogEntries = [],
-  onAddObjectSpec,
-  onShowHelp
+  onAddObjectSpec
 }: PalettePanelProps) {
   const [objectSpec, setObjectSpec] = useState("");
   const objectSpecInput = objectSpec.trim();
@@ -136,14 +133,6 @@ export function PalettePanel({
                       </Text>
                     </span>
                   </Button>
-                  <Tooltip label={`Help: ${entry.display.title}`}>
-                    <IconButton
-                      icon={<HelpCircle size={16} />}
-                      label={`Show help for ${entry.display.title}`}
-                      onClick={() => onShowHelp(entry.definition.id)}
-                      size={34}
-                    />
-                  </Tooltip>
                 </Group>
               );
             })}

@@ -1,4 +1,4 @@
-import { planConversion } from "@skenion/contracts";
+import { planConversion, portConnectionPolicyV01 } from "@skenion/contracts";
 import type {
   ConversionPlanV01,
   DataTypeV01,
@@ -8,6 +8,7 @@ import type {
   PortV01,
   TriggerModeV01
 } from "@skenion/contracts";
+import { graphPortToPortSpec } from "./patchLibrary";
 import type { DisplayEdgeV01, DisplayGraphDocumentV01, DisplayGraphNodeV01 } from "./patchLibrary";
 
 export type DiagnosticSeverity = "error" | "warning" | "info";
@@ -134,10 +135,7 @@ export function edgeInspectorModel(graph: DisplayGraphDocumentV01, edge: Display
   const sourceSemantics = sourceNode && sourcePort ? portSemanticsForPort(sourceNode, sourcePort) : null;
   const targetSemantics = targetNode && targetPort ? portSemanticsForPort(targetNode, targetPort) : null;
   const conversion = sourceNode && sourcePort && targetNode && targetPort
-    ? conversionPreview(planConversion(
-        semanticDataTypeForPort(sourceNode, sourcePort),
-        semanticDataTypeForPort(targetNode, targetPort)
-      ))
+    ? edgeConnectionPreview(sourceNode, sourcePort, targetNode, targetPort)
     : null;
 
   return {
@@ -198,15 +196,15 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
 
     const sourceSemantics = portSemanticsForPort(source.node, source.port);
     const targetSemantics = portSemanticsForPort(target.node, target.port);
-    const conversion = planConversion(
-      semanticDataTypeForPort(source.node, source.port),
-      semanticDataTypeForPort(target.node, target.port)
+    const connectionPolicy = portConnectionPolicyV01(
+      graphPortToPortSpec(source.port),
+      graphPortToPortSpec(target.port)
     );
-    if (!conversion.ok) {
+    if (!connectionPolicy.accepted && connectionPolicy.reason !== "direction-mismatch") {
       diagnostics.push({
         severity: "error",
         code: "incompatible-edge-type",
-        message: `${id} connects ${sourceSemantics.type} to ${targetSemantics.type} without an explicit adapter.`,
+        message: `${id} connects ${sourceSemantics.type} to ${targetSemantics.type}: ${connectionPolicy.reason}.`,
         edgeId: id
       });
     }
@@ -357,6 +355,42 @@ function storedTypeLabel(type: DataTypeV01): string {
     return `value<${artistFacingDataKind(type.dataKind)}>`;
   }
   return `${type.flow}<${artistFacingDataKind(type.dataKind)}>`;
+}
+
+function edgeConnectionPreview(
+  sourceNode: DisplayGraphNodeV01,
+  sourcePort: PortV01,
+  targetNode: DisplayGraphNodeV01,
+  targetPort: PortV01
+): EdgeConversionPreview | null {
+  const sourceSpec = graphPortToPortSpec(sourcePort);
+  const targetSpec = graphPortToPortSpec(targetPort);
+  const connectionPolicy = portConnectionPolicyV01(sourceSpec, targetSpec);
+
+  if (!connectionPolicy.accepted) {
+    return {
+      source: portSemanticsForPort(sourceNode, sourcePort).type,
+      target: portSemanticsForPort(targetNode, targetPort).type,
+      lossy: false,
+      policies: [],
+      diagnostics: [connectionPolicy.reason]
+    };
+  }
+
+  if (connectionPolicy.reason !== "type-match") {
+    return {
+      source: portSemanticsForPort(sourceNode, sourcePort).type,
+      target: portSemanticsForPort(targetNode, targetPort).type,
+      lossy: false,
+      policies: [connectionPolicy.reason],
+      diagnostics: []
+    };
+  }
+
+  return conversionPreview(planConversion(
+    semanticDataTypeForPort(sourceNode, sourcePort),
+    semanticDataTypeForPort(targetNode, targetPort)
+  ));
 }
 
 function conversionPreview(plan: ConversionPlanV01): EdgeConversionPreview | null {

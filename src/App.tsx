@@ -10,7 +10,6 @@ import {
   type ViewStateV01
 } from "@skenion/contracts";
 import { validatePasteGraphFragmentRequest } from "@skenion/contracts";
-import { objectSpecForCatalogEntry } from "@skenion/sdk";
 import { GraphCanvas } from "./components/GraphCanvas";
 import { DiagnosticsFooter } from "./components/DiagnosticsFooter";
 import { InspectorPanel } from "./components/InspectorPanel";
@@ -18,33 +17,16 @@ import { PalettePanel } from "./components/PalettePanel";
 import { RuntimeLogsPanel, RuntimeSettingsPanel } from "./components/RuntimePanel";
 import { StudioToolbar } from "./components/StudioToolbar";
 import { Dialog } from "./components/core/Dialog/Dialog";
-import { Button as CoreButton } from "./components/core/Button/Button";
 import { IconButton } from "./components/core/IconButton/IconButton";
 import { clientLogLine, runtimeLogLineFromEvent, type LogLevel, type LogLine } from "./components/log/LogConsole";
-import { nodeRegistry } from "./data/registry";
-import { getStudioBuiltinNodeHelpGraph } from "./data/studioBuiltins";
-import {
-  portDemoSampleGraph,
-  portDemoSampleViewState,
-  renderSampleGraph,
-  sampleGraph,
-  objectRoutingPanelSampleGraph,
-  objectRoutingPanelSampleViewState,
-  shaderMultiUniformSampleGraph,
-  shaderMultiUniformSampleViewState,
-  shaderUniformSampleGraph,
-  shaderUniformSampleViewState
-} from "./data/sampleGraph";
 import {
   applyPatch,
-  createGraphNodeFromDefinition,
   graphSummary,
   validateGraph,
   type ConnectionCheck,
   type GraphPatch
 } from "./graph/skenionGraph";
 import { applyActiveProjectPatches } from "./graph/activeProject";
-import { createGraphNodeFromObjectSpec } from "./graph/objectNode";
 import {
   activeProjectDisplayGraph,
   createProjectDocument,
@@ -61,7 +43,6 @@ import {
   findEdgeInspectorModel
 } from "./graph/portSemantics";
 import {
-  createPatchLibrary,
   type DisplayGraphDocumentV01,
   type DisplayGraphNodeV01
 } from "./graph/patchLibrary";
@@ -115,10 +96,6 @@ import type {
 import { runtimeHistoryActionAvailability } from "./runtime/historySync";
 import { runtimeHistoryShortcutAction, type RuntimeHistoryShortcutAction } from "./runtime/historyShortcuts";
 import {
-  createVolatileHelpWorkingCopy,
-  type VolatileHelpWorkingCopy
-} from "./components/help/HelpGraphViewer";
-import {
   readDesktopLaunchContext,
   resolveStudioWindowId
 } from "./desktop/launchContext";
@@ -168,27 +145,14 @@ export default function App() {
       remoteRuntimeUrl: launchContext.runtimeUrl
     })
   );
-  const [activeProject, setActiveProject] = useState<ProjectDocumentV01>(() =>
-    createProjectDocument(sampleGraph, createViewStateFromPositions(sampleGraph, {}))
-  );
+  const [activeProject, setActiveProject] = useState<ProjectDocumentV01>(() => createUntitledProject());
   const graph = useMemo(() => activeProjectDisplayGraph(activeProject), [activeProject]);
   const viewState = activeProject.viewState;
-  const activePatchLibrary = useMemo(
-    () => createPatchLibrary(activeProject.patchLibrary),
-    [activeProject.patchLibrary]
-  );
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>("value_1");
-  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>(["value_1"]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
   const [graphFragmentClipboard, setGraphFragmentClipboard] = useState<GraphFragmentV01 | null>(null);
-  const [helpWorkingCopy, setHelpWorkingCopy] = useState<VolatileHelpWorkingCopy | null>(null);
-  const [helpWorkingCopySelectedNodeIds, setHelpWorkingCopySelectedNodeIds] = useState<string[]>([]);
-  const [helpWorkingCopySelectedEdgeIds, setHelpWorkingCopySelectedEdgeIds] = useState<string[]>([]);
-  const [helpWorkingCopySelectedNodeId, setHelpWorkingCopySelectedNodeId] = useState<string | null>(null);
-  const [helpWorkingCopySelectedEdgeId, setHelpWorkingCopySelectedEdgeId] = useState<string | null>(null);
-  const [helpWorkingCopyConnectionCheck, setHelpWorkingCopyConnectionCheck] = useState<ConnectionCheck | null>(null);
-  const [activeHelpNodeId, setActiveHelpNodeId] = useState<string | null>(null);
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
   const [inspectorEdgeHovered, setInspectorEdgeHovered] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
@@ -525,18 +489,6 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const selectedText = window.getSelection()?.toString() ?? "";
-      if (isHelpWorkingCopyTarget(event.target)) {
-        const action = graphClipboardShortcutAction(event, { selectedText });
-        if (action === "copy") {
-          event.preventDefault();
-          event.stopPropagation();
-          void copyHelpWorkingCopySelection();
-        }
-        return;
-      }
-      if (isHelpGraphViewerTarget(event.target)) {
-        return;
-      }
       const action = graphClipboardShortcutAction(event, { selectedText });
       if (!action) {
         return;
@@ -555,9 +507,6 @@ export default function App() {
   }, [
     graph,
     graphFragmentClipboard,
-    helpWorkingCopy,
-    helpWorkingCopySelectedEdgeIds,
-    helpWorkingCopySelectedNodeIds,
     runtimeInfo,
     runtimeSession?.snapshot.project,
     runtimeSessionSynced,
@@ -586,15 +535,6 @@ export default function App() {
         clientLogLine(`studio-${timestamp}-${current.length}`, level, message, timestamp)
       ].slice(-200)
     );
-  }
-
-  function appendObjectSpecDiagnostics(
-    action: string,
-    diagnostics: Array<{ severity: LogLevel; code: string; message: string }>
-  ) {
-    for (const diagnostic of diagnostics) {
-      appendClientLog(diagnostic.severity, `${action}: ${diagnostic.code}: ${diagnostic.message}`);
-    }
   }
 
   function createActiveRuntimeClient(baseUrl = runtimeUrl): RuntimeClient {
@@ -780,17 +720,11 @@ export default function App() {
     );
   }
 
-  function addNodeAtPosition(
-    definitionId: string,
+  function addObjectSpecAtPosition(
+    objectSpec: string,
     position: { x: number; y: number },
     paramsOverride: Record<string, unknown> = {}
   ) {
-    const objectSpec = objectSpecForDefinitionId(definitionId, nodeCatalog);
-    if (!objectSpec) {
-      setRuntimeError("Runtime catalog entry is required before creating this object.");
-      return;
-    }
-
     void createRuntimeObjectNode(objectSpec, {
       params: paramsOverride,
       position
@@ -849,7 +783,6 @@ export default function App() {
         return null;
       }
       selectSingleNode(nodeId);
-      setActiveHelpNodeId(null);
       openInspectSidePanel();
       setConnectionCheck(null);
       return nodeId;
@@ -910,7 +843,6 @@ export default function App() {
         return;
       }
       selectSingleNode(nodeId);
-      setActiveHelpNodeId(null);
       openInspectSidePanel();
     } catch (error) {
       setRuntimeStatus("error");
@@ -1088,7 +1020,7 @@ export default function App() {
     session: RuntimeSessionResponse
   ): Promise<RuntimeSessionResponse> {
     if (!session.snapshot.project) {
-      const seedProject = createProjectDocument(sampleGraph, createViewStateFromPositions(sampleGraph, {}));
+      const seedProject = createUntitledProject();
       const loaded = await client.loadSession(createRuntimeSessionLoadRequest(seedProject));
       const loadedProject = loaded.snapshot.project;
       if (!loaded.ok || !loadedProject) {
@@ -1112,7 +1044,6 @@ export default function App() {
       const project = parseGraphDocumentAsActiveProject(parsed);
       await loadProjectIntoRuntime(project);
       selectSingleNode(project.graph.nodes[0]?.id ?? null);
-      setActiveHelpNodeId(null);
       setImportError(null);
       setConnectionCheck(null);
     } catch (error) {
@@ -1129,7 +1060,6 @@ export default function App() {
       const project = parseProjectDocument(JSON.parse(await file.text()) as unknown);
       await loadProjectIntoRuntime(project);
       selectSingleNode(project.graph.nodes[0]?.id ?? null);
-      setActiveHelpNodeId(null);
       setImportError(null);
       setConnectionCheck(null);
     } catch (error) {
@@ -1145,72 +1075,6 @@ export default function App() {
     downloadJson(activeProject, `${activeProject.id || "skenion-project"}.skenion.json`);
   }
 
-  function resetSample() {
-    void loadProjectIntoRuntime(
-      createProjectDocument(sampleGraph, createViewStateFromPositions(sampleGraph, {}))
-    );
-    selectSingleNode(sampleGraph.nodes[0]?.id ?? null);
-    setActiveHelpNodeId(null);
-    setImportError(null);
-    setConnectionCheck(null);
-    setRuntimeResult(null);
-  }
-
-  function loadRenderSample() {
-    void loadProjectIntoRuntime(
-      createProjectDocument(renderSampleGraph, createViewStateFromPositions(renderSampleGraph, {}))
-    );
-    selectSingleNode(renderSampleGraph.nodes[0]?.id ?? null);
-    setActiveHelpNodeId(null);
-    setImportError(null);
-    setConnectionCheck(null);
-    setRuntimeResult(null);
-  }
-
-  function loadShaderUniformSample() {
-    void loadProjectIntoRuntime(
-      createProjectDocument(shaderUniformSampleGraph, shaderUniformSampleViewState)
-    );
-    selectSingleNode(shaderUniformSampleGraph.nodes[0]?.id ?? null);
-    setActiveHelpNodeId(null);
-    setImportError(null);
-    setConnectionCheck(null);
-    setRuntimeResult(null);
-  }
-
-  function loadShaderMultiUniformSample() {
-    void loadProjectIntoRuntime(
-      createProjectDocument(shaderMultiUniformSampleGraph, shaderMultiUniformSampleViewState)
-    );
-    selectSingleNode(shaderMultiUniformSampleGraph.nodes[0]?.id ?? null);
-    setActiveHelpNodeId(null);
-    setImportError(null);
-    setConnectionCheck(null);
-    setRuntimeResult(null);
-  }
-
-  function loadPortDemoSample() {
-    void loadProjectIntoRuntime(
-      createProjectDocument(portDemoSampleGraph, portDemoSampleViewState)
-    );
-    selectSingleNode(portDemoSampleGraph.nodes[0]?.id ?? null);
-    setActiveHelpNodeId(null);
-    setImportError(null);
-    setConnectionCheck(null);
-    setRuntimeResult(null);
-  }
-
-  function loadObjectRoutingPanelSample() {
-    void loadProjectIntoRuntime(
-      createProjectDocument(objectRoutingPanelSampleGraph, objectRoutingPanelSampleViewState)
-    );
-    selectSingleNode(objectRoutingPanelSampleGraph.nodes[0]?.id ?? null);
-    setActiveHelpNodeId(null);
-    setImportError(null);
-    setConnectionCheck(null);
-    setRuntimeResult(null);
-  }
-
   function removeNode(node: DisplayGraphNodeV01) {
     const patch = { type: "removeNode", nodeId: node.id } satisfies GraphPatch;
     const nextGraph = applyPatch(graph, patch);
@@ -1218,7 +1082,6 @@ export default function App() {
     setViewState((currentViewState) => reconcileViewStateWithGraph(nextGraph, currentViewState));
     recordGraphPatches([patch]);
     selectSingleNode(null);
-    setActiveHelpNodeId(null);
     setRuntimeResult(null);
   }
 
@@ -1257,154 +1120,6 @@ export default function App() {
     setConnectionCheck(null);
     setRuntimeResult(null);
     setGeneratedShader(null);
-  }
-
-  function showNodeHelp(definitionId: string) {
-    setActiveHelpNodeId(definitionId);
-    selectSingleNode(null);
-    openInspectSidePanel();
-    setConnectionCheck(null);
-  }
-
-  function openHelpGraphAsVolatileEditableCopy(definitionId: string) {
-    const helpGraph = getStudioBuiltinNodeHelpGraph(definitionId);
-    if (!helpGraph) {
-      return;
-    }
-
-    const helpWorkingCopy = createVolatileHelpWorkingCopy(helpGraph, {
-      sourcePatchId: definitionId
-    });
-    setHelpWorkingCopy(helpWorkingCopy);
-    setHelpWorkingCopySelectedNodeIds([]);
-    setHelpWorkingCopySelectedEdgeIds([]);
-    setHelpWorkingCopySelectedNodeId(null);
-    setHelpWorkingCopySelectedEdgeId(null);
-    setHelpWorkingCopyConnectionCheck(null);
-    appendClientLog("info", `Opened volatile editable help copy ${helpWorkingCopy.workingCopyId}.`);
-  }
-
-  function updateHelpWorkingCopyGraph(nextGraph: DisplayGraphDocumentV01) {
-    setHelpWorkingCopy((current) =>
-      current
-        ? {
-            ...current,
-            graph: nextGraph,
-            viewState: reconcileViewStateWithGraph(nextGraph, current.viewState)
-          }
-        : current
-    );
-    setHelpWorkingCopyConnectionCheck(null);
-  }
-
-  function updateHelpWorkingCopyViewState(nextViewState: ViewStateV01) {
-    setHelpWorkingCopy((current) =>
-      current
-        ? {
-            ...current,
-            viewState: reconcileViewStateWithGraph(current.graph, nextViewState)
-          }
-        : current
-    );
-  }
-
-  function addHelpWorkingCopyNodeAtPosition(
-    definitionId: string,
-    position: { x: number; y: number },
-    paramsOverride: Record<string, unknown> = {}
-  ) {
-    if (!helpWorkingCopy) {
-      return;
-    }
-    const definition = nodeRegistry.find((candidate) => candidate.id === definitionId);
-    if (!definition) {
-      return;
-    }
-    const node = createGraphNodeFromDefinition(definition, helpWorkingCopy.graph.nodes, paramsOverride);
-    const nextGraph = applyPatch(helpWorkingCopy.graph, { type: "addNode", node });
-    setHelpWorkingCopy({
-      ...helpWorkingCopy,
-      graph: nextGraph,
-      viewState: reconcileViewStateWithGraph(nextGraph, {
-        ...helpWorkingCopy.viewState,
-        canvas: {
-          ...helpWorkingCopy.viewState.canvas,
-          nodes: {
-            ...helpWorkingCopy.viewState.canvas.nodes,
-            [node.id]: position
-          }
-        }
-      })
-    });
-    setHelpWorkingCopySelectedNodeId(node.id);
-    setHelpWorkingCopySelectedNodeIds([node.id]);
-    setHelpWorkingCopySelectedEdgeId(null);
-    setHelpWorkingCopySelectedEdgeIds([]);
-  }
-
-  function setHelpWorkingCopyNodeParam(nodeId: string, key: string, value: unknown) {
-    if (!helpWorkingCopy) {
-      return;
-    }
-    updateHelpWorkingCopyGraph(applyPatch(helpWorkingCopy.graph, { type: "setNodeParam", nodeId, key, value }));
-  }
-
-  function replaceHelpWorkingCopyObjectSpec(nodeId: string, objectSpec: string) {
-    if (!helpWorkingCopy) {
-      return;
-    }
-    const result = createGraphNodeFromObjectSpec(
-      objectSpec,
-      helpWorkingCopy.graph.nodes.filter((node) => node.id !== nodeId),
-      nodeRegistry,
-      { nodeId, patchLibrary: activePatchLibrary }
-    );
-    if (!result.node) {
-      appendClientLog("warning", result.diagnostics[0]?.message ?? "Help working copy object spec could not be resolved.");
-      return;
-    }
-    appendObjectSpecDiagnostics("help working copy object edit", result.diagnostics);
-    updateHelpWorkingCopyGraph(
-      applyPatch(helpWorkingCopy.graph, {
-        type: "replaceNode",
-        nodeId,
-        node: result.node,
-        edgePolicy: "removeInvalidEdges"
-      })
-    );
-  }
-
-  async function copyHelpWorkingCopySelection() {
-    if (!helpWorkingCopy) {
-      return null;
-    }
-    const result = createGraphFragmentFromSelection(
-      helpWorkingCopy.graph,
-      helpWorkingCopy.viewState,
-      {
-        edgeIds: helpWorkingCopySelectedEdgeIds,
-        nodeIds: helpWorkingCopySelectedNodeIds
-      },
-      {
-        id: `fragment_${Date.now()}`,
-        source: "help-working-copy"
-      }
-    );
-    if (!result.fragment) {
-      const message = result.diagnostics[0]?.message ?? "No help working copy fragment could be copied.";
-      appendClientLog("warning", message);
-      return null;
-    }
-    recordCopiedGraphFragment(result.fragment, result, "help working copy");
-    await writeGraphFragmentToSystemClipboard(result.fragment);
-    return result.fragment;
-  }
-
-  async function pasteHelpWorkingCopySelectionIntoRoot() {
-    const fragment = await copyHelpWorkingCopySelection();
-    if (fragment) {
-      await pasteGraphFragmentFromClipboard(fragment);
-    }
   }
 
   async function connectRuntime() {
@@ -2183,12 +1898,6 @@ export default function App() {
           onImport={importGraph}
           onOpenProject={openProject}
           onSaveProject={saveProject}
-          onLoadPortDemoSample={loadPortDemoSample}
-          onLoadRenderSample={loadRenderSample}
-          onLoadObjectRoutingPanelSample={loadObjectRoutingPanelSample}
-          onLoadShaderMultiUniformSample={loadShaderMultiUniformSample}
-          onLoadShaderUniformSample={loadShaderUniformSample}
-          onReset={resetSample}
           onOpenSettings={() => setSettingsOpen(true)}
           inspectorOpen={sidePanelOpen}
           onToggleInspector={toggleInspectSidePanel}
@@ -2212,7 +1921,6 @@ export default function App() {
             addDisabled={graphLocked}
             catalogEntries={nodeCatalog?.entries ?? []}
             onAddObjectSpec={addObjectNodeFromSpec}
-            onShowHelp={showNodeHelp}
           />
         ) : (
           <RuntimeRequiredPanel status={runtimeStatus} />
@@ -2246,7 +1954,7 @@ export default function App() {
               graph={graph}
               graphLocked={graphLocked}
               viewState={viewState}
-              onAddNodeAtPosition={addNodeAtPosition}
+              onAddObjectSpecAtPosition={addObjectSpecAtPosition}
               onConnectionCheck={setConnectionCheck}
               onGraphChange={updateGraph}
               onImportAsset={importRuntimeAsset}
@@ -2273,7 +1981,6 @@ export default function App() {
               onSelectedEdgeChange={(edgeId) => {
                 setSelectedEdgeId(edgeId);
                 if (edgeId) {
-                  setActiveHelpNodeId(null);
                   openInspectSidePanel();
                 }
               }}
@@ -2288,7 +1995,6 @@ export default function App() {
               onSelectedNodeChange={(nodeId) => {
                 setSelectedNodeId(nodeId);
                 if (nodeId) {
-                  setActiveHelpNodeId(null);
                   openInspectSidePanel();
                 }
               }}
@@ -2300,7 +2006,6 @@ export default function App() {
                   })
                 );
               }}
-              onShowNodeHelp={showNodeHelp}
               selectedEdgeId={selectedEdgeId}
               selectedEdgeIds={selectedEdgeIds}
               selectedNodeId={selectedNodeId}
@@ -2344,14 +2049,9 @@ export default function App() {
                 graph={graph}
                 graphLocked={graphLocked}
                 edge={selectedEdge}
-                helpNodeId={activeHelpNodeId}
                 node={selectedNode}
                 onImportAsset={importRuntimeAsset}
-                onHelpClipboardWriteError={(message) => appendClientLog("warning", message)}
-                onHelpCopyFragment={(fragment, result) => recordCopiedGraphFragment(fragment, result, "help source")}
-                onHelpCopyFragmentError={(message) => appendClientLog("warning", message)}
                 onLoadGeneratedShader={runtimeSupportsGeneratedShader(runtimeInfo) ? loadGeneratedShader : undefined}
-                onOpenHelpGraph={openHelpGraphAsVolatileEditableCopy}
                 onRemoveNode={removeNode}
                 onSetNodeParam={setNodeParam}
                 onSyncShaderInputs={syncShaderInputs}
@@ -2366,67 +2066,6 @@ export default function App() {
           </ScrollArea>
         </AppShell.Aside>
       ) : null}
-
-      <Dialog
-        closeLabel="Close help working copy"
-        onClose={() => setHelpWorkingCopy(null)}
-        opened={Boolean(helpWorkingCopy)}
-        size="95vw"
-        title={
-          helpWorkingCopy
-            ? `Volatile help copy: ${helpWorkingCopy.sourcePatchId ?? helpWorkingCopy.workingCopyId}`
-            : "Volatile help copy"
-        }
-      >
-        {helpWorkingCopy ? (
-          <Stack gap="sm">
-            <Group justify="space-between">
-              <Group gap="xs">
-                <Badge color="orange" variant="light">
-                  Volatile
-                </Badge>
-                <Text c="dimmed" size="sm">
-                  Local editable working copy. Source help cannot be saved back.
-                </Text>
-              </Group>
-              <Group gap="xs">
-                <CoreButton onClick={() => void copyHelpWorkingCopySelection()} size="compact-sm" variant="light">
-                  Copy selection
-                </CoreButton>
-                <CoreButton onClick={() => void pasteHelpWorkingCopySelectionIntoRoot()} size="compact-sm">
-                  Paste selection into current graph
-                </CoreButton>
-              </Group>
-            </Group>
-            {helpWorkingCopyConnectionCheck ? (
-              <Alert color={helpWorkingCopyConnectionCheck.ok ? "blue" : "red"} variant="light">
-                {helpWorkingCopyConnectionCheck.message}
-              </Alert>
-            ) : null}
-            <div className="help-working-copy-editor" style={{ height: "64vh", minHeight: 460 }}>
-              <GraphCanvas
-                graph={helpWorkingCopy.graph}
-                graphLocked={false}
-                onAddNodeAtPosition={addHelpWorkingCopyNodeAtPosition}
-                onConnectionCheck={setHelpWorkingCopyConnectionCheck}
-                onGraphChange={updateHelpWorkingCopyGraph}
-                onObjectParamChange={setHelpWorkingCopyNodeParam}
-                onObjectSpecCommit={replaceHelpWorkingCopyObjectSpec}
-                onSelectedEdgeChange={setHelpWorkingCopySelectedEdgeId}
-                onSelectedEdgesChange={setHelpWorkingCopySelectedEdgeIds}
-                onSelectedNodeChange={setHelpWorkingCopySelectedNodeId}
-                onSelectedNodesChange={setHelpWorkingCopySelectedNodeIds}
-                onViewStateChange={updateHelpWorkingCopyViewState}
-                selectedEdgeId={helpWorkingCopySelectedEdgeId}
-                selectedEdgeIds={helpWorkingCopySelectedEdgeIds}
-                selectedNodeId={helpWorkingCopySelectedNodeId}
-                selectedNodeIds={helpWorkingCopySelectedNodeIds}
-                viewState={helpWorkingCopy.viewState}
-              />
-            </div>
-          </Stack>
-        ) : null}
-      </Dialog>
     </AppShell>
   );
 }
@@ -2470,41 +2109,16 @@ function graphCommandNodeId(response: RuntimeGraphCommandResponse): string | nul
   return typeof nodeId === "string" && nodeId.length > 0 ? nodeId : null;
 }
 
-const LEGACY_DEFINITION_OBJECT_SPEC: Record<string, string> = {
-  "audio.input": "adc~",
-  "audio.operator.mul": "*~",
-  "audio.osc": "osc~ 440",
-  "audio.output": "dac~",
-  "audio.sig": "sig~ 0",
-  "core.bang": "bang",
-  "core.bool": "bool",
-  "core.color": "color",
-  "core.comment": "comment",
-  "core.float": "float",
-  "core.int": "int",
-  "core.message": "message",
-  "core.operator.add": "+",
-  "core.operator.div": "/",
-  "core.operator.max": "max",
-  "core.operator.min": "min",
-  "core.operator.mul": "*",
-  "core.operator.pow": "pow",
-  "core.operator.sqrt": "sqrt",
-  "core.operator.sub": "-",
-  "core.panel": "panel",
-  "core.string": "symbol",
-  "core.uint": "uint",
-  "core.video-asset": "video-asset",
-  "render.clear-color": "clear-color",
-  "render.fullscreen-shader": "fullscreen-shader"
-};
-
-function objectSpecForDefinitionId(
-  definitionId: string,
-  catalog: NodeCatalogSnapshotV01 | null
-): string | null {
-  const catalogEntry = catalog?.entries.find((entry) => entry.definition.id === definitionId);
-  return catalogEntry ? objectSpecForCatalogEntry(catalogEntry) : LEGACY_DEFINITION_OBJECT_SPEC[definitionId] ?? null;
+function createUntitledProject(): ProjectDocumentV01 {
+  const graph: DisplayGraphDocumentV01 = {
+    schema: "skenion.graph",
+    schemaVersion: "0.1.0",
+    id: "Untitled",
+    revision: "1",
+    nodes: [],
+    edges: []
+  };
+  return createProjectDocument(graph, createViewStateFromPositions(graph, {}));
 }
 
 function defaultObjectNodePosition(nodeCount: number): { x: number; y: number } {
@@ -2512,14 +2126,6 @@ function defaultObjectNodePosition(nodeCount: number): { x: number; y: number } 
     x: 88 + (nodeCount % 2) * 300,
     y: 88 + Math.floor(nodeCount / 2) * 180
   };
-}
-
-function isHelpGraphViewerTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && Boolean(target.closest(".help-graph-viewer"));
-}
-
-function isHelpWorkingCopyTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && Boolean(target.closest(".help-working-copy-editor"));
 }
 
 function nodeViewStateChanged(before: ViewStateV01, after: ViewStateV01): boolean {

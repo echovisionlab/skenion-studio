@@ -25,7 +25,6 @@ import {
   typeLabel,
   validateGraph
 } from "./skenionGraph";
-import { OBJECT_DISPLAY_KIND } from "./objectNode";
 import { displayGraphToContractGraph } from "./patchLibrary";
 
 describe("skenion graph helpers", () => {
@@ -281,7 +280,7 @@ describe("skenion graph helpers", () => {
       nodeId: "decode_1",
       node: {
         id: "decode_1",
-        kind: OBJECT_DISPLAY_KIND,
+        kind: "object",
         kindVersion: "0.1.0",
         objectSpec: "nope",
         objectResolution: {
@@ -303,7 +302,7 @@ describe("skenion graph helpers", () => {
       },
       edgePolicy: "removeInvalidEdges"
     });
-    expect(unresolvedDecode.nodes.find((node) => node.id === "decode_1")?.kind).toBe(OBJECT_DISPLAY_KIND);
+    expect(unresolvedDecode.nodes.find((node) => node.id === "decode_1")?.kind).toBe("object");
     expect(unresolvedDecode.edges.some((edge) => edge.from.node === "decode_1" || edge.to.node === "decode_1")).toBe(
       false
     );
@@ -367,7 +366,7 @@ describe("skenion graph helpers", () => {
       )
     ).toEqual({
       ok: true,
-      message: "value<number.float> connected to value<number.float>."
+      message: "value<number.float> connected to event<message.any>."
     });
     const secondBang = createGraphNodeFromDefinition(
       nodeRegistry.find((candidate) => candidate.id === "core.bang")!,
