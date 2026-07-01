@@ -3,7 +3,6 @@ import { FileCode, RotateCcw, ScanSearch, Waypoints } from "lucide-react";
 import { useState } from "react";
 import type { ShaderInterfaceAnalysisV01 } from "@skenion/contracts";
 import type { RuntimeGeneratedShaderResponse } from "../../runtime/types";
-import type { ShaderIssueV01 } from "@skenion/contracts";
 import { Button } from "../core/Button/Button";
 
 export interface FullscreenShaderControlsProps {
@@ -13,7 +12,6 @@ export interface FullscreenShaderControlsProps {
   initialGeneratedVisible?: boolean;
   interfaceSynced: boolean;
   language: string;
-  runtimeIssues?: ShaderIssueV01[];
   source: string;
   onAnalyze: () => void;
   onLoadGeneratedShader?: () => void;
@@ -34,14 +32,12 @@ export function FullscreenShaderControls({
   onResetSource,
   onSourceChange,
   onSyncInputs,
-  runtimeIssues = [],
   source
 }: FullscreenShaderControlsProps) {
   const [analysisVisible, setAnalysisVisible] = useState(false);
   const [generatedVisible, setGeneratedVisible] = useState(initialGeneratedVisible);
   const uniforms = analysis.shaderInterface.uniforms;
   const hasErrors = analysis.issues.some((issue) => issue.severity === "error");
-  const runtimeErrors = runtimeIssues.some((issue) => issue.severity === "error");
 
   return (
     <Stack gap="xs">
@@ -63,11 +59,6 @@ export function FullscreenShaderControls({
             <Badge color={interfaceSynced ? "green" : "yellow"} variant="light">
               {interfaceSynced ? "inputs synced" : "sync needed"}
             </Badge>
-            {runtimeIssues.length > 0 ? (
-              <Badge color={runtimeErrors ? "red" : "yellow"} variant="light">
-                runtime issues
-              </Badge>
-            ) : null}
           </Group>
           <Text c="dimmed" mt={4} size="xs">
             Uniforms: {uniforms.length > 0 ? uniforms.map((uniform) => uniform.id).join(", ") : "none"}
@@ -135,18 +126,6 @@ export function FullscreenShaderControls({
             ) : (
               <Text size="xs">No dynamic input uniforms were found. The node will only expose render output.</Text>
             )}
-            <IssueList issues={analysis.issues} />
-          </Stack>
-        </Alert>
-      ) : null}
-
-      {runtimeIssues.length > 0 ? (
-        <Alert color={runtimeErrors ? "red" : "yellow"} variant="light">
-          <Stack gap={6}>
-            <Text fw={700} size="xs">
-              Runtime Shader Issues
-            </Text>
-            <IssueList issues={runtimeIssues} />
           </Stack>
         </Alert>
       ) : null}
@@ -173,7 +152,6 @@ export function FullscreenShaderControls({
                 Generated WGSL is unavailable until the Runtime has a loaded fullscreen shader session.
               </Text>
             )}
-            {generatedShader?.issues.length ? <IssueList issues={generatedShader.issues} /> : null}
           </Stack>
         </Alert>
       ) : null}
@@ -195,32 +173,4 @@ export function FullscreenShaderControls({
       />
     </Stack>
   );
-}
-
-function IssueList({ issues }: { issues: ShaderIssueV01[] }) {
-  if (issues.length === 0) {
-    return (
-      <Text c="dimmed" size="xs">
-        No issues.
-      </Text>
-    );
-  }
-
-  return (
-    <Stack gap={4}>
-      {issues.map((issue, index) => (
-        <Text key={`${issue.phase}:${issue.code}:${issue.line ?? "global"}:${index}`} size="xs">
-          <Code>{issue.phase}</Code> {issue.severity} {issue.code}
-          {formatIssueLocation(issue)}: {issue.message}
-        </Text>
-      ))}
-    </Stack>
-  );
-}
-
-function formatIssueLocation(issue: ShaderIssueV01): string {
-  if (!issue.line) {
-    return "";
-  }
-  return issue.column ? ` line ${issue.line}:${issue.column}` : ` line ${issue.line}`;
 }

@@ -1,15 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack } from "@mantine/core";
 import { BooleanValueControls } from "./BooleanValueControls";
 import { ClearColorControls } from "./ClearColorControls";
 import { CommentControls } from "./CommentControls";
 import { ColorRgbaControls } from "./ColorRgbaControls";
-import { ConnectionIssuesPanel } from "./ConnectionIssuesPanel";
 import { EdgeInspector } from "./EdgeInspector";
 import { FeedbackPolicyDialog } from "./FeedbackPolicyDialog";
 import { FloatValueControls } from "./FloatValueControls";
 import { FullscreenShaderControls } from "./FullscreenShaderControls";
-import { GraphIssuesPanel } from "./GraphIssuesPanel";
 import { InspectorShell } from "./InspectorShell";
 import { IntegerValueControls } from "./IntegerValueControls";
 import { NodeInspector } from "./NodeInspector";
@@ -25,8 +22,7 @@ import { renderSampleGraph } from "../../data/sampleGraph";
 import {
   edgeInspectorModel,
   feedbackEdgeInspectorModel,
-  noop,
-  semanticIssues
+  noop
 } from "../../stories/storyFixtures";
 
 const meta = {
@@ -172,15 +168,6 @@ export const FullscreenShaderIssues: Story = {
       onResetSource={noop}
       onSourceChange={noop}
       onSyncInputs={noop}
-      runtimeIssues={[
-        {
-          severity: "error",
-          phase: "render-pipeline",
-          code: "fullscreen-shader-initialization-failed",
-          message: "failed to initialize fullscreen shader renderer",
-          source: "runtime"
-        }
-      ]}
       source={
         "// @skenion.uniform bad vec3\n@fragment\nfn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }"
       }
@@ -188,30 +175,15 @@ export const FullscreenShaderIssues: Story = {
   )
 };
 
-export const ValidationPanel: Story = {
-  render: () => (
-    <Stack gap="sm">
-      <GraphIssuesPanel semanticIssues={semanticIssues} />
-      <ConnectionIssuesPanel
-        connectionCheck={{
-          ok: false,
-          message: "fan-in-forbidden: render.output.in accepts one render.frame input"
-        }}
-      />
-    </Stack>
-  )
-};
-
 export const EdgeInspectorDefault: Story = {
   render: () => (
-    <EdgeInspector issues={[]} edge={edgeInspectorModel} onOpenFeedbackDialog={noop} />
+    <EdgeInspector edge={edgeInspectorModel} onOpenFeedbackDialog={noop} />
   )
 };
 
 export const EdgeInspectorFeedback: Story = {
   render: () => (
     <EdgeInspector
-      issues={semanticIssues}
       edge={feedbackEdgeInspectorModel}
       onOpenFeedbackDialog={noop}
     />

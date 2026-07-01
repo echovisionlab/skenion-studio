@@ -201,7 +201,6 @@ export default function App() {
   const [clientLogLines, setClientLogLines] = useState<LogLine[]>([]);
   const [runtimeStreamLogLines, setRuntimeStreamLogLines] = useState<LogLine[]>([]);
   const [graphLocked, setGraphLocked] = useState(true);
-  const [connectionCheck, setConnectionCheck] = useState<ConnectionCheck | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [runtimeUrl, setRuntimeUrl] = useState(() => activeRuntimeProfile(runtimeProfileState).url);
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeConnectionStatus>("disconnected");
@@ -217,7 +216,7 @@ export default function App() {
   const lastGraphPointerPositionRef = useRef<GraphPointerPosition | null>(null);
   const [runtimeHistory, setRuntimeHistory] = useState<RuntimeHistory | null>(null);
   const [runtimePreviewStatus, setRuntimePreviewStatus] = useState<RuntimePreviewStatus | null>(null);
-  const [runtimeTelemetry, setRuntimeTelemetry] = useState<RuntimeTelemetrySnapshot | null>(null);
+  const [, setRuntimeTelemetry] = useState<RuntimeTelemetrySnapshot | null>(null);
   const [generatedShader, setGeneratedShader] = useState<RuntimeGeneratedShaderResponse | null>(null);
   const [lastLoadedGraphFingerprint, setLastLoadedGraphFingerprint] = useState<string | null>(null);
   const [, setPendingPatchBaseRevision] = useState<string | null>(null);
@@ -261,6 +260,7 @@ export default function App() {
   const validation = useMemo(() => validateGraph(graph), [graph]);
   const validationErrorLogFingerprintRef = useRef<string | null>(null);
   const semanticIssues = useMemo(() => analyzeGraphPortSemantics(graph), [graph]);
+  const semanticIssueLogFingerprintRef = useRef<string | null>(null);
   const currentRuntimeScope = useMemo(
     () =>
       createRuntimeScope({
@@ -315,12 +315,6 @@ export default function App() {
     }),
     [selectedEdgeIds, selectedNodeIds]
   );
-  const selectedRuntimeShaderIssues = useMemo(() => {
-    if (selectedNode?.kind !== "render.fullscreen-shader") {
-      return [];
-    }
-    return runtimeTelemetry?.render.issues ?? [];
-  }, [runtimeTelemetry, selectedNode?.id, selectedNode?.kind]);
   const selectedRuntimeControlValue = selectedNode
     ? runtimeControlValuesForSession[selectedNode.id]
     : undefined;
@@ -611,6 +605,12 @@ export default function App() {
     );
   }, []);
 
+  const handleConnectionCheck = useCallback((check: ConnectionCheck | null) => {
+    if (check && !check.ok) {
+      appendClientLog("error", check.message);
+    }
+  }, [appendClientLog]);
+
   useEffect(() => {
     if (validation.ok) {
       validationErrorLogFingerprintRef.current = null;
@@ -624,6 +624,25 @@ export default function App() {
     validationErrorLogFingerprintRef.current = fingerprint;
     appendClientLog("error", `Invalid Runtime graph shape: ${validation.errors.slice(0, 3).join("; ")}`);
   }, [appendClientLog, validation]);
+
+  useEffect(() => {
+    const visibleIssues = semanticIssues.filter((issue) => issue.severity === "error" || issue.severity === "warning");
+    if (visibleIssues.length === 0) {
+      semanticIssueLogFingerprintRef.current = null;
+      return;
+    }
+
+    const fingerprint = visibleIssues
+      .map((issue) => `${issue.severity}:${issue.code}:${issue.message}`)
+      .join("\n");
+    if (semanticIssueLogFingerprintRef.current === fingerprint) {
+      return;
+    }
+    semanticIssueLogFingerprintRef.current = fingerprint;
+    for (const issue of visibleIssues.slice(0, 5)) {
+      appendClientLog(issue.severity === "error" ? "error" : "warning", `${issue.code}: ${issue.message}`);
+    }
+  }, [appendClientLog, semanticIssues]);
 
   function createActiveRuntimeClient(baseUrl = runtimeUrl): RuntimeClient {
     return createRuntimeClient({ baseUrl, sessionId: runtimeSessionId });
@@ -886,7 +905,7 @@ export default function App() {
       } else {
         openInspectSidePanel();
       }
-      setConnectionCheck(null);
+      handleConnectionCheck(null);
       return nodeId;
     } catch (error) {
       setRuntimeStatus("error");
@@ -968,12 +987,12 @@ export default function App() {
     if (patches.length === 0) {
       const nextProject = updateActiveProjectGraph(activeProject, nextGraph, patches);
       setActiveProject(nextProject);
-      setConnectionCheck(null);
+      handleConnectionCheck(null);
       return;
     }
 
     void applyRuntimeGraphPatches(patches);
-    setConnectionCheck(null);
+    handleConnectionCheck(null);
   }
 
   async function applyRuntimeGraphPatches(patches: GraphPatch[]) {
@@ -1140,7 +1159,7 @@ export default function App() {
     const availableNodeIds = new Set(nextGraph.nodes.map((node) => node.id));
     const availableEdgeIds = new Set(nextGraph.edges.map((edge) => displayEdgeToEdgeSpec(edge).id));
     pruneSelection(availableNodeIds, availableEdgeIds);
-    setConnectionCheck(null);
+    handleConnectionCheck(null);
     setLastLoadedGraphFingerprint(runtimeGraphFingerprint(parsedProject.graph.id, parsedProject.graph.revision));
   }
 
@@ -1211,7 +1230,7 @@ export default function App() {
       await loadProjectIntoRuntime(project);
       selectSingleNode(project.graph.nodes[0]?.id ?? null);
       setImportError(null);
-      setConnectionCheck(null);
+      handleConnectionCheck(null);
     } catch (error) {
       setImportError(error instanceof Error ? error.message : "Graph import failed.");
     }
@@ -1227,7 +1246,7 @@ export default function App() {
       await loadProjectIntoRuntime(project);
       selectSingleNode(project.graph.nodes[0]?.id ?? null);
       setImportError(null);
-      setConnectionCheck(null);
+      handleConnectionCheck(null);
     } catch (error) {
       setImportError(error instanceof Error ? error.message : "Project open failed.");
     }
@@ -1250,7 +1269,7 @@ export default function App() {
   function setNodeParam(nodeId: string, key: string, value: unknown) {
     const patch = { type: "setNodeParam", nodeId, key, value } satisfies GraphPatch;
     updateGraph(applyPatch(graph, patch), [patch]);
-    setConnectionCheck(null);
+    handleConnectionCheck(null);
     if (key === "source") {
       setGeneratedShader(null);
     }
@@ -1270,7 +1289,7 @@ export default function App() {
   function syncShaderInputs(nodeId: string, source: string) {
     const patch = createReplaceShaderInterfacePatch(nodeId, source);
     if (!patch) {
-      setConnectionCheck({
+      handleConnectionCheck({
         ok: false,
         message: "Shader interface analysis failed. Fix annotation issues before syncing inputs."
       });
@@ -1278,7 +1297,7 @@ export default function App() {
     }
 
     updateGraph(applyPatch(graph, patch), [patch]);
-    setConnectionCheck(null);
+    handleConnectionCheck(null);
     setGeneratedShader(null);
   }
 
@@ -2040,7 +2059,6 @@ export default function App() {
   );
   const inspectorPanel = runtimeGraphAvailable ? (
     <InspectorPanel
-      connectionCheck={connectionCheck}
       generatedShader={generatedShader}
       generatedShaderBusy={runtimeBusyAction === "generatedShader"}
       graphLocked={graphLocked}
@@ -2054,8 +2072,6 @@ export default function App() {
       runtimeAssetImportBusy={runtimeBusyAction === "assetImport"}
       runtimeAssetImportEnabled={runtimeStatus === "connected" && runtimeSupportsAssetImport(runtimeInfo)}
       runtimeControlValue={selectedRuntimeControlValue}
-      runtimeShaderIssues={selectedRuntimeShaderIssues}
-      semanticIssues={semanticIssues}
     />
   ) : (
     <RuntimeRequiredPanel status={runtimeStatus} />
@@ -2112,7 +2128,7 @@ export default function App() {
             graphLockDisabled={!runtimeGraphAvailable}
             graphLocked={graphLocked}
             onToggleGraphLock={toggleGraphLock}
-            onOpenIssues={openInspectSidePanel}
+            onOpenIssues={() => openPanel("logs")}
             semanticIssues={semanticIssues}
           />
         </AppShell.Footer>
@@ -2151,7 +2167,7 @@ export default function App() {
                 viewState={viewState}
                 viewport={canvasViewport}
                 onAddObjectAtPosition={addObjectAtPosition}
-                onConnectionCheck={setConnectionCheck}
+                onConnectionCheck={handleConnectionCheck}
                 onGraphChange={updateGraph}
                 onGraphPointerPositionChange={updateGraphPointerPosition}
                 onImportAsset={importRuntimeAsset}

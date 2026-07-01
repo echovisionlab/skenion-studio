@@ -1,15 +1,13 @@
-import { Alert, Badge, Code, Group, Stack, Table, Text } from "@mantine/core";
+import { Badge, Code, Group, Stack, Table, Text } from "@mantine/core";
 import { GitBranch } from "lucide-react";
 import type { ReactNode } from "react";
-import type { EdgeInspectorModel, GraphSemanticIssue } from "../../graph/portSemantics";
+import type { EdgeInspectorModel } from "../../graph/portSemantics";
 import { Button } from "../core/Button/Button";
 
 export function EdgeInspector({
-  issues,
   edge,
   onOpenFeedbackDialog
 }: {
-  issues: GraphSemanticIssue[];
   edge: EdgeInspectorModel;
   onOpenFeedbackDialog: () => void;
 }) {
@@ -57,26 +55,11 @@ export function EdgeInspector({
                 <Text c={edge.conversion.lossy ? "yellow" : "dimmed"} size="xs">
                   {edge.conversion.policies.join("; ")}
                 </Text>
-                {edge.conversion.issues.map((issue) => (
-                  <Text c="dimmed" key={issue} size="xs">{issue}</Text>
-                ))}
               </Stack>
             ) : "identity"}
           </MetadataRow>
         </Table.Tbody>
       </Table>
-
-      {issues.length > 0 ? (
-        <Alert color="red" variant="light">
-          <Stack gap={4}>
-            {issues.map((issue) => (
-              <Text key={`${issue.code}:${issue.message}`} size="xs">
-                {issue.code}: {issue.message}
-              </Text>
-            ))}
-          </Stack>
-        </Alert>
-      ) : null}
     </Stack>
   );
 }

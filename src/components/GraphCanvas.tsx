@@ -184,6 +184,7 @@ export function GraphCanvas({
   return (
     <ReactFlow
       className="skenion-flow"
+      connectionRadius={32}
       defaultEdgeOptions={defaultEdgeOptions}
       defaultViewport={viewport}
       deleteKeyCode={deleteKeyCode}

@@ -30,7 +30,7 @@
 
 .portHandle::after {
   position: absolute;
-  inset: -3px;
+  inset: -8px;
   content: "";
 }
 

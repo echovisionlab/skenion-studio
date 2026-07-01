@@ -1,7 +1,6 @@
 import { Divider, Group, Stack, Text } from "@mantine/core";
 import { Trash2 } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
-import type { ShaderIssueV01 } from "@skenion/contracts";
 import type { RuntimeGeneratedShaderResponse } from "../../runtime/types";
 import type { DisplayGraphNodeV01 } from "../../graph/patchLibrary";
 import { AssetControls } from "./AssetControls";
@@ -87,15 +86,13 @@ export function NodeInspector({
   generatedShaderBusy,
   runtimeAssetImportBusy,
   runtimeAssetImportEnabled,
-  runtimeControlValue,
-  runtimeShaderIssues
+  runtimeControlValue
 }: {
   generatedShader?: RuntimeGeneratedShaderResponse | null;
   generatedShaderBusy?: boolean;
   graphLocked?: boolean;
   node: DisplayGraphNodeV01;
   runtimeControlValue?: RuntimeControlValue;
-  runtimeShaderIssues?: ShaderIssueV01[];
   onLoadGeneratedShader?: () => void;
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void>;
   onRemoveNode: (node: DisplayGraphNodeV01) => void;
@@ -291,7 +288,6 @@ export function NodeInspector({
         onResetSource={() => onSetNodeParam(node.id, "source", DEFAULT_FULLSCREEN_SHADER_SOURCE)}
         onSourceChange={(source) => onSetNodeParam(node.id, "source", source)}
         onSyncInputs={() => onSyncShaderInputs(node.id, shaderSource)}
-        runtimeIssues={runtimeShaderIssues}
         source={shaderSource}
       />
     );

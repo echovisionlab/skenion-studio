@@ -25,7 +25,7 @@ import {
   typeLabel,
   validateGraph
 } from "./skenionGraph";
-import { displayGraphToContractGraph } from "./patchLibrary";
+import { displayGraphToContractGraph, type DisplayGraphDocumentV01 } from "./patchLibrary";
 
 describe("skenion graph helpers", () => {
   it("formats type and port keys", () => {
@@ -367,6 +367,69 @@ describe("skenion graph helpers", () => {
     ).toEqual({
       ok: true,
       message: "value<number.float> connected to event<message.any>."
+    });
+    const floatToAddGraph = {
+      schema: "skenion.graph",
+      schemaVersion: "0.1.0",
+      id: "float-to-add",
+      revision: "1",
+      nodes: [
+        {
+          id: "float",
+          kind: "object.core.float",
+          kindVersion: "0.1.0",
+          objectSpec: "float",
+          params: {},
+          ports: [
+            {
+              id: "value",
+              direction: "output",
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
+              label: "Value"
+            }
+          ]
+        },
+        {
+          id: "add",
+          kind: "object.core.operator.add",
+          kindVersion: "0.1.0",
+          objectSpec: "+ 1",
+          params: {},
+          ports: [
+            {
+              id: "in",
+              direction: "input",
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
+              label: "In"
+            },
+            {
+              id: "right",
+              direction: "input",
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
+              label: "Right"
+            },
+            {
+              id: "out",
+              direction: "output",
+              type: { flow: "control", dataKind: "number.float", format: "f32" },
+              label: "Out"
+            }
+          ]
+        }
+      ],
+      edges: []
+    } satisfies DisplayGraphDocumentV01;
+    expect(
+      checkConnection(floatToAddGraph, {
+        type: "addEdge",
+        edge: {
+          from: { node: "float", port: "value" },
+          to: { node: "add", port: "in" }
+        }
+      })
+    ).toEqual({
+      ok: true,
+      message: "value<number.float> connected to value<number.float>."
     });
     const secondBang = createGraphNodeFromDefinition(
       nodeRegistry.find((candidate) => candidate.id === "core.bang")!,
