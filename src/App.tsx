@@ -153,6 +153,7 @@ import {
 } from "./desktop/windowRegistry";
 import { useStudioSidePanels } from "./hooks/useStudioSidePanels";
 import { useStudioSelection } from "./hooks/useStudioSelection";
+import { useApplicationShortcuts, type GraphPointerPosition } from "./hooks/useApplicationShortcuts";
 
 const emptyRuntimeControlValues: Record<string, RuntimeControlValue> = {};
 
@@ -211,6 +212,7 @@ export default function App() {
   const [runtimeControlState, setRuntimeControlState] = useState<RuntimeControlStateResponse | null>(null);
   const [runtimeControlPulses, setRuntimeControlPulses] = useState<Record<string, number>>({});
   const runtimeControlPulseCounterRef = useRef(0);
+  const graphPointerPositionRef = useRef<GraphPointerPosition | null>(null);
   const [runtimeHistory, setRuntimeHistory] = useState<RuntimeHistory | null>(null);
   const [runtimePreviewStatus, setRuntimePreviewStatus] = useState<RuntimePreviewStatus | null>(null);
   const [runtimeTelemetry, setRuntimeTelemetry] = useState<RuntimeTelemetrySnapshot | null>(null);
@@ -287,6 +289,12 @@ export default function App() {
     runtimeStatus === "connected" &&
     runtimeSessionSynced &&
     runtimeSessionLoaded(runtimeSession);
+  useApplicationShortcuts({
+    enabled: runtimeGraphAvailable && !settingsOpen,
+    getGraphPointerPosition: () => graphPointerPositionRef.current,
+    onCreateObjectAtPosition: createShortcutObjectAtPosition,
+    onToggleGraphLock: toggleGraphLock
+  });
   const selectedNode = useMemo(
     () => graph.nodes.find((node) => node.id === selectedNodeId) ?? null,
     [graph.nodes, selectedNodeId]
@@ -762,8 +770,27 @@ export default function App() {
     }
   }
 
+  function toggleGraphLock() {
+    setGraphLocked((locked) => !locked);
+  }
+
+  function updateGraphPointerPosition(position: GraphPointerPosition | null) {
+    graphPointerPositionRef.current = position;
+  }
+
+  function createShortcutObjectAtPosition(request: {
+    beginEditingObjectSpec: boolean;
+    objectSpec?: string;
+    position: GraphPointerPosition;
+  }) {
+    void createRuntimeObjectNode(request.objectSpec, {
+      beginEditingObjectSpec: request.beginEditingObjectSpec,
+      position: request.position
+    });
+  }
+
   function addObjectAtPosition(position: { x: number; y: number }) {
-    void createRuntimeObjectNode(undefined, {
+    createShortcutObjectAtPosition({
       beginEditingObjectSpec: true,
       position
     });
@@ -2014,7 +2041,7 @@ export default function App() {
           graphLockDisabled={!runtimeGraphAvailable}
           graphLocked={graphLocked}
           onOpenLogs={openLogsSidePanel}
-          onToggleGraphLock={() => setGraphLocked((locked) => !locked)}
+          onToggleGraphLock={toggleGraphLock}
           semanticIssues={semanticIssues}
           validation={validation}
         />
@@ -2065,6 +2092,7 @@ export default function App() {
               onAddObjectAtPosition={addObjectAtPosition}
               onConnectionCheck={setConnectionCheck}
               onGraphChange={updateGraph}
+              onGraphPointerPositionChange={updateGraphPointerPosition}
               onImportAsset={importRuntimeAsset}
               onObjectControl={(nodeId, portId, message) => {
                 void sendRuntimeControlEvent({

@@ -20,6 +20,7 @@ import {
   type DisplayGraphDocumentV01
 } from "./patchLibrary";
 import { edgeId } from "./portSemantics";
+import { hasPrimaryModifier, hasSelectedText, isEditableShortcutTarget } from "../shortcuts/keyboard";
 
 export interface GraphSelection {
   edgeIds: string[];
@@ -77,8 +78,7 @@ export function graphClipboardShortcutAction(
     return null;
   }
 
-  const primaryModifier = event.metaKey || event.ctrlKey;
-  if (!primaryModifier) {
+  if (!hasPrimaryModifier(event)) {
     return null;
   }
 
@@ -90,18 +90,6 @@ export function graphClipboardShortcutAction(
     return "paste";
   }
   return null;
-}
-
-function hasSelectedText(selectedText: string | null | undefined): boolean {
-  return typeof selectedText === "string" && selectedText.length > 0;
-}
-
-export function isEditableShortcutTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  const tagName = target.tagName.toLowerCase();
-  return target.isContentEditable || tagName === "input" || tagName === "select" || tagName === "textarea";
 }
 
 export function createGraphFragmentFromSelection(

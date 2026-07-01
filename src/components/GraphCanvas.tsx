@@ -40,6 +40,7 @@ interface GraphCanvasProps {
   selection: GraphCanvasSelection;
   onConnectionCheck: (check: ConnectionCheck | null) => void;
   onAddObjectAtPosition?: (position: { x: number; y: number }) => void;
+  onGraphPointerPositionChange?: (position: { x: number; y: number } | null) => void;
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void> | void;
   onObjectControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectLiveControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
@@ -64,6 +65,7 @@ export function GraphCanvas({
   selection,
   onConnectionCheck,
   onAddObjectAtPosition,
+  onGraphPointerPositionChange,
   onImportAsset,
   onObjectControl,
   onObjectLiveControl,
@@ -168,6 +170,7 @@ export function GraphCanvas({
     onAddObjectAtPosition,
     onConnectionCheck,
     onGraphChange,
+    onGraphPointerPositionChange,
     onViewStateChange,
     onViewportChange,
     selectedEdgeId,
@@ -203,6 +206,8 @@ export function GraphCanvas({
       onNodesDelete={reactFlowHandlers.onNodesDelete}
       onPaneClick={reactFlowHandlers.handlePaneClick}
       onPaneContextMenu={reactFlowHandlers.handlePaneContextMenu}
+      onPaneMouseLeave={reactFlowHandlers.handlePaneMouseLeave}
+      onPaneMouseMove={reactFlowHandlers.handlePaneMouseMove}
       onSelectionChange={reactFlowHandlers.handleSelectionChange}
       onMoveEnd={reactFlowHandlers.onMoveEnd}
     >

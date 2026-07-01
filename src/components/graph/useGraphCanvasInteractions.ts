@@ -40,6 +40,7 @@ export interface UseGraphCanvasInteractionsInput {
   onAddObjectAtPosition?: (position: { x: number; y: number }) => void;
   onConnectionCheck: (check: ConnectionCheck | null) => void;
   onGraphChange: (graph: DisplayGraphDocumentV01, patches?: GraphPatch[]) => void;
+  onGraphPointerPositionChange?: (position: { x: number; y: number } | null) => void;
   onViewStateChange: (viewState: ViewStateV01) => void;
   onViewportChange: (viewport: CanvasViewport) => void;
   selectedEdgeId: string | null;
@@ -56,6 +57,7 @@ export function useGraphCanvasInteractions({
   onAddObjectAtPosition,
   onConnectionCheck,
   onGraphChange,
+  onGraphPointerPositionChange,
   onViewStateChange,
   onViewportChange,
   selectedEdgeId,
@@ -344,18 +346,29 @@ export function useGraphCanvasInteractions({
         });
         return;
       }
-      const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      const flowPosition = flowPositionFromPaneEvent(event, viewport);
       setContextMenu({
         type: "pane",
-        flowPosition: {
-          x: (event.clientX - bounds.left - viewport.x) / viewport.zoom,
-          y: (event.clientY - bounds.top - viewport.y) / viewport.zoom
-        },
+        flowPosition,
         screenX: event.clientX,
         screenY: event.clientY
       });
     },
     [graphLocked, viewport.x, viewport.y, viewport.zoom]
+  );
+
+  const handlePaneMouseMove = useCallback(
+    (event: ReactMouseEvent<Element>) => {
+      onGraphPointerPositionChange?.(flowPositionFromPaneEvent(event, viewport));
+    },
+    [onGraphPointerPositionChange, viewport.x, viewport.y, viewport.zoom]
+  );
+
+  const handlePaneMouseLeave = useCallback(
+    () => {
+      onGraphPointerPositionChange?.(null);
+    },
+    [onGraphPointerPositionChange]
   );
 
   const handleSelectionChange = useCallback<OnSelectionChangeFunc<StudioFlowNode, Edge>>(
@@ -408,6 +421,8 @@ export function useGraphCanvasInteractions({
       handleNodeContextMenu,
       handlePaneClick,
       handlePaneContextMenu,
+      handlePaneMouseLeave,
+      handlePaneMouseMove,
       handleSelectionChange,
       isValidConnection,
       onConnect,
@@ -418,5 +433,16 @@ export function useGraphCanvasInteractions({
       onNodeDragStop,
       onNodesDelete
     }
+  };
+}
+
+function flowPositionFromPaneEvent(
+  event: MouseEvent | ReactMouseEvent<Element>,
+  viewport: Viewport
+): { x: number; y: number } {
+  const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  return {
+    x: (event.clientX - bounds.left - viewport.x) / viewport.zoom,
+    y: (event.clientY - bounds.top - viewport.y) / viewport.zoom
   };
 }
