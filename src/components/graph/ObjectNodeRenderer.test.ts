@@ -96,7 +96,7 @@ describe("ObjectNodeRenderer interaction guards", () => {
     container.remove();
   });
 
-  it("marks Runtime resolution diagnostics without requiring a legacy unresolved kind", async () => {
+  it("marks Runtime resolution diagnostics without requiring a separate unresolved kind", async () => {
     const container = document.createElement("div");
     document.body.append(container);
     let root: Root | null = createRoot(container);
@@ -108,14 +108,14 @@ describe("ObjectNodeRenderer interaction guards", () => {
           layoutEditable: true,
           node: genericNode("object.external", {}, {
             objectResolution: {
-              status: "ambiguous",
+              status: "unresolved",
               selectedSpec: "gain",
               candidates: [],
               diagnostics: [
                 {
-                  code: "runtime.object.ambiguous",
+                  code: "resolution-unresolved",
                   message: "gain matched multiple objects",
-                  severity: "warning"
+                  severity: "error"
                 }
               ]
             },
@@ -193,6 +193,52 @@ describe("generic object spec", () => {
     });
 
     expect(onObjectSpecCommit).toHaveBeenCalledWith("node_1", "upload");
+
+    await act(async () => {
+      root?.unmount();
+      root = null;
+    });
+    container.remove();
+  });
+
+  it("opens an empty unresolved Object in object spec edit mode", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const onObjectSpecCommit = vi.fn();
+    const onObjectSpecEditComplete = vi.fn();
+    let root: Root | null = createRoot(container);
+
+    await act(async () => {
+      root?.render(
+        createElement(ObjectNodeRenderer, {
+          card: genericCard(),
+          editingObjectSpec: true,
+          layoutEditable: true,
+          node: genericNode("object", {}, {
+            objectResolution: {
+              status: "unresolved",
+              candidates: [],
+              diagnostics: []
+            }
+          }),
+          onObjectSpecCommit,
+          onObjectSpecEditComplete
+        })
+      );
+    });
+
+    const input = container.querySelector("input[aria-label='Object spec']") as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    expect(input?.value).toBe("");
+
+    await act(async () => {
+      input!.value = "+ 1";
+      input!.dispatchEvent(new Event("input", { bubbles: true }));
+      input!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+
+    expect(onObjectSpecCommit).toHaveBeenCalledWith("node_1", "+ 1");
+    expect(onObjectSpecEditComplete).toHaveBeenCalledWith("node_1");
 
     await act(async () => {
       root?.unmount();

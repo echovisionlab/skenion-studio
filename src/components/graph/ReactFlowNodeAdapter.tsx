@@ -11,11 +11,13 @@ export function ReactFlowNodeAdapter({ data, selected }: ReactFlowNodeAdapterPro
   const objectNode = ObjectNodeRenderer({
     card: data.card,
     node: data.node,
+    editingObjectSpec: data.editingObjectSpec,
     layoutEditable: data.layoutEditable,
     onImportAsset: data.onImportAsset,
     onObjectControl: data.onObjectControl,
     onObjectLiveControl: data.onObjectLiveControl,
     onObjectParamChange: data.onObjectParamChange,
+    onObjectSpecEditComplete: data.onObjectSpecEditComplete,
     onObjectSpecCommit: data.onObjectSpecCommit,
     runtimeControlEnabled: data.runtimeControlEnabled,
     runtimeControlPulseKey: data.runtimeControlPulseKey,

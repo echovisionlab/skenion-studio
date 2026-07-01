@@ -47,25 +47,24 @@ describe("PalettePanel", () => {
 
     expect(container?.textContent).toContain("Runtime catalog unavailable");
     expect(container?.textContent).not.toContain("Float");
+    expect(container?.textContent).toContain("Object");
   });
 
-  it("sends typed object specs to Runtime even without a catalog match", () => {
+  it("creates an empty Object without sending an object spec", () => {
+    const onAddObject = vi.fn();
     const onAddObjectSpec = vi.fn();
-    renderPalette({ catalogEntries: [], onAddObjectSpec });
+    renderPalette({ catalogEntries: [], onAddObject, onAddObjectSpec });
 
-    const input = query<HTMLInputElement>("input");
-    act(() => {
-      setNativeInputValue(input, "manipulator");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    clickButton("Create Object");
+    clickButton("Object");
 
-    expect(onAddObjectSpec).toHaveBeenCalledWith("manipulator");
+    expect(onAddObject).toHaveBeenCalledWith();
+    expect(onAddObjectSpec).not.toHaveBeenCalled();
   });
 });
 
 function renderPalette(props: {
   catalogEntries: NodeCatalogEntryV01[];
+  onAddObject?: () => void;
   onAddObjectSpec: (objectSpec: string) => void;
 }) {
   act(() => {
@@ -75,6 +74,7 @@ function renderPalette(props: {
         { theme },
         createElement(PalettePanel, {
           catalogEntries: props.catalogEntries,
+          onAddObject: props.onAddObject ?? vi.fn(),
           onAddObjectSpec: props.onAddObjectSpec
         })
       )
@@ -92,22 +92,6 @@ function clickButton(label: string) {
   act(() => {
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
-}
-
-function query<T extends Element>(selector: string): T {
-  const element = container?.querySelector<T>(selector);
-  if (!element) {
-    throw new Error(`Missing ${selector}`);
-  }
-  return element;
-}
-
-function setNativeInputValue(input: HTMLInputElement, value: string) {
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-  if (!setter) {
-    throw new Error("HTMLInputElement value setter is unavailable.");
-  }
-  setter.call(input, value);
 }
 
 function catalogEntry(options: Partial<{

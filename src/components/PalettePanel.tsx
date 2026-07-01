@@ -1,5 +1,5 @@
-import { useMemo, useState, type FormEvent } from "react";
-import { Badge, Divider, Group, ScrollArea, Stack, Text, TextInput } from "@mantine/core";
+import { useMemo } from "react";
+import { Badge, Divider, Group, ScrollArea, Stack, Text } from "@mantine/core";
 import { Plus } from "lucide-react";
 import { type NodeCatalogEntryV01 } from "@skenion/contracts";
 import { dataTypeFromPortSpec } from "../graph/patchLibrary";
@@ -9,40 +9,18 @@ import { Button } from "./core/Button/Button";
 interface PalettePanelProps {
   addDisabled?: boolean;
   catalogEntries?: NodeCatalogEntryV01[];
+  onAddObject: () => boolean | Promise<boolean | void> | void;
   onAddObjectSpec: (objectSpec: string) => boolean | Promise<boolean | void> | void;
 }
 
 export function PalettePanel({
   addDisabled = false,
   catalogEntries = [],
+  onAddObject,
   onAddObjectSpec
 }: PalettePanelProps) {
-  const [objectSpec, setObjectSpec] = useState("");
-  const objectSpecInput = objectSpec.trim();
   const catalogMode = catalogEntries.length > 0;
   const nodeTools = useMemo(() => resolveNodeTools(catalogEntries), [catalogEntries]);
-  const objectSpecCanCreate = objectSpecInput.length > 0 && !addDisabled;
-  const exactCatalogMatches = objectSpecInput
-    ? catalogEntries.filter((entry) => catalogEntrySpecs(entry).some((spec) => normalizedSpec(spec) === normalizedSpec(objectSpecInput)))
-    : [];
-  const objectSpecBadge = objectSpecInput
-    ? exactCatalogMatches.length === 1
-      ? "catalog match"
-      : exactCatalogMatches.length > 1
-        ? "ambiguous"
-        : "runtime resolve"
-    : null;
-
-  async function submitObjectSpec(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!objectSpecCanCreate) {
-      return;
-    }
-    const result = await onAddObjectSpec(objectSpecInput);
-    if (result !== false) {
-      setObjectSpec("");
-    }
-  }
 
   return (
     <Stack className="panel-shell" gap="md">
@@ -57,36 +35,15 @@ export function PalettePanel({
         </Text>
       </div>
 
-      <form onSubmit={submitObjectSpec}>
-        <Stack gap={6}>
-          <Group justify="space-between">
-            <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-              Object
-            </Text>
-            {objectSpecBadge ? (
-              <Badge size="xs" variant="light">
-                {objectSpecBadge}
-              </Badge>
-            ) : null}
-          </Group>
-          <TextInput
-            aria-label="Object spec"
-            disabled={addDisabled}
-            onChange={(event) => setObjectSpec(event.currentTarget.value)}
-            placeholder="*~, osc~ 440, + 1"
-            size="xs"
-            value={objectSpec}
-          />
-          {exactCatalogMatches.length > 1 ? (
-            <Text c="dimmed" size="xs">
-              Runtime will keep this text and return candidates.
-            </Text>
-          ) : null}
-          <Button disabled={!objectSpecCanCreate} fullWidth size="compact-sm" type="submit">
-            Create Object
-          </Button>
-        </Stack>
-      </form>
+      <Button
+        disabled={addDisabled}
+        fullWidth
+        leftSection={<Plus size={15} />}
+        onClick={() => onAddObject()}
+        size="compact-md"
+      >
+        Object
+      </Button>
 
       <Divider />
 

@@ -25,11 +25,13 @@ export interface SkenionNodeData extends Record<string, unknown> {
   label: string;
   kind: string;
   kindVersion: string;
+  editingObjectSpec?: boolean;
   layoutEditable?: boolean;
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void> | void;
   onObjectControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectLiveControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectParamChange?: (nodeId: string, key: string, value: unknown) => void;
+  onObjectSpecEditComplete?: (nodeId: string) => void;
   onObjectSpecCommit?: (nodeId: string, text: string) => void;
   primaryFlow: StudioDisplayFlow;
   runtimeControlEnabled?: boolean;

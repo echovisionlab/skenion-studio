@@ -46,21 +46,19 @@ type StudioFlowNode = Node<SkenionNodeData>;
 interface GraphCanvasProps {
   graph: DisplayGraphDocumentV01;
   graphLocked?: boolean;
+  editingObjectSpecNodeId?: string | null;
   viewState: ViewStateV01;
   selectedEdgeId: string | null;
   selectedEdgeIds?: string[];
   selectedNodeId: string | null;
   selectedNodeIds?: string[];
   onConnectionCheck: (check: ConnectionCheck | null) => void;
-  onAddObjectSpecAtPosition?: (
-    objectSpec: string,
-    position: { x: number; y: number },
-    paramsOverride?: Record<string, unknown>
-  ) => void;
+  onAddObjectAtPosition?: (position: { x: number; y: number }) => void;
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void> | void;
   onObjectControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectLiveControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectParamChange?: (nodeId: string, key: string, value: unknown) => void;
+  onObjectSpecEditComplete?: (nodeId: string) => void;
   onObjectSpecCommit?: (nodeId: string, text: string) => void;
   runtimeControlEnabled?: boolean;
   runtimeControlPulses?: Record<string, number>;
@@ -76,17 +74,19 @@ interface GraphCanvasProps {
 export function GraphCanvas({
   graph,
   graphLocked = true,
+  editingObjectSpecNodeId = null,
   viewState,
   selectedEdgeId,
   selectedEdgeIds = selectedEdgeId ? [selectedEdgeId] : [],
   selectedNodeId,
   selectedNodeIds = selectedNodeId ? [selectedNodeId] : [],
   onConnectionCheck,
-  onAddObjectSpecAtPosition,
+  onAddObjectAtPosition,
   onImportAsset,
   onObjectControl,
   onObjectLiveControl,
   onObjectParamChange,
+  onObjectSpecEditComplete,
   onObjectSpecCommit,
   runtimeControlEnabled = false,
   runtimeControlPulses = {},
@@ -118,6 +118,7 @@ export function GraphCanvas({
   const objectControlRef = useRef(onObjectControl);
   const objectLiveControlRef = useRef(onObjectLiveControl);
   const objectParamChangeRef = useRef(onObjectParamChange);
+  const objectSpecEditCompleteRef = useRef(onObjectSpecEditComplete);
   const objectSpecCommitRef = useRef(onObjectSpecCommit);
   useEffect(() => {
     objectControlRef.current = onObjectControl;
@@ -128,6 +129,9 @@ export function GraphCanvas({
   useEffect(() => {
     objectParamChangeRef.current = onObjectParamChange;
   }, [onObjectParamChange]);
+  useEffect(() => {
+    objectSpecEditCompleteRef.current = onObjectSpecEditComplete;
+  }, [onObjectSpecEditComplete]);
   useEffect(() => {
     objectSpecCommitRef.current = onObjectSpecCommit;
   }, [onObjectSpecCommit]);
@@ -152,6 +156,9 @@ export function GraphCanvas({
   const handleObjectSpecCommit = useCallback((nodeId: string, text: string) => {
     objectSpecCommitRef.current?.(nodeId, text);
   }, []);
+  const handleObjectSpecEditComplete = useCallback((nodeId: string) => {
+    objectSpecEditCompleteRef.current?.(nodeId);
+  }, []);
   const flowNodes = useMemo<StudioFlowNode[]>(
     () =>
       viewModel.nodes.map((node) => ({
@@ -162,7 +169,9 @@ export function GraphCanvas({
           onObjectControl: handleObjectControl,
           onObjectLiveControl: handleObjectLiveControl,
           onObjectParamChange: handleObjectParamChange,
+          onObjectSpecEditComplete: handleObjectSpecEditComplete,
           onObjectSpecCommit: handleObjectSpecCommit,
+          editingObjectSpec: editingObjectSpecNodeId === node.id,
           layoutEditable: !graphLocked,
           runtimeControlEnabled,
           runtimeControlPulseKey: runtimeControlPulses[node.id] ?? 0,
@@ -173,7 +182,9 @@ export function GraphCanvas({
       handleObjectControl,
       handleObjectLiveControl,
       handleObjectParamChange,
+      handleObjectSpecEditComplete,
       handleObjectSpecCommit,
+      editingObjectSpecNodeId,
       graphLocked,
       onImportAsset,
       runtimeControlEnabled,
@@ -355,8 +366,8 @@ export function GraphCanvas({
     [graph, graphLocked, onGraphChange, onSelectedEdgeChange, onSelectedNodeChange]
   );
 
-  const addObjectSpecAtMenuPosition = useCallback(
-    (objectSpec: string, paramsOverride: Record<string, unknown> = {}) => {
+  const addObjectAtMenuPosition = useCallback(
+    () => {
       if (!contextMenu || contextMenu.type !== "pane") {
         return;
       }
@@ -368,10 +379,10 @@ export function GraphCanvas({
         });
         return;
       }
-      onAddObjectSpecAtPosition?.(objectSpec, contextMenu.flowPosition, paramsOverride);
+      onAddObjectAtPosition?.(contextMenu.flowPosition);
       setContextMenu(null);
     },
-    [contextMenu, graphLocked, onAddObjectSpecAtPosition, onConnectionCheck]
+    [contextMenu, graphLocked, onAddObjectAtPosition, onConnectionCheck]
   );
 
   const deleteNodeById = useCallback(
@@ -567,7 +578,7 @@ export function GraphCanvas({
       ) : null}
       <ReactFlowContextMenu
         menu={contextMenu}
-        onAddObjectSpec={addObjectSpecAtMenuPosition}
+        onAddObject={addObjectAtMenuPosition}
         onClose={() => setContextMenu(null)}
         onCopy={(text) => {
           void navigator.clipboard?.writeText(text);
@@ -617,7 +628,7 @@ type CanvasContextMenuState =
 function ReactFlowContextMenu({
   layoutEditable,
   menu,
-  onAddObjectSpec,
+  onAddObject,
   onClose,
   onCopy,
   onDeleteEdge,
@@ -628,7 +639,7 @@ function ReactFlowContextMenu({
 }: {
   layoutEditable: boolean;
   menu: CanvasContextMenuState | null;
-  onAddObjectSpec: (objectSpec: string, paramsOverride?: Record<string, unknown>) => void;
+  onAddObject: () => void;
   onClose: () => void;
   onCopy: (text: string) => void;
   onDeleteEdge: (edgeId: string) => void;
@@ -667,21 +678,7 @@ function ReactFlowContextMenu({
       {menu.type === "pane" ? (
         <>
           {layoutEditable ? (
-            <>
-              <button onClick={() => onAddObjectSpec("comment")} type="button">Add Comment</button>
-              <button onClick={() => onAddObjectSpec("panel")} type="button">Add Panel</button>
-              <button onClick={() => onAddObjectSpec("message")} type="button">Add Message</button>
-              <button onClick={() => onAddObjectSpec("bang")} type="button">Add Bang</button>
-              <button onClick={() => onAddObjectSpec("bool", { label: "Enabled", widget: "toggle" })} type="button">Add Toggle</button>
-              <button
-                onClick={() => onAddObjectSpec("float", { label: "Value", max: 1, min: 0, step: 0.01, widget: "slider" })}
-                type="button"
-              >
-                Add Slider
-              </button>
-              <button onClick={() => onAddObjectSpec("float")} type="button">Add Float</button>
-              <button onClick={() => onAddObjectSpec("video-asset")} type="button">Add Video Asset</button>
-            </>
+            <button onClick={onAddObject} type="button">Add Object</button>
           ) : null}
           <button onClick={() => { fitView({ padding: 0.2 }); onClose(); }} type="button">Fit View</button>
         </>

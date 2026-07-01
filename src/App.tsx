@@ -152,6 +152,7 @@ export default function App() {
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
+  const [editingObjectSpecNodeId, setEditingObjectSpecNodeId] = useState<string | null>(null);
   const [graphFragmentClipboard, setGraphFragmentClipboard] = useState<GraphFragmentV01 | null>(null);
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
   const [inspectorEdgeHovered, setInspectorEdgeHovered] = useState(false);
@@ -720,15 +721,19 @@ export default function App() {
     );
   }
 
-  function addObjectSpecAtPosition(
-    objectSpec: string,
-    position: { x: number; y: number },
-    paramsOverride: Record<string, unknown> = {}
-  ) {
-    void createRuntimeObjectNode(objectSpec, {
-      params: paramsOverride,
+  function addObjectAtPosition(position: { x: number; y: number }) {
+    void createRuntimeObjectNode(undefined, {
+      beginEditingObjectSpec: true,
       position
     });
+  }
+
+  async function addObjectNode(): Promise<boolean> {
+    const nodeId = await createRuntimeObjectNode(undefined, {
+      beginEditingObjectSpec: true,
+      position: defaultObjectNodePosition(graph.nodes.length)
+    });
+    return nodeId !== null;
   }
 
   async function addObjectNodeFromSpec(objectSpec: string): Promise<boolean> {
@@ -739,8 +744,9 @@ export default function App() {
   }
 
   async function createRuntimeObjectNode(
-    objectSpec: string,
+    objectSpec: string | undefined,
     options: {
+      beginEditingObjectSpec?: boolean;
       params?: Record<string, unknown>;
       position: { x: number; y: number };
     }
@@ -749,12 +755,8 @@ export default function App() {
       setRuntimeError("Unlock the graph before adding or moving objects.");
       return null;
     }
-    const trimmedObjectSpec = objectSpec.trim();
+    const trimmedObjectSpec = objectSpec?.trim() ?? "";
     const baseRevision = currentRuntimeGraphRevision();
-    if (!trimmedObjectSpec) {
-      setRuntimeError("Enter an object spec before creating an object.");
-      return null;
-    }
     if (runtimeStatus !== "connected" || !runtimeSessionSynced || !baseRevision) {
       setRuntimeError("Runtime session is required before creating objects.");
       return null;
@@ -768,10 +770,10 @@ export default function App() {
         kind: "node.create",
         target: rootGraphTarget(baseRevision),
         baseGraphRevision: baseRevision,
-        objectSpec: trimmedObjectSpec,
+        ...(trimmedObjectSpec ? { objectSpec: trimmedObjectSpec } : {}),
         view: options.position,
         ...(options.params && Object.keys(options.params).length > 0 ? { params: options.params } : {}),
-        unresolvedPolicy: "materialize-diagnostic"
+        ...(trimmedObjectSpec ? { unresolvedPolicy: "materialize-diagnostic" as const } : {})
       });
       recordRuntimeGraphCommandResult(response);
       const nodeId = graphCommandNodeId(response);
@@ -783,7 +785,11 @@ export default function App() {
         return null;
       }
       selectSingleNode(nodeId);
-      openInspectSidePanel();
+      if (options.beginEditingObjectSpec) {
+        setEditingObjectSpecNodeId(nodeId);
+      } else {
+        openInspectSidePanel();
+      }
       setConnectionCheck(null);
       return nodeId;
     } catch (error) {
@@ -1920,6 +1926,7 @@ export default function App() {
           <PalettePanel
             addDisabled={graphLocked}
             catalogEntries={nodeCatalog?.entries ?? []}
+            onAddObject={addObjectNode}
             onAddObjectSpec={addObjectNodeFromSpec}
           />
         ) : (
@@ -1953,8 +1960,9 @@ export default function App() {
             <GraphCanvas
               graph={graph}
               graphLocked={graphLocked}
+              editingObjectSpecNodeId={editingObjectSpecNodeId}
               viewState={viewState}
-              onAddObjectSpecAtPosition={addObjectSpecAtPosition}
+              onAddObjectAtPosition={addObjectAtPosition}
               onConnectionCheck={setConnectionCheck}
               onGraphChange={updateGraph}
               onImportAsset={importRuntimeAsset}
@@ -1974,6 +1982,9 @@ export default function App() {
               }}
               onObjectParamChange={setNodeParam}
               onObjectSpecCommit={replaceObjectNodeSpec}
+              onObjectSpecEditComplete={(nodeId) => {
+                setEditingObjectSpecNodeId((current) => current === nodeId ? null : current);
+              }}
               runtimeControlEnabled={runtimeControlInteractionEnabled}
               runtimeControlPulses={runtimeControlPulses}
               runtimeControlValues={runtimeSessionSynced ? runtimeControlState?.values ?? {} : {}}

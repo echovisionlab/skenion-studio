@@ -41,12 +41,14 @@ import socketStyles from "../node/PortSocket.module.css";
 
 export interface ObjectNodeRendererProps {
   card: NodeCardView;
+  editingObjectSpec?: boolean;
   layoutEditable?: boolean;
   node: DisplayGraphNodeV01;
   onObjectControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void> | void;
   onObjectLiveControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectParamChange?: (nodeId: string, key: string, value: unknown) => void;
+  onObjectSpecEditComplete?: (nodeId: string) => void;
   onObjectSpecCommit?: (nodeId: string, text: string) => void;
   runtimeControlEnabled?: boolean;
   runtimeControlPulseKey?: number;
@@ -58,12 +60,14 @@ export interface ObjectNodeRendererProps {
 
 export function ObjectNodeRenderer({
   card,
+  editingObjectSpec = false,
   layoutEditable = false,
   node,
   onImportAsset,
   onObjectControl,
   onObjectLiveControl,
   onObjectParamChange,
+  onObjectSpecEditComplete,
   onObjectSpecCommit,
   runtimeControlEnabled = false,
   runtimeControlPulseKey = 0,
@@ -242,8 +246,10 @@ export function ObjectNodeRenderer({
     <GenericObjectFrame
       card={card}
       chromePolicy={viewSpec.chromePolicy}
+      editingObjectSpec={editingObjectSpec}
       layoutEditable={layoutEditable}
       node={fallbackNode}
+      onObjectSpecEditComplete={onObjectSpecEditComplete}
       onObjectSpecCommit={onObjectSpecCommit}
       renderInputHandle={renderInputHandle}
       renderOutputHandle={renderOutputHandle}
@@ -255,8 +261,10 @@ export function ObjectNodeRenderer({
 function GenericObjectFrame({
   card,
   chromePolicy,
+  editingObjectSpec,
   layoutEditable,
   node,
+  onObjectSpecEditComplete,
   onObjectSpecCommit,
   renderInputHandle,
   renderOutputHandle,
@@ -264,31 +272,37 @@ function GenericObjectFrame({
 }: {
   card: NodeCardView;
   chromePolicy: ObjectChromePolicy;
+  editingObjectSpec: boolean;
   layoutEditable: boolean;
   node: DisplayGraphNodeV01;
+  onObjectSpecEditComplete?: (nodeId: string) => void;
   onObjectSpecCommit?: (nodeId: string, text: string) => void;
   renderInputHandle?: NodePortHandleRenderer;
   renderOutputHandle?: NodePortHandleRenderer;
   selected?: boolean;
 }) {
-  const displayText = genericObjectSpecForNode(node);
+  const rawObjectSpec = typeof node.objectSpec === "string" ? node.objectSpec.trim() : "";
+  const hasObjectSpec = rawObjectSpec.length > 0;
+  const fallbackDisplayText = genericObjectSpecForNode(node);
   const resolutionStatus = node.objectResolution?.status;
   const unresolved = resolutionStatus !== undefined && resolutionStatus !== "resolved";
+  const displayText = hasObjectSpec ? fallbackDisplayText : unresolved ? "Object" : fallbackDisplayText;
+  const editableText = hasObjectSpec ? fallbackDisplayText : "";
   const resolutionDiagnostic = node.objectResolution?.diagnostics?.[0];
   const diagnosticMessage = typeof node.params.diagnosticMessage === "string"
     ? node.params.diagnosticMessage
     : resolutionDiagnostic?.message;
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(displayText);
+  const [draft, setDraft] = useState(editableText);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const finishedEditRef = useRef(false);
   const editable = layoutEditable && Boolean(onObjectSpecCommit);
 
   useEffect(() => {
     if (!editing) {
-      setDraft(displayText);
+      setDraft(editableText);
     }
-  }, [displayText, editing]);
+  }, [editableText, editing]);
 
   useEffect(() => {
     if (editing) {
@@ -297,12 +311,21 @@ function GenericObjectFrame({
     }
   }, [editing]);
 
+  useEffect(() => {
+    if (!editingObjectSpec || !editable || editing) {
+      return;
+    }
+    finishedEditRef.current = false;
+    setDraft(editableText);
+    setEditing(true);
+  }, [editable, editableText, editing, editingObjectSpec]);
+
   const beginEdit = () => {
     if (!editable) {
       return;
     }
     finishedEditRef.current = false;
-    setDraft(displayText);
+    setDraft(editableText);
     setEditing(true);
   };
 
@@ -311,8 +334,9 @@ function GenericObjectFrame({
       return;
     }
     finishedEditRef.current = true;
-    setDraft(displayText);
+    setDraft(editableText);
     setEditing(false);
+    onObjectSpecEditComplete?.(node.id);
   };
 
   const commitEdit = (value = draft) => {
@@ -322,7 +346,8 @@ function GenericObjectFrame({
     finishedEditRef.current = true;
     const nextText = value.trim();
     setEditing(false);
-    if (nextText.length === 0 || nextText === displayText) {
+    onObjectSpecEditComplete?.(node.id);
+    if (nextText.length === 0 || nextText === editableText) {
       return;
     }
     onObjectSpecCommit?.(node.id, nextText);
@@ -362,6 +387,7 @@ function GenericObjectFrame({
             }
           }}
           onPointerDown={(event) => event.stopPropagation()}
+          placeholder="+ 1"
           value={draft}
         />
       ) : (
