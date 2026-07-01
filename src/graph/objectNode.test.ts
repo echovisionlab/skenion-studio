@@ -7,28 +7,28 @@ import {
   type PatchDefinitionV01
 } from "./patchLibrary";
 import {
-  createGraphNodeFromObjectText,
-  UNRESOLVED_OBJECT_NODE_KIND,
-  objectTextRegistryDiagnostic,
-  objectTextPortToGraphPort,
-  objectTextTypeToGraphType
-} from "./objectTextNode";
-import { genericObjectTextForNode } from "./objectTextDisplay";
-import { parseObjectTextV01 } from "./objectTextParser";
+  createGraphNodeFromObjectSpec,
+  OBJECT_DISPLAY_KIND,
+  objectSpecRegistryDiagnostic,
+  objectSpecPortToGraphPort,
+  objectSpecTypeToGraphType
+} from "./objectNode";
+import { genericObjectSpecForNode } from "./objectSpecDisplay";
+import { parseObjectSpecV01 } from "./objectSpecParser";
 
-describe("object text graph node adapter", () => {
-  it("creates a canonical control operator node from object text", () => {
-    const result = createGraphNodeFromObjectText("+ 1.", []);
+describe("object node authoring adapter", () => {
+  it("creates a canonical control operator node from object spec", () => {
+    const result = createGraphNodeFromObjectSpec("+ 1.", []);
 
     expect(result.ok).toBe(true);
     expect(result.node).toMatchObject({
       id: "add_1",
       kind: "core.operator.add",
       kindVersion: "0.1.0",
+      objectSpec: "+ 1.",
       params: {
         right: 1,
-        label: "+ 1.",
-        objectText: "+ 1."
+        label: "+ 1."
       }
     });
     expect(result.node?.ports).toEqual([
@@ -59,29 +59,29 @@ describe("object text graph node adapter", () => {
     ]);
   });
 
-  it("parses Studio-local object text syntax and atoms without runtime resolution", () => {
-    expect(parseObjectTextV01("[osc~ 440]").displayText).toBe("osc~ 440");
-    expect(parseObjectTextV01("[osc~ 440").diagnostics[0]).toMatchObject({
+  it("parses Studio-local object spec syntax and atoms without runtime resolution", () => {
+    expect(parseObjectSpecV01("[osc~ 440]").displayText).toBe("osc~ 440");
+    expect(parseObjectSpecV01("[osc~ 440").diagnostics[0]).toMatchObject({
       code: "invalid-syntax"
     });
-    expect(parseObjectTextV01("print true").creationArgs).toEqual([{ type: "bool", value: true }]);
-    expect(parseObjectTextV01("print 1e999").creationArgs).toEqual([{ type: "symbol", value: "1e999" }]);
-    expect(parseObjectTextV01("+").params).toEqual({});
-    expect(parseObjectTextV01("*~").params).toEqual({});
-    expect(parseObjectTextV01("osc~").params).toEqual({});
+    expect(parseObjectSpecV01("print true").creationArgs).toEqual([{ type: "bool", value: true }]);
+    expect(parseObjectSpecV01("print 1e999").creationArgs).toEqual([{ type: "identifier", value: "1e999" }]);
+    expect(parseObjectSpecV01("+").params).toEqual({});
+    expect(parseObjectSpecV01("*~").params).toEqual({});
+    expect(parseObjectSpecV01("osc~").params).toEqual({});
   });
 
   it("creates audio signal nodes without losing scalar defaults", () => {
-    const result = createGraphNodeFromObjectText("*~ 0.5", []);
+    const result = createGraphNodeFromObjectSpec("*~ 0.5", []);
 
     expect(result.ok).toBe(true);
     expect(result.node).toMatchObject({
       id: "mul_1",
       kind: "audio.operator.mul",
+      objectSpec: "*~ 0.5",
       params: {
         right: 0.5,
-        label: "*~ 0.5",
-        objectText: "*~ 0.5"
+        label: "*~ 0.5"
       }
     });
     expect(result.node?.ports.map((port) => [port.id, port.type, port.default ?? null])).toEqual([
@@ -91,9 +91,9 @@ describe("object text graph node adapter", () => {
     ]);
   });
 
-  it("preserves object text port descriptions in graph ports", () => {
+  it("preserves object spec port descriptions in graph ports", () => {
     expect(
-      objectTextPortToGraphPort({
+      objectSpecPortToGraphPort({
         id: "pitch",
         direction: "input",
         type: "number.float",
@@ -105,17 +105,17 @@ describe("object text graph node adapter", () => {
     });
   });
 
-  it("allows object text instance ports to specialize a registry object class", () => {
-    const result = createGraphNodeFromObjectText("*~ 0.5", [], nodeRegistry);
+  it("allows object spec instance ports to specialize a registry object class", () => {
+    const result = createGraphNodeFromObjectSpec("*~ 0.5", [], nodeRegistry);
 
     expect(result.ok).toBe(true);
     expect(result.node?.kind).toBe("audio.operator.mul");
     expect(result.node?.ports.map((port) => port.id)).toEqual(["in", "right", "out"]);
   });
 
-  it("allows registry-compatible object text interfaces", () => {
-    const add = createGraphNodeFromObjectText("+ 1", [], nodeRegistry);
-    const oscillator = createGraphNodeFromObjectText("osc~ 440", [], nodeRegistry);
+  it("allows registry-compatible object spec interfaces", () => {
+    const add = createGraphNodeFromObjectSpec("+ 1", [], nodeRegistry);
+    const oscillator = createGraphNodeFromObjectSpec("osc~ 440", [], nodeRegistry);
 
     expect(add.ok).toBe(true);
     expect(add.node?.kind).toBe("core.operator.add");
@@ -123,13 +123,13 @@ describe("object text graph node adapter", () => {
     expect(oscillator.node?.kind).toBe("audio.osc");
   });
 
-  it("preserves invalid or deferred object text as unresolved nodes", () => {
-    const invalid = createGraphNodeFromObjectText("sin~", []);
-    const empty = createGraphNodeFromObjectText("", []);
+  it("preserves invalid or deferred object spec as unresolved nodes", () => {
+    const invalid = createGraphNodeFromObjectSpec("sin~", []);
+    const empty = createGraphNodeFromObjectSpec("", []);
 
     expect(invalid.ok).toBe(false);
     expect(invalid.node).toMatchObject({
-      kind: UNRESOLVED_OBJECT_NODE_KIND,
+      kind: OBJECT_DISPLAY_KIND,
       objectSpec: "sin~",
       objectResolution: {
         status: "unresolved",
@@ -137,31 +137,30 @@ describe("object text graph node adapter", () => {
         diagnostics: [{ code: "resolution-unresolved" }]
       },
       params: {
-        objectText: "sin~",
-        requestedKind: "sin~"
+        requestedObject: "sin~"
       },
       ports: []
     });
-    expect(invalid.diagnostics[0]?.code).toBe("deferred-object");
+    expect(invalid.diagnostics[0]?.code).toBe("object-unresolved");
     expect(empty.ok).toBe(false);
     expect(empty.node).toBeNull();
   });
 
   it("resolves lowercase native aliases through the local registry", () => {
-    const decode = createGraphNodeFromObjectText("decode", [], nodeRegistry);
-    const upload = createGraphNodeFromObjectText("upload", [], nodeRegistry);
-    const preview = createGraphNodeFromObjectText("preview", [], nodeRegistry);
+    const decode = createGraphNodeFromObjectSpec("decode", [], nodeRegistry);
+    const upload = createGraphNodeFromObjectSpec("upload", [], nodeRegistry);
+    const preview = createGraphNodeFromObjectSpec("preview", [], nodeRegistry);
 
     expect(decode).toMatchObject({ ok: true, node: { kind: "core.video-decode" } });
     expect(upload).toMatchObject({ ok: true, node: { kind: "core.gpu-upload" } });
     expect(preview).toMatchObject({ ok: true, node: { kind: "core.preview" } });
-    expect(genericObjectTextForNode(decode.node!)).toBe("decode");
-    expect(genericObjectTextForNode(upload.node!)).toBe("upload");
-    expect(genericObjectTextForNode(preview.node!)).toBe("preview");
+    expect(genericObjectSpecForNode(decode.node!)).toBe("decode");
+    expect(genericObjectSpecForNode(upload.node!)).toBe("upload");
+    expect(genericObjectSpecForNode(preview.node!)).toBe("preview");
   });
 
   it("normalizes bracketed native aliases and reports missing native definitions", () => {
-    const missingDecode = createGraphNodeFromObjectText(
+    const missingDecode = createGraphNodeFromObjectSpec(
       "[decode]",
       [],
       nodeRegistry.filter((definition) => definition.id !== "core.video-decode")
@@ -169,19 +168,18 @@ describe("object text graph node adapter", () => {
 
     expect(missingDecode.ok).toBe(false);
     expect(missingDecode.node).toMatchObject({
-      kind: UNRESOLVED_OBJECT_NODE_KIND,
+      kind: OBJECT_DISPLAY_KIND,
       objectSpec: "decode",
       objectResolution: {
         status: "unresolved",
         selectedSpec: "decode"
       },
       params: {
-        objectText: "decode",
-        requestedKind: "core.video-decode"
+        requestedObject: "core.video-decode"
       }
     });
     expect(missingDecode.diagnostics[0]).toMatchObject({
-      code: "unavailable-object-kind"
+      code: "object-unavailable"
     });
   });
 
@@ -204,7 +202,7 @@ describe("object text graph node adapter", () => {
       };
     });
 
-    const result = createGraphNodeFromObjectText("[decode]", [], registryWithDefault);
+    const result = createGraphNodeFromObjectSpec("[decode]", [], registryWithDefault);
 
     expect(result.ok).toBe(true);
     expect(result.parseResult.displayText).toBe("decode");
@@ -214,7 +212,7 @@ describe("object text graph node adapter", () => {
     });
   });
 
-  it("falls back from blank object text to label and kind display text", () => {
+  it("falls back from blank object spec to label and kind display text", () => {
     const node: GraphNodeV01 = {
       id: "sensor_1",
       kind: "user.sensor",
@@ -223,17 +221,17 @@ describe("object text graph node adapter", () => {
       ports: []
     };
 
-    expect(genericObjectTextForNode({ ...node, params: { objectText: "  ", label: "Temperature" } })).toBe("Temperature");
-    expect(genericObjectTextForNode({ ...node, params: { objectText: "  ", label: " " } })).toBe("user.sensor");
+    expect(genericObjectSpecForNode({ ...node, objectSpec: "  ", params: { label: "Temperature" } })).toBe("Temperature");
+    expect(genericObjectSpecForNode({ ...node, objectSpec: "  ", params: { label: " " } })).toBe("user.sensor");
   });
 
   it("keeps unresolved namespace-free object specs editable for package authoring", () => {
-    const extension = createGraphNodeFromObjectText("user.manipulator", [], nodeRegistry);
-    const unknown = createGraphNodeFromObjectText("manipulator", [], nodeRegistry);
+    const extension = createGraphNodeFromObjectSpec("user.manipulator", [], nodeRegistry);
+    const unknown = createGraphNodeFromObjectSpec("manipulator", [], nodeRegistry);
 
     expect(extension.ok).toBe(false);
     expect(extension.node).toMatchObject({
-      kind: UNRESOLVED_OBJECT_NODE_KIND,
+      kind: OBJECT_DISPLAY_KIND,
       objectSpec: "user.manipulator",
       objectResolution: {
         status: "unresolved",
@@ -241,15 +239,14 @@ describe("object text graph node adapter", () => {
         diagnostics: [{ code: "resolution-unresolved" }]
       },
       params: {
-        objectText: "user.manipulator",
-        requestedKind: "user.manipulator"
+        requestedObject: "user.manipulator"
       }
     });
     expect(extension.diagnostics[0]).toMatchObject({
-      code: "unavailable-object-kind"
+      code: "object-unresolved"
     });
     expect(unknown.node).toMatchObject({
-      kind: UNRESOLVED_OBJECT_NODE_KIND,
+      kind: OBJECT_DISPLAY_KIND,
       objectSpec: "manipulator",
       objectResolution: {
         status: "unresolved",
@@ -257,8 +254,7 @@ describe("object text graph node adapter", () => {
         diagnostics: [{ code: "resolution-unresolved" }]
       },
       params: {
-        objectText: "manipulator",
-        requestedKind: "manipulator"
+        requestedObject: "manipulator"
       }
     });
     expect(unknown.diagnostics[0]).toMatchObject({
@@ -266,7 +262,7 @@ describe("object text graph node adapter", () => {
     });
   });
 
-  it("resolves p object text through the internal patch library", () => {
+  it("resolves p object spec through the internal patch library", () => {
     const patch = {
       id: "voice",
       revision: "1",
@@ -316,7 +312,7 @@ describe("object text graph node adapter", () => {
         edges: []
       }
     } as unknown as PatchDefinitionV01;
-    const result = createGraphNodeFromObjectText("p voice", [], nodeRegistry, {
+    const result = createGraphNodeFromObjectSpec("p voice", [], nodeRegistry, {
       patchLibrary: createPatchLibrary([patch])
     });
 
@@ -325,9 +321,9 @@ describe("object text graph node adapter", () => {
       id: "voice_1",
       kind: "core.subpatch",
       kindVersion: "0.1.0",
+      objectSpec: "p voice",
       params: {
         label: "p voice",
-        objectText: "p voice",
         patchId: "voice",
         patchRevision: "1",
         description: "Reusable synth voice."
@@ -350,10 +346,16 @@ describe("object text graph node adapter", () => {
     });
     expect(result.parseResult).toMatchObject({
       ok: true,
-      classSymbol: "p",
-      creationArgs: [{ type: "symbol", value: "voice" }],
-      resolvedKind: "core.subpatch",
-      resolvedKindVersion: "0.1.0",
+      className: "p",
+      creationArgs: [{ type: "identifier", value: "voice" }],
+      implementation: {
+        provider: { kind: "projectPatch", patchId: "voice" },
+        objectId: "voice"
+      },
+      objectResolution: {
+        status: "resolved",
+        selectedSpec: "p voice"
+      },
       params: { patchId: "voice" },
       instancePorts: [
         {
@@ -422,7 +424,7 @@ describe("object text graph node adapter", () => {
       }
     } as unknown as PatchDefinitionV01;
 
-    const result = createGraphNodeFromObjectText("p legacy", [], nodeRegistry, {
+    const result = createGraphNodeFromObjectSpec("p legacy", [], nodeRegistry, {
       patchLibrary: createPatchLibrary([patch])
     });
 
@@ -461,7 +463,7 @@ describe("object text graph node adapter", () => {
         edges: []
       }
     } as unknown as PatchDefinitionV01;
-    const result = createGraphNodeFromObjectText("p bare", [], nodeRegistry, {
+    const result = createGraphNodeFromObjectSpec("p bare", [], nodeRegistry, {
       patchLibrary: createPatchLibrary([patch])
     });
 
@@ -474,14 +476,14 @@ describe("object text graph node adapter", () => {
   });
 
   it("keeps missing patch references editable as unresolved object nodes", () => {
-    const missingLibrary = createGraphNodeFromObjectText("p missing", [], nodeRegistry, {
+    const missingLibrary = createGraphNodeFromObjectSpec("p missing", [], nodeRegistry, {
       patchLibrary: createPatchLibrary([])
     });
-    const unavailableLibrary = createGraphNodeFromObjectText("p missing", [], nodeRegistry);
+    const unavailableLibrary = createGraphNodeFromObjectSpec("p missing", [], nodeRegistry);
 
     expect(missingLibrary.ok).toBe(false);
     expect(missingLibrary.node).toMatchObject({
-      kind: UNRESOLVED_OBJECT_NODE_KIND,
+      kind: OBJECT_DISPLAY_KIND,
       objectSpec: "p missing",
       objectResolution: {
         status: "unresolved",
@@ -489,8 +491,7 @@ describe("object text graph node adapter", () => {
         diagnostics: [{ code: "resolution-unresolved" }]
       },
       params: {
-        objectText: "p missing",
-        requestedKind: "core.subpatch"
+        requestedObject: "core.subpatch"
       }
     });
     expect(missingLibrary.diagnostics[0]).toMatchObject({
@@ -500,10 +501,10 @@ describe("object text graph node adapter", () => {
       code: "patch-library-unavailable"
     });
 
-    const missingPatchId = createGraphNodeFromObjectText("p", [], nodeRegistry, {
+    const missingPatchId = createGraphNodeFromObjectSpec("p", [], nodeRegistry, {
       patchLibrary: createPatchLibrary([])
     });
-    const tooManyArgs = createGraphNodeFromObjectText("p voice extra", [], nodeRegistry, {
+    const tooManyArgs = createGraphNodeFromObjectSpec("p voice extra", [], nodeRegistry, {
       patchLibrary: createPatchLibrary([])
     });
 
@@ -511,75 +512,71 @@ describe("object text graph node adapter", () => {
       code: "missing-subpatch-id"
     });
     expect(tooManyArgs.diagnostics[0]).toMatchObject({
-      code: "invalid-subpatch-object-text"
+      code: "invalid-subpatch-object-spec"
     });
   });
 
-  it("creates unique ids when object text adds repeated operator nodes", () => {
-    const first = createGraphNodeFromObjectText("+ 1", []);
-    const second = createGraphNodeFromObjectText("+ 2", [first.node!]);
-    const third = createGraphNodeFromObjectText("+ 3", [first.node!, { ...second.node!, id: "add_3" }]);
+  it("creates unique ids when object spec adds repeated operator nodes", () => {
+    const first = createGraphNodeFromObjectSpec("+ 1", []);
+    const second = createGraphNodeFromObjectSpec("+ 2", [first.node!]);
+    const third = createGraphNodeFromObjectSpec("+ 3", [first.node!, { ...second.node!, id: "add_3" }]);
 
     expect(first.node?.id).toBe("add_1");
     expect(second.node?.id).toBe("add_2");
     expect(third.node?.id).toBe("add_4");
   });
 
-  it("maps object text type strings to graph data types", () => {
-    expect(objectTextTypeToGraphType("message.any")).toEqual({ flow: "event", dataKind: "message.any" });
-    expect(objectTextTypeToGraphType("event.bang")).toEqual({ flow: "event", dataKind: "event.bang" });
-    expect(objectTextTypeToGraphType("signal.audio")).toEqual({ flow: "signal", dataKind: "signal.audio" });
-    expect(objectTextTypeToGraphType("asset.video")).toEqual({ flow: "resource", dataKind: "asset.video" });
-    expect(objectTextTypeToGraphType("video.frame")).toEqual({ flow: "stream", dataKind: "video.frame" });
-    expect(objectTextTypeToGraphType("number.int")).toEqual({ flow: "control", dataKind: "number.int", format: "i32" });
-    expect(objectTextTypeToGraphType("number.uint")).toEqual({ flow: "control", dataKind: "number.uint", format: "u32" });
-    expect(objectTextTypeToGraphType("color")).toEqual({ flow: "control", dataKind: "color", format: "rgba32f" });
+  it("maps object spec type strings to graph data types", () => {
+    expect(objectSpecTypeToGraphType("message.any")).toEqual({ flow: "event", dataKind: "message.any" });
+    expect(objectSpecTypeToGraphType("event.bang")).toEqual({ flow: "event", dataKind: "event.bang" });
+    expect(objectSpecTypeToGraphType("signal.audio")).toEqual({ flow: "signal", dataKind: "signal.audio" });
+    expect(objectSpecTypeToGraphType("asset.video")).toEqual({ flow: "resource", dataKind: "asset.video" });
+    expect(objectSpecTypeToGraphType("video.frame")).toEqual({ flow: "stream", dataKind: "video.frame" });
+    expect(objectSpecTypeToGraphType("number.int")).toEqual({ flow: "control", dataKind: "number.int", format: "i32" });
+    expect(objectSpecTypeToGraphType("number.uint")).toEqual({ flow: "control", dataKind: "number.uint", format: "u32" });
+    expect(objectSpecTypeToGraphType("color")).toEqual({ flow: "control", dataKind: "color", format: "rgba32f" });
   });
 
   it("reports unavailable object kinds when registry lookup fails", () => {
-    const parseResult = createGraphNodeFromObjectText("+ 1", []).parseResult;
-    const missingKindResult = createGraphNodeFromObjectText(
+    const parseResult = createGraphNodeFromObjectSpec("+ 1", []).parseResult;
+    const missingKindResult = createGraphNodeFromObjectSpec(
       "+ 1",
       [],
       nodeRegistry.filter((definition) => definition.id !== "core.operator.add")
     );
 
-    expect(objectTextRegistryDiagnostic(parseResult, [])).toBeNull();
-    expect(objectTextRegistryDiagnostic({ ...parseResult, ok: false }, nodeRegistry)).toBeNull();
-    expect(objectTextRegistryDiagnostic({ ...parseResult, resolvedKind: null }, nodeRegistry)).toBeNull();
-    expect(objectTextRegistryDiagnostic({ ...parseResult, resolvedKindVersion: null }, nodeRegistry)).toBeNull();
-    expect(objectTextRegistryDiagnostic(parseResult, nodeRegistry.filter((definition) => definition.id !== "core.operator.add"))).toMatchObject({
-      code: "unavailable-object-kind"
+    expect(objectSpecRegistryDiagnostic(parseResult, [])).toBeNull();
+    expect(objectSpecRegistryDiagnostic({ ...parseResult, ok: false }, nodeRegistry)).toBeNull();
+    expect(objectSpecRegistryDiagnostic(parseResult, nodeRegistry.filter((definition) => definition.id !== "core.operator.add"))).toMatchObject({
+      code: "object-unavailable"
     });
     expect(missingKindResult).toMatchObject({
       ok: false,
       node: {
-        kind: UNRESOLVED_OBJECT_NODE_KIND,
-        objectSpec: "+ 1",
+        kind: OBJECT_DISPLAY_KIND,
         objectResolution: {
           status: "unresolved"
         },
         params: {
-          objectText: "+ 1",
-          requestedKind: "core.operator.add"
+          requestedObject: "core.operator.add"
         }
       }
     });
     expect(missingKindResult.diagnostics.at(-1)).toMatchObject({
-      code: "unavailable-object-kind"
+      code: "object-unavailable"
     });
   });
 
   it("does not reject parser-owned dynamic ports against static registry ports", () => {
-    const parseResult = createGraphNodeFromObjectText("+ 1", []).parseResult;
+    const parseResult = createGraphNodeFromObjectSpec("+ 1", []).parseResult;
     const definition = nodeRegistry.find((candidate) => candidate.id === "core.operator.add")!;
 
-    expect(objectTextRegistryDiagnostic(parseResult, [{ ...definition, ports: definition.ports.slice(0, 2) }])).toBeNull();
+    expect(objectSpecRegistryDiagnostic(parseResult, [{ ...definition, ports: definition.ports.slice(0, 2) }])).toBeNull();
   });
 
   it("keeps only graph-supported activation values", () => {
     expect(
-      objectTextPortToGraphPort({
+      objectSpecPortToGraphPort({
         id: "passive",
         direction: "input",
         type: "number.float",

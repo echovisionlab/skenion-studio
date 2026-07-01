@@ -4,8 +4,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 import type { DisplayGraphNodeV01 as GraphNodeV01 } from "../../graph/patchLibrary";
 import type { NodeCardView } from "../node/nodeTypes";
-import { genericObjectTextForNode } from "../../graph/objectTextDisplay";
-import { UNRESOLVED_OBJECT_NODE_KIND } from "../../graph/objectTextNode";
+import { genericObjectSpecForNode } from "../../graph/objectSpecDisplay";
+import { OBJECT_DISPLAY_KIND } from "../../graph/objectNode";
 import { ObjectNodeRenderer, isPrimaryPointerButton } from "./ObjectNodeRenderer";
 
 describe("ObjectNodeRenderer interaction guards", () => {
@@ -122,7 +122,7 @@ describe("ObjectNodeRenderer interaction guards", () => {
             },
             objectSpec: "gain"
           }),
-          onObjectTextCommit: () => undefined
+          onObjectSpecCommit: () => undefined
         })
       );
     });
@@ -142,28 +142,25 @@ describe("ObjectNodeRenderer interaction guards", () => {
   });
 });
 
-describe("generic object text", () => {
-  it("uses explicit object text before display labels", () => {
+describe("generic object spec", () => {
+  it("uses explicit object spec before display labels", () => {
     expect(
-      genericObjectTextForNode(
-        genericNode("core.video-decode", {
-          label: "Decode",
-          objectText: "video.decode"
-        })
+      genericObjectSpecForNode(
+        genericNode("core.video-decode", { label: "Decode" }, { objectSpec: "video.decode" })
       )
     ).toBe("video.decode");
   });
 
   it("falls back to labels, then node kind, without adding card metadata", () => {
-    expect(genericObjectTextForNode(genericNode("core.gpu-upload", { label: "Upload" }))).toBe("upload");
-    expect(genericObjectTextForNode(genericNode("core.preview", {}))).toBe("preview");
-    expect(genericObjectTextForNode(genericNode("user.manipulator", { label: "Manipulator" }))).toBe("Manipulator");
+    expect(genericObjectSpecForNode(genericNode("core.gpu-upload", { label: "Upload" }))).toBe("upload");
+    expect(genericObjectSpecForNode(genericNode("core.preview", {}))).toBe("preview");
+    expect(genericObjectSpecForNode(genericNode("user.manipulator", { label: "Manipulator" }))).toBe("Manipulator");
   });
 
-  it("commits generic object text edits from double click input", async () => {
+  it("commits generic object spec edits from double click input", async () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const onObjectTextCommit = vi.fn();
+    const onObjectSpecCommit = vi.fn();
     let root: Root | null = createRoot(container);
 
     await act(async () => {
@@ -172,7 +169,7 @@ describe("generic object text", () => {
           card: genericCard(),
           layoutEditable: true,
           node: genericNode("core.video-decode", { label: "Decode" }),
-          onObjectTextCommit
+          onObjectSpecCommit
         })
       );
     });
@@ -187,7 +184,7 @@ describe("generic object text", () => {
     await act(async () => {
       genericObject.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     });
-    const input = container.querySelector("input[aria-label='Object text']") as HTMLInputElement | null;
+    const input = container.querySelector("input[aria-label='Object spec']") as HTMLInputElement | null;
     expect(input).not.toBeNull();
 
     await act(async () => {
@@ -196,7 +193,7 @@ describe("generic object text", () => {
       input!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     });
 
-    expect(onObjectTextCommit).toHaveBeenCalledWith("node_1", "upload");
+    expect(onObjectSpecCommit).toHaveBeenCalledWith("node_1", "upload");
 
     await act(async () => {
       root?.unmount();
@@ -205,10 +202,10 @@ describe("generic object text", () => {
     container.remove();
   });
 
-  it("cancels generic object text edits on Escape", async () => {
+  it("cancels generic object spec edits on Escape", async () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const onObjectTextCommit = vi.fn();
+    const onObjectSpecCommit = vi.fn();
     let root: Root | null = createRoot(container);
 
     await act(async () => {
@@ -217,7 +214,7 @@ describe("generic object text", () => {
           card: genericCard(),
           layoutEditable: true,
           node: genericNode("core.video-decode", { label: "Decode" }),
-          onObjectTextCommit
+          onObjectSpecCommit
         })
       );
     });
@@ -228,7 +225,7 @@ describe("generic object text", () => {
     await act(async () => {
       genericObject?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     });
-    const input = container.querySelector("input[aria-label='Object text']") as HTMLInputElement;
+    const input = container.querySelector("input[aria-label='Object spec']") as HTMLInputElement;
 
     await act(async () => {
       input.value = "upload";
@@ -236,8 +233,8 @@ describe("generic object text", () => {
       input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
 
-    expect(onObjectTextCommit).not.toHaveBeenCalled();
-    expect(container.querySelector("input[aria-label='Object text']")).toBeNull();
+    expect(onObjectSpecCommit).not.toHaveBeenCalled();
+    expect(container.querySelector("input[aria-label='Object spec']")).toBeNull();
 
     await act(async () => {
       root?.unmount();
@@ -256,11 +253,25 @@ describe("generic object text", () => {
         createElement(ObjectNodeRenderer, {
           card: genericCard(),
           layoutEditable: true,
-          node: genericNode(UNRESOLVED_OBJECT_NODE_KIND, {
-            objectText: "user.manipulator",
-            diagnosticMessage: "user.manipulator is unavailable"
-          }),
-          onObjectTextCommit: () => undefined
+          node: genericNode(
+            OBJECT_DISPLAY_KIND,
+            { diagnosticMessage: "user.manipulator is unavailable" },
+            {
+              objectSpec: "user.manipulator",
+              objectResolution: {
+                status: "unresolved",
+                selectedSpec: "user.manipulator",
+                diagnostics: [
+                  {
+                    code: "resolution-unresolved",
+                    message: "user.manipulator is unavailable",
+                    severity: "error"
+                  }
+                ]
+              }
+            }
+          ),
+          onObjectSpecCommit: () => undefined
         })
       );
     });

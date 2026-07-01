@@ -409,8 +409,6 @@ jobs:
       # DSUB S3 immutable object evidence is the release artifact source of truth.
       - uses: pnpm/action-setup@v6
         if: needs.release.outputs.upload_release_assets == 'false' || steps.preflight_desktop.outputs.exists != 'true'
-        with:
-          version: 10.12.4
 
       - uses: actions/setup-node@v6
         if: needs.release.outputs.upload_release_assets == 'false' || steps.preflight_desktop.outputs.exists != 'true'

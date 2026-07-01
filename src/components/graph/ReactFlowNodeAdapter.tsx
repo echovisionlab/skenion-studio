@@ -16,7 +16,7 @@ export function ReactFlowNodeAdapter({ data, selected }: ReactFlowNodeAdapterPro
     onObjectControl: data.onObjectControl,
     onObjectLiveControl: data.onObjectLiveControl,
     onObjectParamChange: data.onObjectParamChange,
-    onObjectTextCommit: data.onObjectTextCommit,
+    onObjectSpecCommit: data.onObjectSpecCommit,
     runtimeControlEnabled: data.runtimeControlEnabled,
     runtimeControlPulseKey: data.runtimeControlPulseKey,
     runtimeControlValue: data.runtimeControlValue,

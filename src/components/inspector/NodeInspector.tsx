@@ -73,7 +73,7 @@ import {
   isToggleNode,
   readToggleParam
 } from "../../graph/toggleValue";
-import { genericObjectTextForNode } from "../../graph/objectTextDisplay";
+import { genericObjectSpecForNode } from "../../graph/objectSpecDisplay";
 import {
   isBangControlNode,
   isSliderFloatNode,
@@ -375,5 +375,5 @@ export function NodeInspector({
 }
 
 function inspectorObjectSubtitle(node: DisplayGraphNodeV01): string {
-  return node.objectSpec?.trim() || genericObjectTextForNode(node) || "Object";
+  return node.objectSpec?.trim() || genericObjectSpecForNode(node) || "Object";
 }

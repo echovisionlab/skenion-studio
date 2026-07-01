@@ -44,7 +44,7 @@ import {
   type GraphPatch
 } from "./graph/skenionGraph";
 import { applyActiveProjectPatches } from "./graph/activeProject";
-import { createGraphNodeFromObjectText } from "./graph/objectTextNode";
+import { createGraphNodeFromObjectSpec } from "./graph/objectNode";
 import {
   activeProjectDisplayGraph,
   createProjectDocument,
@@ -587,7 +587,7 @@ export default function App() {
     );
   }
 
-  function appendObjectTextDiagnostics(
+  function appendObjectSpecDiagnostics(
     action: string,
     diagnostics: Array<{ severity: LogLevel; code: string; message: string }>
   ) {
@@ -796,15 +796,15 @@ export default function App() {
     });
   }
 
-  async function addObjectTextNode(objectText: string): Promise<boolean> {
-    const nodeId = await createRuntimeObjectNode(objectText, {
+  async function addObjectNodeFromSpec(objectSpec: string): Promise<boolean> {
+    const nodeId = await createRuntimeObjectNode(objectSpec, {
       position: defaultObjectNodePosition(graph.nodes.length)
     });
     return nodeId !== null;
   }
 
   async function createRuntimeObjectNode(
-    objectText: string,
+    objectSpec: string,
     options: {
       params?: Record<string, unknown>;
       position: { x: number; y: number };
@@ -814,14 +814,14 @@ export default function App() {
       setRuntimeError("Unlock the graph before adding or moving objects.");
       return null;
     }
-    const objectSpec = objectText.trim();
+    const trimmedObjectSpec = objectSpec.trim();
     const baseRevision = currentRuntimeGraphRevision();
-    if (!objectSpec) {
+    if (!trimmedObjectSpec) {
       setRuntimeError("Enter an object spec before creating an object.");
       return null;
     }
     if (runtimeStatus !== "connected" || !runtimeSessionSynced || !baseRevision) {
-      setRuntimeError("Runtime session is required before creating object boxes.");
+      setRuntimeError("Runtime session is required before creating objects.");
       return null;
     }
 
@@ -833,7 +833,7 @@ export default function App() {
         kind: "node.create",
         target: rootGraphTarget(baseRevision),
         baseGraphRevision: baseRevision,
-        objectSpec,
+        objectSpec: trimmedObjectSpec,
         view: options.position,
         ...(options.params && Object.keys(options.params).length > 0 ? { params: options.params } : {}),
         unresolvedPolicy: "materialize-diagnostic"
@@ -842,7 +842,7 @@ export default function App() {
       const nodeId = graphCommandNodeId(response);
       await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
       if (!response.ok || !response.applied) {
-        const message = response.diagnostics[0]?.message ?? "Runtime rejected object box create.";
+        const message = response.diagnostics[0]?.message ?? "Runtime rejected object create.";
         setRuntimeError(message);
         appendClientLog(response.conflict ? "warning" : "error", message);
         return null;
@@ -854,7 +854,7 @@ export default function App() {
       return nodeId;
     } catch (error) {
       setRuntimeStatus("error");
-      setRuntimeError(error instanceof Error ? error.message : "Runtime object box create failed.");
+      setRuntimeError(error instanceof Error ? error.message : "Runtime object create failed.");
       try {
         await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
       } catch {
@@ -866,9 +866,9 @@ export default function App() {
     }
   }
 
-  async function replaceObjectTextNode(nodeId: string, objectText: string) {
+  async function replaceObjectNodeSpec(nodeId: string, objectSpec: string) {
     if (graphLocked) {
-      setRuntimeError("Unlock the graph before editing object boxes.");
+      setRuntimeError("Unlock the graph before editing objects.");
       return;
     }
     const existing = graph.nodes.find((node) => node.id === nodeId);
@@ -876,14 +876,14 @@ export default function App() {
       setRuntimeError(`${nodeId} no longer exists.`);
       return;
     }
-    const objectSpec = objectText.trim();
+    const trimmedObjectSpec = objectSpec.trim();
     const baseRevision = currentRuntimeGraphRevision();
-    if (!objectSpec) {
+    if (!trimmedObjectSpec) {
       setRuntimeError("Enter an object spec before editing an object.");
       return;
     }
     if (runtimeStatus !== "connected" || !runtimeSessionSynced || !baseRevision) {
-      setRuntimeError("Runtime session is required before editing object boxes.");
+      setRuntimeError("Runtime session is required before editing objects.");
       return;
     }
 
@@ -896,14 +896,14 @@ export default function App() {
         target: rootGraphTarget(baseRevision),
         baseGraphRevision: baseRevision,
         nodeId,
-        objectSpec,
+        objectSpec: trimmedObjectSpec,
         unresolvedPolicy: "materialize-diagnostic",
         interfaceIncidentEdgePolicy: "drop"
       });
       recordRuntimeGraphCommandResult(response);
       await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
       if (!response.ok || !response.applied) {
-        const message = response.diagnostics[0]?.message ?? "Runtime rejected object box edit.";
+        const message = response.diagnostics[0]?.message ?? "Runtime rejected object edit.";
         setRuntimeError(message);
         appendClientLog(response.conflict ? "warning" : "error", message);
         return;
@@ -913,7 +913,7 @@ export default function App() {
       openInspectSidePanel();
     } catch (error) {
       setRuntimeStatus("error");
-      setRuntimeError(error instanceof Error ? error.message : "Runtime object box edit failed.");
+      setRuntimeError(error instanceof Error ? error.message : "Runtime object edit failed.");
       try {
         await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
       } catch {
@@ -1348,21 +1348,21 @@ export default function App() {
     updateHelpWorkingCopyGraph(applyPatch(helpWorkingCopy.graph, { type: "setNodeParam", nodeId, key, value }));
   }
 
-  function replaceHelpWorkingCopyObjectText(nodeId: string, objectText: string) {
+  function replaceHelpWorkingCopyObjectSpec(nodeId: string, objectSpec: string) {
     if (!helpWorkingCopy) {
       return;
     }
-    const result = createGraphNodeFromObjectText(
-      objectText,
+    const result = createGraphNodeFromObjectSpec(
+      objectSpec,
       helpWorkingCopy.graph.nodes.filter((node) => node.id !== nodeId),
       nodeRegistry,
       { nodeId, patchLibrary: activePatchLibrary }
     );
     if (!result.node) {
-      appendClientLog("warning", result.diagnostics[0]?.message ?? "Help working copy object text could not be resolved.");
+      appendClientLog("warning", result.diagnostics[0]?.message ?? "Help working copy object spec could not be resolved.");
       return;
     }
-    appendObjectTextDiagnostics("help working copy object edit", result.diagnostics);
+    appendObjectSpecDiagnostics("help working copy object edit", result.diagnostics);
     updateHelpWorkingCopyGraph(
       applyPatch(helpWorkingCopy.graph, {
         type: "replaceNode",
@@ -2210,7 +2210,7 @@ export default function App() {
           <PalettePanel
             addDisabled={graphLocked}
             catalogEntries={nodeCatalog?.entries ?? []}
-            onAddObjectText={addObjectTextNode}
+            onAddObjectSpec={addObjectNodeFromSpec}
             onShowHelp={showNodeHelp}
           />
         ) : (
@@ -2264,7 +2264,7 @@ export default function App() {
                 });
               }}
               onObjectParamChange={setNodeParam}
-              onObjectTextCommit={replaceObjectTextNode}
+              onObjectSpecCommit={replaceObjectNodeSpec}
               runtimeControlEnabled={runtimeControlInteractionEnabled}
               runtimeControlPulses={runtimeControlPulses}
               runtimeControlValues={runtimeSessionSynced ? runtimeControlState?.values ?? {} : {}}
@@ -2410,7 +2410,7 @@ export default function App() {
                 onConnectionCheck={setHelpWorkingCopyConnectionCheck}
                 onGraphChange={updateHelpWorkingCopyGraph}
                 onObjectParamChange={setHelpWorkingCopyNodeParam}
-                onObjectTextCommit={replaceHelpWorkingCopyObjectText}
+                onObjectSpecCommit={replaceHelpWorkingCopyObjectSpec}
                 onSelectedEdgeChange={setHelpWorkingCopySelectedEdgeId}
                 onSelectedEdgesChange={setHelpWorkingCopySelectedEdgeIds}
                 onSelectedNodeChange={setHelpWorkingCopySelectedNodeId}

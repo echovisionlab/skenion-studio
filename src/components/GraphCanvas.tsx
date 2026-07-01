@@ -61,7 +61,7 @@ interface GraphCanvasProps {
   onObjectControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectLiveControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectParamChange?: (nodeId: string, key: string, value: unknown) => void;
-  onObjectTextCommit?: (nodeId: string, text: string) => void;
+  onObjectSpecCommit?: (nodeId: string, text: string) => void;
   runtimeControlEnabled?: boolean;
   runtimeControlPulses?: Record<string, number>;
   runtimeControlValues?: Record<string, RuntimeControlValue>;
@@ -88,7 +88,7 @@ export function GraphCanvas({
   onObjectControl,
   onObjectLiveControl,
   onObjectParamChange,
-  onObjectTextCommit,
+  onObjectSpecCommit,
   runtimeControlEnabled = false,
   runtimeControlPulses = {},
   runtimeControlValues = {},
@@ -120,7 +120,7 @@ export function GraphCanvas({
   const objectControlRef = useRef(onObjectControl);
   const objectLiveControlRef = useRef(onObjectLiveControl);
   const objectParamChangeRef = useRef(onObjectParamChange);
-  const objectTextCommitRef = useRef(onObjectTextCommit);
+  const objectSpecCommitRef = useRef(onObjectSpecCommit);
   useEffect(() => {
     objectControlRef.current = onObjectControl;
   }, [onObjectControl]);
@@ -131,8 +131,8 @@ export function GraphCanvas({
     objectParamChangeRef.current = onObjectParamChange;
   }, [onObjectParamChange]);
   useEffect(() => {
-    objectTextCommitRef.current = onObjectTextCommit;
-  }, [onObjectTextCommit]);
+    objectSpecCommitRef.current = onObjectSpecCommit;
+  }, [onObjectSpecCommit]);
   const handleObjectControl = useCallback(
     (nodeId: string, portId: string, message: RuntimeControlMessage) => {
       objectControlRef.current?.(nodeId, portId, message);
@@ -151,8 +151,8 @@ export function GraphCanvas({
     },
     []
   );
-  const handleObjectTextCommit = useCallback((nodeId: string, text: string) => {
-    objectTextCommitRef.current?.(nodeId, text);
+  const handleObjectSpecCommit = useCallback((nodeId: string, text: string) => {
+    objectSpecCommitRef.current?.(nodeId, text);
   }, []);
   const flowNodes = useMemo<StudioFlowNode[]>(
     () =>
@@ -164,7 +164,7 @@ export function GraphCanvas({
           onObjectControl: handleObjectControl,
           onObjectLiveControl: handleObjectLiveControl,
           onObjectParamChange: handleObjectParamChange,
-          onObjectTextCommit: handleObjectTextCommit,
+          onObjectSpecCommit: handleObjectSpecCommit,
           layoutEditable: !graphLocked,
           runtimeControlEnabled,
           runtimeControlPulseKey: runtimeControlPulses[node.id] ?? 0,
@@ -175,7 +175,7 @@ export function GraphCanvas({
       handleObjectControl,
       handleObjectLiveControl,
       handleObjectParamChange,
-      handleObjectTextCommit,
+      handleObjectSpecCommit,
       graphLocked,
       onImportAsset,
       runtimeControlEnabled,

@@ -30,7 +30,7 @@ export interface SkenionNodeData extends Record<string, unknown> {
   onObjectControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectLiveControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectParamChange?: (nodeId: string, key: string, value: unknown) => void;
-  onObjectTextCommit?: (nodeId: string, text: string) => void;
+  onObjectSpecCommit?: (nodeId: string, text: string) => void;
   primaryFlow: StudioDisplayFlow;
   runtimeControlEnabled?: boolean;
   runtimeControlPulseKey?: number;

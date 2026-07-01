@@ -11,28 +11,28 @@ import { IconButton } from "./core/IconButton/IconButton";
 interface PalettePanelProps {
   addDisabled?: boolean;
   catalogEntries?: NodeCatalogEntryV01[];
-  onAddObjectText: (objectText: string) => boolean | Promise<boolean | void> | void;
+  onAddObjectSpec: (objectSpec: string) => boolean | Promise<boolean | void> | void;
   onShowHelp: (definitionId: string) => void;
 }
 
 export function PalettePanel({
   addDisabled = false,
   catalogEntries = [],
-  onAddObjectText,
+  onAddObjectSpec,
   onShowHelp
 }: PalettePanelProps) {
-  const [objectText, setObjectText] = useState("");
-  const objectTextInput = objectText.trim();
+  const [objectSpec, setObjectSpec] = useState("");
+  const objectSpecInput = objectSpec.trim();
   const catalogMode = catalogEntries.length > 0;
   const filteredCatalogEntries = useMemo(
-    () => filterCatalogEntries(catalogEntries, objectTextInput),
-    [catalogEntries, objectTextInput]
+    () => filterCatalogEntries(catalogEntries, objectSpecInput),
+    [catalogEntries, objectSpecInput]
   );
-  const objectTextCanCreate = objectTextInput.length > 0 && !addDisabled;
-  const exactCatalogMatches = objectTextInput
-    ? catalogEntries.filter((entry) => catalogEntrySpecs(entry).some((spec) => normalizedSpec(spec) === normalizedSpec(objectTextInput)))
+  const objectSpecCanCreate = objectSpecInput.length > 0 && !addDisabled;
+  const exactCatalogMatches = objectSpecInput
+    ? catalogEntries.filter((entry) => catalogEntrySpecs(entry).some((spec) => normalizedSpec(spec) === normalizedSpec(objectSpecInput)))
     : [];
-  const objectTextBadge = objectTextInput
+  const objectSpecBadge = objectSpecInput
     ? exactCatalogMatches.length === 1
       ? "catalog match"
       : exactCatalogMatches.length > 1
@@ -40,14 +40,14 @@ export function PalettePanel({
         : "runtime resolve"
     : null;
 
-  async function submitObjectText(event: FormEvent<HTMLFormElement>) {
+  async function submitObjectSpec(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!objectTextCanCreate) {
+    if (!objectSpecCanCreate) {
       return;
     }
-    const result = await onAddObjectText(objectTextInput);
+    const result = await onAddObjectSpec(objectSpecInput);
     if (result !== false) {
-      setObjectText("");
+      setObjectSpec("");
     }
   }
 
@@ -64,32 +64,32 @@ export function PalettePanel({
         </Text>
       </div>
 
-      <form onSubmit={submitObjectText}>
+      <form onSubmit={submitObjectSpec}>
         <Stack gap={6}>
           <Group justify="space-between">
             <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-              Object Box
+              Object
             </Text>
-            {objectTextBadge ? (
+            {objectSpecBadge ? (
               <Badge size="xs" variant="light">
-                {objectTextBadge}
+                {objectSpecBadge}
               </Badge>
             ) : null}
           </Group>
           <TextInput
-            aria-label="Object box text"
+            aria-label="Object spec"
             disabled={addDisabled}
-            onChange={(event) => setObjectText(event.currentTarget.value)}
+            onChange={(event) => setObjectSpec(event.currentTarget.value)}
             placeholder="+ 1, +~, osc~ 440"
             size="xs"
-            value={objectText}
+            value={objectSpec}
           />
           {exactCatalogMatches.length > 1 ? (
             <Text c="dimmed" size="xs">
               Runtime will keep this text and return candidates.
             </Text>
           ) : null}
-          <Button disabled={!objectTextCanCreate} fullWidth size="compact-sm" type="submit">
+          <Button disabled={!objectSpecCanCreate} fullWidth size="compact-sm" type="submit">
             Create Object
           </Button>
         </Stack>
@@ -123,7 +123,7 @@ export function PalettePanel({
                     fullWidth
                     justify="space-between"
                     leftSection={<span className="flow-swatch" style={{ background: swatchColor }} />}
-                    onClick={() => onAddObjectText(primaryObjectSpec)}
+                    onClick={() => onAddObjectSpec(primaryObjectSpec)}
                     rightSection={<Plus size={15} />}
                     size="compact-md"
                   >

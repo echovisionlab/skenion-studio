@@ -115,10 +115,9 @@ export function patchDefinitionBoundaryPorts(definition: PatchDefinitionV01): Pa
 export function createSubpatchNodeFromDefinition(
   definition: PatchDefinitionV01,
   existingNodes: DisplayGraphNodeV01[],
-  options: { nodeId?: string; objectText?: string } = {}
+  options: { nodeId?: string; objectSpec?: string } = {}
 ): DisplayGraphNodeV01 {
-  const objectText = options.objectText ?? `p ${definition.id}`;
-  const objectSpec = objectText;
+  const objectSpec = options.objectSpec ?? `p ${definition.id}`;
   const description = patchDescription(definition).trim();
   const implementation = {
     provider: {
@@ -149,8 +148,7 @@ export function createSubpatchNodeFromDefinition(
       ]
     },
     params: {
-      label: objectText,
-      objectText,
+      label: objectSpec,
       patchId: definition.id,
       patchRevision: definition.revision,
       ...(description ? { description } : {})
@@ -238,7 +236,7 @@ export function displayGraphToContractGraph(graph: DisplayGraphDocumentV01): Gra
 }
 
 export function displayNodeToContractNode(node: DisplayGraphNodeV01): GraphDocumentV01["nodes"][number] {
-  const implementation = node.implementation ? clone(node.implementation) : coreImplementationForDisplayKind(node.kind, node.kindVersion);
+  const implementation = node.implementation ? clone(node.implementation) : implementationForDisplayKind(node.kind, node.kindVersion);
   return omitUndefined({
     id: node.id,
     implementation,
@@ -292,7 +290,7 @@ function displayKindForContractNode(
     return displayKindForRuntimeKind(legacyKind);
   }
   if (!implementation) {
-    return "object.unresolved";
+    return "object";
   }
   if (implementation.provider.kind === "core") {
     return displayKindForCoreObjectId(implementation.objectId);
@@ -346,7 +344,7 @@ const CORE_OBJECT_ID_BY_DISPLAY_KIND: Record<string, string> = Object.fromEntrie
   Object.entries(CORE_OBJECT_DISPLAY_KIND_BY_OBJECT_ID).map(([objectId, displayKind]) => [displayKind, objectId])
 );
 
-function coreImplementationForDisplayKind(
+export function implementationForDisplayKind(
   displayKind: string,
   version: string = CURRENT_CONTRACT_SCHEMA_VERSION
 ): ObjectImplementationRefV01 | undefined {

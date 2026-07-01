@@ -142,7 +142,7 @@ describe("patchLibrary", () => {
 
   it("creates a core.subpatch node from patch boundary ports", () => {
     const patch = testPatchDefinition();
-    const node = createSubpatchNodeFromDefinition(patch, [], { objectText: "p voice" });
+    const node = createSubpatchNodeFromDefinition(patch, [], { objectSpec: "p voice" });
 
     expect(node).toMatchObject({
       id: "voice_1",
@@ -197,7 +197,7 @@ describe("patchLibrary", () => {
       }
     ]);
 
-    const collision = createSubpatchNodeFromDefinition(patch, [{ ...node, id: "voice_2" }], { objectText: "p voice" });
+    const collision = createSubpatchNodeFromDefinition(patch, [{ ...node, id: "voice_2" }], { objectSpec: "p voice" });
     expect(collision.id).toBe("voice_3");
   });
 
@@ -208,14 +208,14 @@ describe("patchLibrary", () => {
     };
     const node = createSubpatchNodeFromDefinition(patch, [], {
       nodeId: "custom_voice",
-      objectText: "p voice"
+      objectSpec: "p voice"
     });
 
     expect(node.id).toBe("custom_voice");
     expect(node.params).not.toHaveProperty("description");
   });
 
-  it("uses default object text and a fallback node id for symbolic patch ids", () => {
+  it("uses default object spec and a fallback node id for symbolic patch ids", () => {
     const patch: PatchDefinitionV01 = {
       ...testPatchDefinition(),
       id: "---"
@@ -647,7 +647,7 @@ describe("patchLibrary", () => {
     expect(graph.nodes.map((node) => [node.id, node.kind, node.kindVersion])).toEqual([
       ["legacy_keep", "core.float", "2.0.0"],
       ["legacy_core", "core.float", "0.1.0"],
-      ["unresolved", "object.unresolved", "0.1.0"],
+      ["unresolved", "object", "0.1.0"],
       ["project_patch", "core.subpatch", "1"]
     ]);
   });

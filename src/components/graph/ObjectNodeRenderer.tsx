@@ -30,8 +30,8 @@ import {
   readVideoAssetParams
 } from "../../graph/videoAsset";
 import { PANEL_NODE_KIND, readPanelParams } from "../../graph/panelNode";
-import { genericObjectTextForNode } from "../../graph/objectTextDisplay";
-import { isUnresolvedObjectNode } from "../../graph/objectTextNode";
+import { genericObjectSpecForNode } from "../../graph/objectSpecDisplay";
+import { isUnresolvedObjectNode } from "../../graph/objectNode";
 import type { NodeCardView, NodePortHandleRenderer, NodePortView } from "../node/nodeTypes";
 import type { RuntimeControlMessage, RuntimeControlValue } from "../../runtime/types";
 import { bangControlMessage, controlMessageFromValue } from "../../runtime/controlMessage";
@@ -48,7 +48,7 @@ export interface ObjectNodeRendererProps {
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void> | void;
   onObjectLiveControl?: (nodeId: string, portId: string, message: RuntimeControlMessage) => void;
   onObjectParamChange?: (nodeId: string, key: string, value: unknown) => void;
-  onObjectTextCommit?: (nodeId: string, text: string) => void;
+  onObjectSpecCommit?: (nodeId: string, text: string) => void;
   runtimeControlEnabled?: boolean;
   runtimeControlPulseKey?: number;
   runtimeControlValue?: RuntimeControlValue;
@@ -65,7 +65,7 @@ export function ObjectNodeRenderer({
   onObjectControl,
   onObjectLiveControl,
   onObjectParamChange,
-  onObjectTextCommit,
+  onObjectSpecCommit,
   runtimeControlEnabled = false,
   runtimeControlPulseKey = 0,
   runtimeControlValue,
@@ -76,7 +76,7 @@ export function ObjectNodeRenderer({
   const viewSpec = objectViewSpecForNode(node);
   if (node.kind === "core.comment") {
     return (
-      <ObjectBox
+      <ObjectFrame
         className={styles.commentObject}
         chromePolicy={viewSpec.chromePolicy}
         inputPorts={card.inputs}
@@ -85,14 +85,14 @@ export function ObjectNodeRenderer({
         selected={selected}
       >
         <div className={styles.commentText}>{readCommentTextParam(node) || "Comment"}</div>
-      </ObjectBox>
+      </ObjectFrame>
     );
   }
 
   if (node.kind === PANEL_NODE_KIND) {
     const panel = readPanelParams(node);
     return (
-      <ObjectBox
+      <ObjectFrame
         className={styles.panelObject}
         chromePolicy={viewSpec.chromePolicy}
         inputPorts={card.inputs}
@@ -102,13 +102,13 @@ export function ObjectNodeRenderer({
         style={{ background: panel.color }}
       >
         {panel.label ? <div className={styles.panelTitle}>{panel.label}</div> : null}
-      </ObjectBox>
+      </ObjectFrame>
     );
   }
 
   if (node.kind === MESSAGE_NODE_KIND) {
     return (
-      <ObjectBox
+      <ObjectFrame
         className={styles.messageObject}
         chromePolicy={viewSpec.chromePolicy}
         disabled={!runtimeControlEnabled}
@@ -127,7 +127,7 @@ export function ObjectNodeRenderer({
         selected={selected}
       >
         {readMessageValueParam(node) || "message"}
-      </ObjectBox>
+      </ObjectFrame>
     );
   }
 
@@ -153,7 +153,7 @@ export function ObjectNodeRenderer({
     const value = controlBoolValue(runtimeControlValue) ?? readToggleControlValue(toggleNode);
     const nodeId = toggleNode.id;
     return (
-      <ObjectBox
+      <ObjectFrame
         className={styles.toggleObject}
         chromePolicy={viewSpec.chromePolicy}
         disabled={!runtimeControlEnabled}
@@ -175,7 +175,7 @@ export function ObjectNodeRenderer({
         {readPanelLabelParam(toggleNode) !== toggleNode.id ? (
           <span className={styles.toggleLabel}>{readPanelLabelParam(toggleNode)}</span>
         ) : null}
-      </ObjectBox>
+      </ObjectFrame>
     );
   }
 
@@ -200,7 +200,7 @@ export function ObjectNodeRenderer({
   const valueNode = node as DisplayGraphNodeV01;
   if (isValueObject(valueNode)) {
     return (
-      <ObjectBox
+      <ObjectFrame
         className={styles.valueObject}
         chromePolicy={viewSpec.chromePolicy}
         disabled={!runtimeControlEnabled}
@@ -218,7 +218,7 @@ export function ObjectNodeRenderer({
           runtimeControlValue={runtimeControlValue}
         />
         <RoutingBadges node={valueNode} />
-      </ObjectBox>
+      </ObjectFrame>
     );
   }
 
@@ -240,12 +240,12 @@ export function ObjectNodeRenderer({
   }
 
   return (
-    <GenericObjectBox
+    <GenericObjectFrame
       card={card}
       chromePolicy={viewSpec.chromePolicy}
       layoutEditable={layoutEditable}
       node={fallbackNode}
-      onObjectTextCommit={onObjectTextCommit}
+      onObjectSpecCommit={onObjectSpecCommit}
       renderInputHandle={renderInputHandle}
       renderOutputHandle={renderOutputHandle}
       selected={selected}
@@ -253,12 +253,12 @@ export function ObjectNodeRenderer({
   );
 }
 
-function GenericObjectBox({
+function GenericObjectFrame({
   card,
   chromePolicy,
   layoutEditable,
   node,
-  onObjectTextCommit,
+  onObjectSpecCommit,
   renderInputHandle,
   renderOutputHandle,
   selected
@@ -267,12 +267,12 @@ function GenericObjectBox({
   chromePolicy: ObjectChromePolicy;
   layoutEditable: boolean;
   node: DisplayGraphNodeV01;
-  onObjectTextCommit?: (nodeId: string, text: string) => void;
+  onObjectSpecCommit?: (nodeId: string, text: string) => void;
   renderInputHandle?: NodePortHandleRenderer;
   renderOutputHandle?: NodePortHandleRenderer;
   selected?: boolean;
 }) {
-  const displayText = genericObjectTextForNode(node);
+  const displayText = genericObjectSpecForNode(node);
   const resolutionStatus = node.objectResolution?.status;
   const unresolved = isUnresolvedObjectNode(node) || (resolutionStatus !== undefined && resolutionStatus !== "resolved");
   const resolutionDiagnostic = node.objectResolution?.diagnostics?.[0];
@@ -283,7 +283,7 @@ function GenericObjectBox({
   const [draft, setDraft] = useState(displayText);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const finishedEditRef = useRef(false);
-  const editable = layoutEditable && Boolean(onObjectTextCommit);
+  const editable = layoutEditable && Boolean(onObjectSpecCommit);
 
   useEffect(() => {
     if (!editing) {
@@ -326,11 +326,11 @@ function GenericObjectBox({
     if (nextText.length === 0 || nextText === displayText) {
       return;
     }
-    onObjectTextCommit?.(node.id, nextText);
+    onObjectSpecCommit?.(node.id, nextText);
   };
 
   return (
-    <ObjectBox
+    <ObjectFrame
       className={[styles.genericObject, unresolved ? styles.unresolvedObject : ""].filter(Boolean).join(" ")}
       chromePolicy={chromePolicy}
       inputPorts={card.inputs}
@@ -345,8 +345,8 @@ function GenericObjectBox({
       {editing ? (
         <input
           ref={inputRef}
-          aria-label="Object text"
-          className={[styles.objectTextInput, "nodrag", "nopan"].join(" ")}
+          aria-label="Object spec"
+          className={[styles.objectSpecInput, "nodrag", "nopan"].join(" ")}
           onBlur={(event) => commitEdit(event.currentTarget.value)}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onDoubleClick={(event) => event.stopPropagation()}
@@ -368,7 +368,7 @@ function GenericObjectBox({
       ) : (
         <span className={styles.genericText}>{displayText}</span>
       )}
-    </ObjectBox>
+    </ObjectFrame>
   );
 }
 
@@ -458,7 +458,7 @@ function VideoAssetObject({
   };
 
   return (
-    <ObjectBox
+    <ObjectFrame
       className={styles.assetObject}
       chromePolicy={chromePolicy}
       inputPorts={card.inputs}
@@ -511,7 +511,7 @@ function VideoAssetObject({
           type="button"
         />
       ) : null}
-    </ObjectBox>
+    </ObjectFrame>
   );
 }
 
@@ -550,7 +550,7 @@ function SliderControlObject({
   const percent = range === 0 ? 0 : Math.min(100, Math.max(0, ((value - slider.min) / range) * 100));
 
   return (
-    <ObjectBox
+    <ObjectFrame
       className={styles.sliderObject}
       chromePolicy={chromePolicy}
       disabled={!runtimeControlEnabled}
@@ -590,7 +590,7 @@ function SliderControlObject({
         value={value}
       />
       <div className={styles.sliderValue}>{formatValue(value)}</div>
-    </ObjectBox>
+    </ObjectFrame>
   );
 }
 
@@ -690,7 +690,7 @@ function BangControlObject({
   };
 
   return (
-    <ObjectBox
+    <ObjectFrame
       className={styles.bangObject}
       chromePolicy={chromePolicy}
       disabled={!runtimeControlEnabled}
@@ -729,11 +729,11 @@ function BangControlObject({
           style={{ borderRadius: bangParams.radius }}
         />
       </button>
-    </ObjectBox>
+    </ObjectFrame>
   );
 }
 
-function ObjectBox({
+function ObjectFrame({
   children,
   chromePolicy,
   className,

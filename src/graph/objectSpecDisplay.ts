@@ -1,10 +1,9 @@
 import type { DisplayGraphNodeV01 } from "./patchLibrary";
-import { nativeAliasForObjectKind } from "./objectTextNode";
+import { nativeAliasForObjectKind } from "./objectNode";
 
-export function genericObjectTextForNode(node: DisplayGraphNodeV01): string {
+export function genericObjectSpecForNode(node: DisplayGraphNodeV01): string {
   return (
     stringParam(node.objectSpec) ??
-    stringParam(node.params.objectText) ??
     nativeAliasForObjectKind(node.kind) ??
     stringParam(node.params.label) ??
     node.kind

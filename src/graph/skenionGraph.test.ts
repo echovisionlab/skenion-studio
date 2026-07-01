@@ -25,7 +25,7 @@ import {
   typeLabel,
   validateGraph
 } from "./skenionGraph";
-import { UNRESOLVED_OBJECT_NODE_KIND } from "./objectTextNode";
+import { OBJECT_DISPLAY_KIND } from "./objectNode";
 import { displayGraphToContractGraph } from "./patchLibrary";
 
 describe("skenion graph helpers", () => {
@@ -266,17 +266,13 @@ describe("skenion graph helpers", () => {
       nodeId: "decode_1",
       node: {
         ...decode,
-        params: {
-          objectText: "decode"
-        }
+        objectSpec: "decode"
       },
       edgePolicy: "removeInvalidEdges"
     });
     expect(replacedDecode.nodes.find((node) => node.id === "decode_1")).toMatchObject({
       kind: "core.video-decode",
-      params: {
-        objectText: "decode"
-      }
+      objectSpec: "decode"
     });
     expect(replacedDecode.edges).toHaveLength(sampleGraph.edges.length);
 
@@ -285,18 +281,29 @@ describe("skenion graph helpers", () => {
       nodeId: "decode_1",
       node: {
         id: "decode_1",
-        kind: UNRESOLVED_OBJECT_NODE_KIND,
+        kind: OBJECT_DISPLAY_KIND,
         kindVersion: "0.1.0",
+        objectSpec: "nope",
+        objectResolution: {
+          status: "unresolved",
+          selectedSpec: "nope",
+          diagnostics: [
+            {
+              severity: "error",
+              code: "resolution-unresolved",
+              message: "nope is unavailable"
+            }
+          ]
+        },
         params: {
-          objectText: "nope",
           diagnosticMessage: "nope is unavailable",
-          requestedKind: "nope"
+          requestedObject: "nope"
         },
         ports: []
       },
       edgePolicy: "removeInvalidEdges"
     });
-    expect(unresolvedDecode.nodes.find((node) => node.id === "decode_1")?.kind).toBe(UNRESOLVED_OBJECT_NODE_KIND);
+    expect(unresolvedDecode.nodes.find((node) => node.id === "decode_1")?.kind).toBe(OBJECT_DISPLAY_KIND);
     expect(unresolvedDecode.edges.some((edge) => edge.from.node === "decode_1" || edge.to.node === "decode_1")).toBe(
       false
     );
