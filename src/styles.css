@@ -150,6 +150,36 @@ body {
   height: 100%;
 }
 
+.skenion-flow .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid var(--sk-border);
+  background: var(--sk-surface);
+  box-shadow: 0 8px 20px var(--sk-shadow);
+}
+
+.skenion-flow .react-flow__controls-button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-bottom: 1px solid var(--sk-border);
+  background: var(--sk-surface);
+  color: var(--sk-text-muted);
+}
+
+.skenion-flow .react-flow__controls-button:last-child {
+  border-bottom: 0;
+}
+
+.skenion-flow .react-flow__controls-button:hover {
+  background: var(--sk-surface-subtle);
+  color: var(--sk-text);
+}
+
+.skenion-flow .react-flow__controls-button svg {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
 .help-graph-viewer {
   height: 320px;
   min-height: 260px;
