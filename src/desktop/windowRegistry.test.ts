@@ -13,7 +13,7 @@ import {
 describe("windowRegistry", () => {
   it("maps multiple Studio windows to the same shared Runtime session", () => {
     const scope = createSharedRuntimeScope({
-      profileId: "local-managed",
+      profileId: "local",
       runtimeUrl: "http://127.0.0.1:49152/",
       sessionId: "default"
     });
@@ -30,7 +30,7 @@ describe("windowRegistry", () => {
       }
     );
 
-    expect(runtimeSessionScopeKey(scope)).toBe("shared:local-managed:http://127.0.0.1:49152:default");
+    expect(runtimeSessionScopeKey(scope)).toBe("shared:local:http://127.0.0.1:49152:default");
     expect(windowsForRuntimeSession(registry, scope).map((window) => window.id)).toEqual(["main", "detail"]);
   });
 
@@ -58,13 +58,13 @@ describe("windowRegistry", () => {
   it("treats isolated runtime windows as distinct even when session ids match", () => {
     const isolatedA = createIsolatedRuntimeScope({
       ownerWindowId: "window-a",
-      profileId: "local-managed",
+      profileId: "local",
       runtimeUrl: "http://127.0.0.1:49152",
       sessionId: "default"
     });
     const isolatedB = createIsolatedRuntimeScope({
       ownerWindowId: "window-b",
-      profileId: "local-managed",
+      profileId: "local",
       runtimeUrl: "http://127.0.0.1:49152",
       sessionId: "default"
     });
@@ -79,7 +79,7 @@ describe("windowRegistry", () => {
 
   it("keeps volatile help working copies out of Runtime session groups", () => {
     const scope = createSharedRuntimeScope({
-      profileId: "local-shared",
+      profileId: "remote",
       runtimeUrl: "http://localhost:3761",
       sessionId: "default"
     });

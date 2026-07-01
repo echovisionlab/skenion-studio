@@ -9,14 +9,16 @@ import type { RuntimeSidecarStartupResponse } from "./sidecarTypes";
 
 export const DEFAULT_RUNTIME_SESSION_ID = "default";
 
-export type RuntimeProfileId = RuntimeConnectionProfileMode;
+export type RuntimeProfileId = "local" | "remote";
+type StudioRuntimeProfileMode = Extract<RuntimeConnectionProfileMode, "local-managed" | "remote">;
+type StudioRuntimeOwnershipMode = Extract<RuntimeOwnershipMode, "owned-child" | "remote">;
 export type ManagedSidecarStatus = "stopped" | "starting" | "running" | "stopping" | "error";
 
 export interface StudioRuntimeProfile {
   id: RuntimeProfileId;
   label: string;
-  mode: RuntimeConnectionProfileMode;
-  ownership: RuntimeOwnershipMode;
+  mode: StudioRuntimeProfileMode;
+  ownership: StudioRuntimeOwnershipMode;
   url: string;
 }
 
@@ -63,7 +65,7 @@ export function createRuntimeProfileState(
 ): RuntimeProfileState {
   const defaultRuntimeUrl = normalizeRuntimeUrl(options.defaultRuntimeUrl ?? DEFAULT_RUNTIME_URL);
   const remoteRuntimeUrl = normalizeRuntimeUrl(options.remoteRuntimeUrl ?? defaultRuntimeUrl);
-  const activeProfileId = options.activeProfileId ?? "local-managed";
+  const activeProfileId = options.activeProfileId ?? "local";
   return {
     activeProfileId,
     managedSidecar: {
@@ -75,18 +77,11 @@ export function createRuntimeProfileState(
       status: "stopped"
     },
     profiles: {
-      "local-managed": {
-        id: "local-managed",
-        label: "Managed",
+      local: {
+        id: "local",
+        label: "Local",
         mode: "local-managed",
         ownership: "owned-child",
-        url: defaultRuntimeUrl
-      },
-      "local-shared": {
-        id: "local-shared",
-        label: "Shared",
-        mode: "local-shared",
-        ownership: "external",
         url: defaultRuntimeUrl
       },
       remote: {
@@ -136,13 +131,13 @@ export function switchRuntimeProfile(
     options.stopManagedSidecar ?? state.managedSidecar.status === "running";
   if (
     shouldStopManagedSidecar &&
-    state.activeProfileId === "local-managed" &&
-    profileId !== "local-managed" &&
+    state.activeProfileId === "local" &&
+    profileId !== "local" &&
     state.managedSidecar.status === "running" &&
-    state.managedSidecar.profileId === "local-managed"
+    state.managedSidecar.profileId === "local"
   ) {
     effects.push({
-      profileId: "local-managed",
+      profileId: "local",
       reason: "profile-switch",
       type: "stopManagedSidecar"
     });
@@ -172,7 +167,7 @@ export function planRuntimeConnect(
   options: { isolated?: boolean; ownerWindowId: string }
 ): RuntimeProfileTransition {
   const profile = activeRuntimeProfile(state);
-  if (profile.mode !== "local-managed") {
+  if (profile.id !== "local") {
     return {
       connectUrl: normalizeRuntimeUrl(profile.url),
       effects: [],
@@ -287,18 +282,10 @@ export function runtimeConnectionProfileForStudioProfile(
   switch (profile.mode) {
     case "local-managed":
       return {
-        displayName: "skenion runtime local-managed sidecar",
+        displayName: "skenion runtime local sidecar",
         endpoint,
         mode: "local-managed",
         ownership: "owned-child",
-        process: null
-      };
-    case "local-shared":
-      return {
-        displayName: "skenion runtime local-shared",
-        endpoint,
-        mode: "local-shared",
-        ownership: "external",
         process: null
       };
     case "remote":

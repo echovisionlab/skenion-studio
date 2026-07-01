@@ -165,7 +165,6 @@ export interface RuntimeSessionCapabilitySet {
   sessionAddressing: boolean;
   eventReplay: boolean;
   multiWindow: boolean;
-  profiles: RuntimeConnectionProfileMode[];
   authPolicy: "deferred";
 }
 

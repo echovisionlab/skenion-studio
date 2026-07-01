@@ -14,8 +14,8 @@ export function RuntimeConnectionPanel({
   connected,
   desktopAvailable,
   onConnect,
-  onOpenIsolatedWindow,
-  onOpenSharedWindow,
+  onOpenNewRuntimeWindow,
+  onOpenNewWindow,
   onProfileChange,
   onRefreshSession,
   onUrlChange,
@@ -31,8 +31,8 @@ export function RuntimeConnectionPanel({
   connected: boolean;
   desktopAvailable: boolean;
   onConnect: () => void;
-  onOpenIsolatedWindow: () => void;
-  onOpenSharedWindow: () => void;
+  onOpenNewRuntimeWindow: () => void;
+  onOpenNewWindow: () => void;
   onProfileChange: (profileId: RuntimeProfileId) => void;
   onRefreshSession: () => void;
   onUrlChange: (url: string) => void;
@@ -45,7 +45,8 @@ export function RuntimeConnectionPanel({
   windowMode: StudioWindowMode;
 }) {
   const activeProfile = profileState.profiles[profileState.activeProfileId];
-  const endpointInputDisabled = busyAction !== null || activeProfile.mode === "local-managed";
+  const endpointInputDisabled = busyAction !== null || activeProfile.id === "local";
+  const windowModeText = windowModeLabel(windowMode);
 
   return (
     <>
@@ -55,13 +56,15 @@ export function RuntimeConnectionPanel({
             Runtime
           </Text>
           <Text c="dimmed" size="xs">
-            {activeProfile.mode} · session {sessionId}
+            {activeProfile.label} · session {sessionId}
           </Text>
         </div>
         <Group gap={6}>
-          <Badge color={sidecarStatusColor(sidecarStatus)} variant="light">
-            {sidecarStatus}
-          </Badge>
+          {activeProfile.id === "local" ? (
+            <Badge color={sidecarStatusColor(sidecarStatus)} variant="light">
+              {sidecarStatus}
+            </Badge>
+          ) : null}
           <Badge color={statusColor(status)} variant="light">
             {status}
           </Badge>
@@ -73,8 +76,7 @@ export function RuntimeConnectionPanel({
       </Text>
       <SegmentedControl
         data={[
-          { label: "Managed", value: "local-managed" },
-          { label: "Shared", value: "local-shared" },
+          { label: "Local", value: "local" },
           { label: "Remote", value: "remote" }
         ]}
         disabled={busyAction !== null}
@@ -117,27 +119,38 @@ export function RuntimeConnectionPanel({
         <Button
           disabled={!desktopAvailable}
           leftSection={<MonitorUp size={15} />}
-          onClick={onOpenSharedWindow}
+          onClick={onOpenNewWindow}
           size="xs"
           variant="light"
         >
-          Shared Window
+          New Window
         </Button>
         <Button
           disabled={!desktopAvailable}
           leftSection={<MonitorCog size={15} />}
-          onClick={onOpenIsolatedWindow}
+          onClick={onOpenNewRuntimeWindow}
           size="xs"
           variant="light"
         >
-          Isolated Window
+          New Runtime
         </Button>
       </Group>
       <Text c="dimmed" size="xs">
-        {windowCount} window{windowCount === 1 ? "" : "s"} · {windowMode}
+        {windowCount} window{windowCount === 1 ? "" : "s"} · {windowModeText}
       </Text>
     </>
   );
+}
+
+function windowModeLabel(mode: StudioWindowMode): string {
+  switch (mode) {
+    case "shared-session":
+      return "same session";
+    case "isolated-runtime":
+      return "separate runtime";
+    case "volatile-help":
+      return "help";
+  }
 }
 
 function statusColor(status: RuntimeConnectionStatus): string {

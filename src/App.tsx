@@ -202,7 +202,6 @@ export default function App() {
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeConnectionStatus>("disconnected");
   const [runtimeBusyAction, setRuntimeBusyAction] = useState<string | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
-  const [runtimeFrames] = useState(2);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo | null>(null);
   const [nodeCatalog, setNodeCatalog] = useState<NodeCatalogSnapshotV01 | null>(null);
   const [runtimeResult, setRuntimeResult] = useState<RuntimeActionResult | null>(null);
@@ -1427,7 +1426,7 @@ export default function App() {
       let connectUrl = connectPlan.connectUrl ?? runtimeUrl;
       if (startEffect) {
         if (!desktopBridge.available) {
-          const message = "Local-managed Runtime requires the Tauri desktop shell. Use local-shared for an existing Runtime.";
+          const message = "Local Runtime requires the desktop shell. Choose Remote for an existing Runtime URL.";
           setRuntimeProfileState(applyRuntimeSidecarError(nextProfileState, [message]));
           throw new RuntimeClientError(message);
         }
@@ -1539,7 +1538,7 @@ export default function App() {
       return;
     }
     const windowId = createStudioWindowId(windowMode === "isolated-runtime" ? "studio-isolated" : "studio");
-    const profileId = windowMode === "isolated-runtime" ? "local-managed" : runtimeProfileState.activeProfileId;
+    const profileId = windowMode === "isolated-runtime" ? "local" : runtimeProfileState.activeProfileId;
     try {
       await desktopBridge.openStudioWindow({
         profileId,
@@ -1562,52 +1561,10 @@ export default function App() {
       );
       appendClientLog(
         "info",
-        `Opened ${windowMode === "isolated-runtime" ? "isolated" : "shared"} Studio window ${windowId}.`
+        `Opened ${windowMode === "isolated-runtime" ? "separate Runtime" : "new"} Studio window ${windowId}.`
       );
     } catch (error) {
       appendClientLog("warning", error instanceof Error ? error.message : "Desktop window open failed.");
-    }
-  }
-
-  async function runRuntimeSessionAction(
-    kind: RuntimeResultKind,
-    action: () => Promise<RuntimeSessionResponse>
-  ) {
-    setRuntimeBusyAction(kind);
-    setRuntimeError(null);
-    try {
-      const response = await action();
-      const client = createActiveRuntimeClient();
-      setRuntimeSession(response);
-      setRuntimeResult({
-        kind,
-        response,
-        receivedAt: new Date().toISOString()
-      });
-      setRuntimeStatus("connected");
-      if (kind === "clearSession" && response.ok) {
-        setLastLoadedGraphFingerprint(null);
-        clearPendingPatch();
-        setRuntimeControlState(null);
-      }
-      if (kind === "clearSession") {
-        setGeneratedShader(null);
-      }
-      if (kind === "session" || kind === "clearSession") {
-        await refreshRuntimeHistory(client);
-        await refreshRuntimePreview(client);
-      }
-      if (runtimeSessionLoaded(response) && runtimeSupportsControlState(runtimeInfo)) {
-        await refreshRuntimeControlState(client);
-      } else if (!runtimeSessionLoaded(response)) {
-        setRuntimeControlState(null);
-      }
-      await refreshRuntimeTelemetry(client);
-    } catch (error) {
-      setRuntimeStatus("error");
-      setRuntimeError(error instanceof Error ? error.message : "Runtime request failed.");
-    } finally {
-      setRuntimeBusyAction(null);
     }
   }
 
@@ -2148,36 +2105,19 @@ export default function App() {
       error={runtimeError}
       info={runtimeInfo}
       profileState={runtimeProfileState}
-      result={runtimeResult}
       previewStatus={runtimePreviewStatus}
       session={runtimeSession}
       sessionId={runtimeSessionId}
-      sessionSynced={runtimeSessionSynced}
       sidecarStatus={runtimeProfileState.managedSidecar.status}
       status={runtimeStatus}
       url={runtimeUrl}
       windowCount={currentRuntimeWindowCount}
       windowMode={currentWindowMode}
-      onClearSession={() =>
-        runRuntimeSessionAction("clearSession", () =>
-          createActiveRuntimeClient().clearSession()
-        )
-      }
       onConnect={connectRuntime}
-      onOpenIsolatedWindow={() => void openDesktopRuntimeWindow("isolated-runtime")}
-      onOpenSharedWindow={() => void openDesktopRuntimeWindow("shared-session")}
-      onPlanSession={() =>
-        runRuntimeSessionAction("planSession", () =>
-          createActiveRuntimeClient().planSession()
-        )
-      }
+      onOpenNewRuntimeWindow={() => void openDesktopRuntimeWindow("isolated-runtime")}
+      onOpenNewWindow={() => void openDesktopRuntimeWindow("shared-session")}
       onProfileChange={changeRuntimeProfile}
       onRefreshSession={refreshRuntimeSessionFromPanel}
-      onRunSession={() =>
-        runRuntimeSessionAction("runSession", () =>
-          createActiveRuntimeClient().runSession(runtimeFrames)
-        )
-      }
       onUrlChange={changeRuntimeUrl}
       onRefreshPreview={refreshRuntimePreviewFromPanel}
       onRestartPreview={() =>
@@ -2193,11 +2133,6 @@ export default function App() {
       onStopPreview={() =>
         runRuntimePreviewAction("stopPreview", () =>
           createActiveRuntimeClient().stopPreview()
-        )
-      }
-      onValidateSession={() =>
-        runRuntimeSessionAction("validateSession", () =>
-          createActiveRuntimeClient().validateSession()
         )
       }
     />

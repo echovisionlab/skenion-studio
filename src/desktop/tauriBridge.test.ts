@@ -46,10 +46,10 @@ describe("tauriBridge", () => {
 
     await bridge.startManagedSidecar({
       ownerWindowId: "window-1",
-      profileId: "local-managed"
+      profileId: "local"
     });
     await bridge.stopManagedSidecar({
-      profileId: "local-managed",
+      profileId: "local",
       reason: "profile-switch"
     });
     await bridge.openStudioWindow({
@@ -66,7 +66,7 @@ describe("tauriBridge", () => {
         {
           request: {
             ownerWindowId: "window-1",
-            profileId: "local-managed"
+            profileId: "local"
           }
         }
       ],
@@ -74,7 +74,7 @@ describe("tauriBridge", () => {
         "stop_runtime_sidecar",
         {
           request: {
-            profileId: "local-managed",
+            profileId: "local",
             reason: "profile-switch"
           }
         }

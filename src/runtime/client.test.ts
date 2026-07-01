@@ -1754,7 +1754,6 @@ function sessionInfoResponse(overrides: Partial<RuntimeSessionInfoResponse> = {}
       sessionAddressing: true,
       eventReplay: true,
       multiWindow: true,
-      profiles: ["local-managed", "local-shared", "remote"],
       authPolicy: "deferred"
     },
     eventReplay: {

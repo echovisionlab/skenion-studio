@@ -787,12 +787,10 @@ function isRuntimeEventReplayWindow(value: unknown): boolean {
 function isRuntimeSessionCapabilitySet(value: unknown): boolean {
   return (
     isRecord(value) &&
-    hasOnlyKeys(value, ["sessionAddressing", "eventReplay", "multiWindow", "profiles", "authPolicy"]) &&
+    hasOnlyKeys(value, ["sessionAddressing", "eventReplay", "multiWindow", "authPolicy"]) &&
     typeof value.sessionAddressing === "boolean" &&
     typeof value.eventReplay === "boolean" &&
     typeof value.multiWindow === "boolean" &&
-    Array.isArray(value.profiles) &&
-    value.profiles.every(isRuntimeConnectionProfileMode) &&
     value.authPolicy === "deferred"
   );
 }
