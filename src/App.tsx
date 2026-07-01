@@ -84,7 +84,7 @@ import {
   RuntimeClientError,
   type RuntimeClient
 } from "./runtime/client";
-import { createRuntimeProjectPayload } from "./runtime/payload";
+import { createRuntimeSessionLoadRequest } from "./runtime/payload";
 import {
   createRuntimeGraphCommandClient,
   type RuntimeGraphCommandClient,
@@ -1054,7 +1054,7 @@ export default function App() {
     setRuntimeError(null);
     try {
       const client = createActiveRuntimeClient();
-      const response = await client.loadSession(createRuntimeProjectPayload(project));
+      const response = await client.loadSession(createRuntimeSessionLoadRequest(project, { mode: "forceReplace" }));
       const loadedProject = response.snapshot.project;
       if (!response.ok || !loadedProject) {
         throw new RuntimeClientError(response.diagnostics[0]?.message ?? "Runtime rejected project load.");
@@ -1089,7 +1089,7 @@ export default function App() {
   ): Promise<RuntimeSessionResponse> {
     if (!session.snapshot.project) {
       const seedProject = createProjectDocument(sampleGraph, createViewStateFromPositions(sampleGraph, {}));
-      const loaded = await client.loadSession(createRuntimeProjectPayload(seedProject));
+      const loaded = await client.loadSession(createRuntimeSessionLoadRequest(seedProject));
       const loadedProject = loaded.snapshot.project;
       if (!loaded.ok || !loadedProject) {
         throw new RuntimeClientError(loaded.diagnostics[0]?.message ?? "Runtime rejected initial project load.");

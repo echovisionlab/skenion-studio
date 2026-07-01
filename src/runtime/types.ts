@@ -2,6 +2,7 @@ import type {
   CanvasNodeViewV01,
   ColorRepresentationV01,
   EdgeSpecV01,
+  EndpointBindingValueFormatV01,
   FloatRepresentationV01,
   GeneratedShaderSourceMapV01,
   GraphDocumentV01,
@@ -11,6 +12,7 @@ import type {
   PasteGraphFragmentRequest as ContractPasteGraphFragmentRequest,
   PortSpecV01,
   ProjectDocumentV01,
+  RuntimeSessionLoadRequestV01,
   ShaderDiagnosticV01,
   UintRepresentationV01
 } from "@skenion/contracts";
@@ -220,6 +222,8 @@ export type RuntimeProjectSnapshot = RuntimeProjectDocument;
 
 export type RuntimeProjectRequest = RuntimeProjectDocument;
 
+export type RuntimeSessionLoadPayload = RuntimeSessionLoadRequestV01;
+
 export interface RuntimePlan {
   graphId: string;
   graphRevision: string;
@@ -295,6 +299,7 @@ export interface RuntimeSessionSnapshot {
   viewRevision: number;
   controlRevision: number;
   project: RuntimeProjectSnapshot | null;
+  bindingFormats: EndpointBindingValueFormatV01[];
   diagnostics: RuntimeDiagnostic[];
   plan: Record<string, unknown> | null;
 }

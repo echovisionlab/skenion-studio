@@ -42,6 +42,7 @@ const loadedSession = {
     viewRevision: 1,
     controlRevision: 0,
     project,
+    bindingFormats: [],
     diagnostics: [],
     plan: null
   },

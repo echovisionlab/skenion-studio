@@ -9,6 +9,7 @@ import {
   runtimeSessionPath,
   runtimeSessionEventsStreamUrl
 } from "./client";
+import { createRuntimeSessionLoadRequest } from "./payload";
 import type {
   RuntimeAsset,
   RuntimeAssetGetResponse,
@@ -68,6 +69,7 @@ const mutation: RuntimeMutationRequest = {
     ops: []
   }
 };
+const sessionLoadRequest = createRuntimeSessionLoadRequest(project);
 
 describe("runtime client", () => {
   it("normalizes runtime URLs", () => {
@@ -225,7 +227,7 @@ describe("runtime client", () => {
     const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
 
     await client.getSession();
-    await client.loadSession(project);
+    await client.loadSession(sessionLoadRequest);
     await client.validateSession();
     await client.planSession();
     await client.runSession(2);
@@ -236,13 +238,186 @@ describe("runtime client", () => {
     expect(fetchMock).toHaveBeenCalledTimes(7);
     expect(calls[0]).toEqual(["http://runtime.local/v0/sessions/default/snapshot", { method: "GET" }]);
     expect(calls[1][0]).toBe("http://runtime.local/v0/sessions/default/load");
-    expect(JSON.parse(String(calls[1][1].body))).toEqual(project);
+    expect(JSON.parse(String(calls[1][1].body))).toEqual(sessionLoadRequest);
     expect(calls[2]).toEqual(["http://runtime.local/v0/sessions/default/validate", { method: "POST" }]);
     expect(calls[3]).toEqual(["http://runtime.local/v0/sessions/default/plan", { method: "POST" }]);
     expect(calls[4][0]).toBe("http://runtime.local/v0/sessions/default/run");
     expect(JSON.parse(String(calls[4][1].body))).toEqual({ frames: 2 });
     expect(calls[5]).toEqual(["http://runtime.local/v0/sessions/default/history", { method: "GET" }]);
     expect(calls[6]).toEqual(["http://runtime.local/v0/sessions/default", { method: "DELETE" }]);
+  });
+
+  it("accepts the Runtime 0.56 empty-session connection response set", async () => {
+    const emptySession = sessionResponse({
+      snapshot: {
+        ...sessionResponse().snapshot,
+        sessionRevision: 0,
+        viewRevision: 0,
+        controlRevision: 0,
+        project: null,
+        bindingFormats: [],
+        diagnostics: [],
+        plan: null
+      }
+    });
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) => {
+      const input = String(_input);
+      if (input.endsWith("/health")) {
+        return jsonResponse({
+          ok: true,
+          service: "skenion-runtime",
+          version: "0.49.0",
+          apiVersion: "0.1.0",
+          contractsBuiltAgainstVersion: "0.56.0",
+          supportedContractsLine: "0.56",
+          supportedContractsRange: ">=0.56.0 <0.57.0"
+        });
+      }
+      if (input.endsWith("/v0/runtime/info")) {
+        return jsonResponse({
+          name: "skenion-runtime",
+          version: "0.49.0",
+          apiVersion: "0.1.0",
+          contractsBuiltAgainstVersion: "0.56.0",
+          supportedContractsLine: "0.56",
+          supportedContractsRange: ">=0.56.0 <0.57.0",
+          capabilities: [
+            "session.load",
+            "session.realtime.websocket",
+            "session.project",
+            "session.nodeCatalog",
+            "session.history",
+            "session.info",
+            "session.preview.status",
+            "session.telemetry"
+          ]
+        });
+      }
+      if (input.endsWith("/info")) {
+        return jsonResponse(
+          sessionInfoResponse({
+            snapshot: emptySession.snapshot,
+            profile: {
+              mode: "local-managed",
+              ownership: "owned-child",
+              displayName: "skenion runtime local sidecar",
+              endpoint: {
+                url: "http://127.0.0.1:3761",
+                canonicalUrl: "http://127.0.0.1:3761",
+                protocol: "http",
+                host: "127.0.0.1",
+                port: 3761,
+                tls: false
+              },
+              process: {
+                ownedByHost: true,
+                pid: 33671,
+                executablePath: "/Volumes/Linear/Skenion/Skenion-runtime/target/debug/skenion-runtime",
+                workingDirectory: "/Volumes/Linear/Skenion/Skenion-runtime",
+                startedAt: "unix-ms:1782873752185",
+                platform: "macos",
+                arch: "aarch64"
+              }
+            },
+            eventReplay: {
+              cursorKind: "sequence",
+              currentCursor: "0",
+              earliestSequence: 1,
+              latestSequence: 0,
+              replayLimit: 256,
+              overflow: false
+            }
+          })
+        );
+      }
+      if (input.endsWith("/snapshot")) {
+        return jsonResponse(emptySession);
+      }
+      if (input.endsWith("/history")) {
+        return jsonResponse(historyResponse({ entries: [], canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0 }));
+      }
+      if (input.endsWith("/preview")) {
+        return jsonResponse(
+          previewResponse({
+            state: "stopped",
+            pid: null,
+            graphId: null,
+            graphRevision: null,
+            sessionRevision: null,
+            previewSessionRevision: null,
+            controlRevision: null,
+            previewControlRevision: null,
+            controlLive: false,
+            lastControlUpdateAt: null,
+            stale: false,
+            startedAt: null,
+            exitedAt: null,
+            exitCode: null,
+            message: null
+          })
+        );
+      }
+      if (input.endsWith("/telemetry")) {
+        return jsonResponse(
+          telemetryResponse({
+            session: {
+              loaded: false,
+              graphId: null,
+              graphRevision: null,
+              sessionRevision: 0,
+              controlRevision: 0
+            },
+            preview: {
+              state: "stopped",
+              pid: null,
+              stale: false,
+              graphId: null,
+              graphRevision: null,
+              sessionRevision: null,
+              previewSessionRevision: null,
+              controlRevision: null,
+              previewControlRevision: null,
+              controlLive: false,
+              lastControlUpdateAt: null
+            },
+            render: {
+              active: false,
+              backend: null,
+              renderer: null,
+              framesRendered: 0,
+              approxFps: null,
+              lastFrameMs: null,
+              lastError: null,
+              sourceNodeId: null,
+              diagnostics: [],
+              generatedSourceAvailable: false,
+              controlRevision: null,
+              previewControlRevision: null,
+              controlLive: false,
+              lastControlUpdateAt: null
+            },
+            process: {
+              runtimeVersion: "0.49.0",
+              uptimeMs: 5410904
+            }
+          })
+        );
+      }
+      if (input.endsWith("/node-catalog")) {
+        return jsonResponse(nodeCatalogResponse());
+      }
+      throw new Error(`unexpected request ${input}`);
+    });
+    const client = createRuntimeClient({ baseUrl: "http://runtime.local", fetchImpl: fetchMock as typeof fetch });
+
+    await expect(client.getHealth()).resolves.toMatchObject({ ok: true, service: "skenion-runtime" });
+    await expect(client.getRuntimeInfo()).resolves.toMatchObject({ supportedContractsLine: "0.56" });
+    await expect(client.getSessionInfo()).resolves.toMatchObject({ snapshot: { bindingFormats: [], project: null } });
+    await expect(client.getSession()).resolves.toMatchObject({ snapshot: { bindingFormats: [], project: null } });
+    await expect(client.getSessionHistory()).resolves.toMatchObject({ entries: [], canUndo: false });
+    await expect(client.getPreviewStatus()).resolves.toMatchObject({ state: "stopped", sessionRevision: null });
+    await expect(client.getTelemetry()).resolves.toMatchObject({ session: { loaded: false }, render: { active: false } });
+    await expect(client.getNodeCatalog()).resolves.toMatchObject({ schema: "skenion.node-catalog.snapshot" });
   });
 
   it("targets explicit runtime session endpoints when a session id is provided", async () => {
@@ -270,7 +445,7 @@ describe("runtime client", () => {
 
     await client.getSessionInfo();
     await client.getSession();
-    await client.loadSession(project);
+    await client.loadSession(sessionLoadRequest);
     await client.getSessionHistory();
     await client.getPreviewStatus();
     await client.getGeneratedShader();
@@ -1027,6 +1202,7 @@ describe("runtime client", () => {
               viewRevision: 0,
               controlRevision: 0,
               project: null,
+              bindingFormats: [],
               diagnostics: [],
               plan: null
             }
@@ -1038,6 +1214,7 @@ describe("runtime client", () => {
     await expect(client.getSession()).resolves.toMatchObject({
       snapshot: {
         project: null,
+        bindingFormats: [],
         sessionRevision: 0
       }
     });
@@ -1129,7 +1306,7 @@ describe("runtime client", () => {
         )
       ) as typeof fetch
     });
-    await expect(httpErrorClient.validateProject(project)).rejects.toThrow("Runtime HTTP 500.");
+    await expect(httpErrorClient.validateProject(project)).rejects.toThrow("Runtime HTTP 500 from /v0/validate.");
   });
 
   it("rejects unsupported runtime response shapes", async () => {
@@ -1827,6 +2004,7 @@ function sessionResponse(overrides: Partial<RuntimeSessionResponse> = {}): Runti
         viewState: viewStateResponse(),
         patchLibrary: []
       },
+      bindingFormats: [],
       diagnostics: [],
       plan: null
     },

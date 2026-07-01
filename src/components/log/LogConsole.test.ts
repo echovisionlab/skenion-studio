@@ -139,6 +139,7 @@ describe("LogConsole", () => {
             viewRevision: 0,
             controlRevision: 0,
             project: null,
+            bindingFormats: [],
             diagnostics: [],
             plan: null
           },

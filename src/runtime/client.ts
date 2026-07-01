@@ -1,4 +1,5 @@
 import {
+  validateEndpointBindingValueFormatV01,
   validateNodeCatalogSnapshotV01,
   validatePasteGraphFragmentRequest,
   validateProjectDocumentV01
@@ -36,6 +37,7 @@ import type {
   RuntimeProjectPayload,
   RuntimeSessionEvent,
   RuntimeSessionInfoResponse,
+  RuntimeSessionLoadPayload,
   RuntimeSessionResponse,
   RuntimeSessionSnapshot,
   RuntimeTelemetryPreview,
@@ -63,7 +65,7 @@ export interface RuntimeClient {
   getSessionInfo: () => Promise<RuntimeSessionInfoResponse>;
   getNodeCatalog: () => Promise<NodeCatalogSnapshotV01>;
   getSession: () => Promise<RuntimeSessionResponse>;
-  loadSession: (project: RuntimeProjectPayload) => Promise<RuntimeSessionResponse>;
+  loadSession: (request: RuntimeSessionLoadPayload) => Promise<RuntimeSessionResponse>;
   validateSession: () => Promise<RuntimeSessionResponse>;
   planSession: () => Promise<RuntimeSessionResponse>;
   runSession: (frames: number) => Promise<RuntimeSessionResponse>;
@@ -697,11 +699,13 @@ async function postRuntimeSessionResponse(
 function isRuntimeSessionSnapshot(value: unknown): value is RuntimeSessionSnapshot {
   return (
     isRecord(value) &&
-    hasOnlyKeys(value, ["sessionRevision", "viewRevision", "controlRevision", "project", "diagnostics", "plan"]) &&
+    hasOnlyKeys(value, ["sessionRevision", "viewRevision", "controlRevision", "project", "bindingFormats", "diagnostics", "plan"]) &&
     isNonNegativeInteger(value.sessionRevision) &&
     isNonNegativeInteger(value.viewRevision) &&
     isNonNegativeInteger(value.controlRevision) &&
     (value.project === null || isRuntimeProjectSnapshot(value.project)) &&
+    Array.isArray(value.bindingFormats) &&
+    value.bindingFormats.every((bindingFormat) => validateEndpointBindingValueFormatV01(bindingFormat).ok) &&
     Array.isArray(value.diagnostics) &&
     value.diagnostics.every(isRuntimeDiagnostic) &&
     (value.plan === null || isRecord(value.plan))
@@ -1231,22 +1235,23 @@ async function requestJson<T>(
   try {
     response = await fetchImpl(`${baseUrl}${path}`, init);
   } catch (error) {
-    throw new RuntimeClientError(error instanceof Error ? error.message : "Runtime request failed.");
+    const message = error instanceof Error ? error.message : "Runtime request failed.";
+    throw new RuntimeClientError(`${message} (${path})`);
   }
 
   let value: unknown;
   try {
     value = await response.json();
   } catch {
-    throw new RuntimeClientError("Runtime returned a non-JSON response.");
+    throw new RuntimeClientError(`Runtime returned a non-JSON response from ${path}.`);
   }
 
   if (!response.ok) {
-    throw new RuntimeClientError(`Runtime HTTP ${response.status}.`);
+    throw new RuntimeClientError(`Runtime HTTP ${response.status} from ${path}.`);
   }
 
   if (!guard(value)) {
-    throw new RuntimeClientError("Runtime returned an unsupported response shape.");
+    throw new RuntimeClientError(`Runtime returned an unsupported response shape from ${path}.`);
   }
 
   return value;

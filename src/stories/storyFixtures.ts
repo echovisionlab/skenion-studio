@@ -395,6 +395,7 @@ export const runtimeSession: RuntimeSessionResponse = {
       },
       patchLibrary: []
     },
+    bindingFormats: [],
     diagnostics: [],
     plan: null
   },
