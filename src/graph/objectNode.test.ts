@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { NodeDefinitionManifestV01 } from "@skenion/contracts";
 import { nodeRegistry } from "../data/registry";
+import type * as PatchLibraryModule from "./patchLibrary";
 import {
   createPatchLibrary,
   type DisplayGraphNodeV01 as GraphNodeV01,
@@ -91,6 +92,24 @@ describe("object node authoring adapter", () => {
     ]);
   });
 
+  it("creates operator and oscillator nodes without optional scalar defaults", () => {
+    const add = createGraphNodeFromObjectSpec("+", []);
+    const multiply = createGraphNodeFromObjectSpec("*~", []);
+    const oscillator = createGraphNodeFromObjectSpec("osc~", []);
+
+    expect(add.ok).toBe(true);
+    expect(add.node?.params).toEqual({ label: "+" });
+    expect(add.node?.ports.find((port) => port.id === "right")).not.toHaveProperty("default");
+
+    expect(multiply.ok).toBe(true);
+    expect(multiply.node?.params).toEqual({ label: "*~" });
+    expect(multiply.node?.ports.find((port) => port.id === "right")).not.toHaveProperty("default");
+
+    expect(oscillator.ok).toBe(true);
+    expect(oscillator.node?.params).toEqual({ label: "osc~" });
+    expect(oscillator.node?.ports.find((port) => port.id === "frequency")).not.toHaveProperty("default");
+  });
+
   it("preserves object spec port descriptions in graph ports", () => {
     expect(
       objectSpecPortToGraphPort({
@@ -123,8 +142,44 @@ describe("object node authoring adapter", () => {
     expect(oscillator.node?.kind).toBe("audio.osc");
   });
 
+  it("preserves registry port groups on native object aliases", () => {
+    const decodeDefinition = nodeRegistry.find((definition) => definition.id === "core.video-decode")!;
+    const registryWithPortGroups = nodeRegistry.map((definition): NodeDefinitionManifestV01 => {
+      if (definition.id !== decodeDefinition.id) {
+        return definition;
+      }
+      return {
+        ...definition,
+        portGroups: [
+          {
+            id: "sources",
+            direction: "input",
+            type: "asset.video",
+            minPorts: 1,
+            label: "Sources"
+          }
+        ]
+      };
+    });
+
+    const result = createGraphNodeFromObjectSpec("decode", [], registryWithPortGroups);
+
+    expect(result.ok).toBe(true);
+    expect(result.node?.portGroups).toEqual([
+      {
+        id: "sources",
+        direction: "input",
+        type: "asset.video",
+        minPorts: 1,
+        label: "Sources"
+      }
+    ]);
+    expect(result.node?.portGroups?.[0]).not.toBe(registryWithPortGroups.find((definition) => definition.id === "core.video-decode")?.portGroups?.[0]);
+  });
+
   it("preserves invalid or deferred object spec as unresolved nodes", () => {
     const invalid = createGraphNodeFromObjectSpec("sin~", []);
+    const invalidSyntax = createGraphNodeFromObjectSpec("[osc~ 440", []);
     const empty = createGraphNodeFromObjectSpec("", []);
 
     expect(invalid.ok).toBe(false);
@@ -142,6 +197,18 @@ describe("object node authoring adapter", () => {
       ports: []
     });
     expect(invalid.diagnostics[0]?.code).toBe("object-unresolved");
+    expect(invalidSyntax.ok).toBe(false);
+    expect(invalidSyntax.node).toMatchObject({
+      kind: OBJECT_DISPLAY_KIND,
+      objectSpec: "[osc~ 440",
+      objectResolution: {
+        status: "unresolved"
+      },
+      params: {
+        requestedObject: "<invalid>"
+      }
+    });
+    expect(invalidSyntax.diagnostics[0]?.code).toBe("invalid-syntax");
     expect(empty.ok).toBe(false);
     expect(empty.node).toBeNull();
   });
@@ -583,5 +650,26 @@ describe("object node authoring adapter", () => {
         activation: "passive"
       })
     ).not.toHaveProperty("activation");
+  });
+
+  it("fails fast when a local object projection lacks implementation identity", async () => {
+    vi.resetModules();
+    vi.doMock("./patchLibrary", async (importOriginal) => {
+      const actual = await importOriginal<typeof PatchLibraryModule>();
+      return {
+        ...actual,
+        implementationForDisplayKind: () => undefined
+      };
+    });
+
+    try {
+      const { createGraphNodeFromObjectSpec: createNodeWithMissingImplementation } = await import("./objectNode");
+      expect(() => createNodeWithMissingImplementation("+ 1", [])).toThrow(
+        "Missing implementation identity for object node kind core.operator.add"
+      );
+    } finally {
+      vi.doUnmock("./patchLibrary");
+      vi.resetModules();
+    }
   });
 });

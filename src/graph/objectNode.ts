@@ -129,15 +129,15 @@ export function createGraphNodeFromObjectSpec(
     );
   }
 
-  const implementation = implementationForDisplayKind(projection.displayKind, projection.displayKindVersion);
-  const objectResolution = implementation ? resolvedObjectResolution(parseResult.displayText, implementation) : undefined;
+  const implementation = requireImplementationForDisplayKind(projection.displayKind, projection.displayKindVersion);
+  const objectResolution = resolvedObjectResolution(parseResult.displayText, implementation);
   const node: DisplayGraphNodeV01 = {
     id: options.nodeId ?? uniqueObjectNodeId(projection.displayKind, existingNodes),
     kind: projection.displayKind,
     kindVersion: projection.displayKindVersion,
     objectSpec: parseResult.displayText,
-    ...(implementation ? { implementation } : {}),
-    ...(objectResolution ? { objectResolution } : {}),
+    implementation,
+    objectResolution,
     params: {
       ...projection.params,
       label: parseResult.displayText
@@ -302,15 +302,15 @@ function graphNodeFromDefinition(
   objectSpec: string,
   nodeId?: string
 ): DisplayGraphNodeV01 {
-  const implementation = implementationForDisplayKind(definition.id, definition.version);
-  const objectResolution = implementation ? resolvedObjectResolution(objectSpec, implementation) : undefined;
+  const implementation = requireImplementationForDisplayKind(definition.id, definition.version);
+  const objectResolution = resolvedObjectResolution(objectSpec, implementation);
   return {
     id: nodeId ?? uniqueObjectNodeId(definition.id, existingNodes),
     kind: definition.id,
     kindVersion: definition.version,
     objectSpec,
-    ...(implementation ? { implementation } : {}),
-    ...(objectResolution ? { objectResolution } : {}),
+    implementation,
+    objectResolution,
     params: paramsOverride,
     ports: definition.ports.map(portSpecToGraphPort),
     ...(definition.portGroups ? { portGroups: definition.portGroups.map((group) => ({ ...group })) } : {})
@@ -425,7 +425,7 @@ function unresolvedObjectResult(
   existingNodes: DisplayGraphNodeV01[],
   nodeId?: string
 ): ObjectNodeBuildResult {
-  const diagnosticMessage = diagnostics[0]?.message ?? "Object could not be resolved.";
+  const diagnosticMessage = diagnostics[0]!.message;
   const objectResolution: ObjectResolutionV01 = {
     status: "unresolved",
     selectedSpec: displayText,
@@ -466,31 +466,12 @@ function unresolvedObjectResult(
 
 function diagnosticsForUnresolvedParse(parseResult: ObjectSpecParseResultV01): ObjectSpecDiagnosticV01[] {
   const className = parseResult.className;
-  const firstDiagnostic = parseResult.diagnostics[0];
   if (parseResult.ok && className) {
     return [
       {
         severity: "error",
         code: "object-unresolved",
         message: `Object "${className}" is not available in the current catalog.`
-      }
-    ];
-  }
-  if (firstDiagnostic?.code === "unsupported-class") {
-    if (!className.includes(".")) {
-      return [
-        {
-          severity: "error",
-          code: "object-unresolved",
-          message: `Object "${className}" is not available in the current catalog.`
-        }
-      ];
-    }
-    return [
-      {
-        severity: "error",
-        code: "object-unavailable",
-        message: `${className} is not available in the local runtime registry.`
       }
     ];
   }
@@ -514,8 +495,8 @@ function parseResultForNativeAlias(
   displayText: string,
   definition: NodeDefinitionManifestV01
 ): ObjectSpecParseResultV01 {
-  const implementation = implementationForDisplayKind(definition.id, definition.version);
-  const objectResolution = implementation ? resolvedObjectResolution(displayText, implementation) : undefined;
+  const implementation = requireImplementationForDisplayKind(definition.id, definition.version);
+  const objectResolution = resolvedObjectResolution(displayText, implementation);
   return {
     schema: OBJECT_SPEC_SCHEMA,
     schemaVersion: OBJECT_SPEC_SCHEMA_VERSION,
@@ -523,8 +504,8 @@ function parseResultForNativeAlias(
     ok: true,
     className: displayText,
     creationArgs: [],
-    ...(implementation ? { implementation } : {}),
-    ...(objectResolution ? { objectResolution } : {}),
+    implementation,
+    objectResolution,
     params: {},
     instancePorts: definition.ports.map((port) => {
       const graphPort = portSpecToGraphPort(port);
@@ -581,13 +562,13 @@ function parseResultForSubpatch(
 function enrichParseResult(
   parseResult: ObjectSpecParseResultV01,
   projection: LocalObjectProjection,
-  implementation: ObjectImplementationRefV01 | undefined,
-  objectResolution: ObjectResolutionV01 | undefined
+  implementation: ObjectImplementationRefV01,
+  objectResolution: ObjectResolutionV01
 ): ObjectSpecParseResultV01 {
   return {
     ...parseResult,
-    ...(implementation ? { implementation } : {}),
-    ...(objectResolution ? { objectResolution } : {}),
+    implementation,
+    objectResolution,
     params: projection.params,
     instancePorts: projection.instancePorts
   };
@@ -640,7 +621,15 @@ function resolvedObjectData(
 
 function firstNumericArg(args: ObjectSpecAtomV01[]): number | null {
   const first = args[0];
-  return first && (first.type === "int" || first.type === "uint" || first.type === "float") ? first.value : null;
+  return first && (first.type === "int" || first.type === "float") ? first.value : null;
+}
+
+function requireImplementationForDisplayKind(displayKind: string, version: string): ObjectImplementationRefV01 {
+  const implementation = implementationForDisplayKind(displayKind, version);
+  if (!implementation) {
+    throw new Error(`Missing implementation identity for object node kind ${displayKind}`);
+  }
+  return implementation;
 }
 
 function controlAddParseData(right: number | null): Omit<LocalObjectProjection, "displayKind" | "displayKindVersion"> {
