@@ -79,9 +79,7 @@ import {
 import {
   rootGraphTarget,
   runtimeCommandGroupsFromGraphPatches,
-  runtimeGraphCommandPayloadForPatchGroup,
-  runtimeSessionWithAcceptedProject,
-  withProjectGraphRevision
+  runtimeGraphCommandPayloadForPatchGroup
 } from "./runtime/liveGraphPatches";
 import { runtimeControlValueEquals } from "./runtime/controlMessage";
 import type {
@@ -853,18 +851,18 @@ export default function App() {
   }
 
   function updateGraph(nextGraph: DisplayGraphDocumentV01, patches: GraphPatch[] = []) {
-    const nextProject = updateActiveProjectGraph(activeProject, nextGraph, patches);
     if (patches.length === 0) {
+      const nextProject = updateActiveProjectGraph(activeProject, nextGraph, patches);
       setActiveProject(nextProject);
       setConnectionCheck(null);
       return;
     }
 
-    void applyRuntimeGraphPatches(patches, nextProject);
+    void applyRuntimeGraphPatches(patches);
     setConnectionCheck(null);
   }
 
-  async function applyRuntimeGraphPatches(patches: GraphPatch[], nextProject: ProjectDocumentV01) {
+  async function applyRuntimeGraphPatches(patches: GraphPatch[]) {
     if (runtimeStatus !== "connected" || !runtimeSessionSynced) {
       setRuntimeError("Runtime session is required before graph edits can be applied.");
       return;
@@ -891,9 +889,7 @@ export default function App() {
     setPatchConflict(null);
     try {
       const graphCommandClient = createActiveRuntimeGraphCommandClient();
-      let acceptedProject = nextProject;
       let baseSessionRevision = runtimeSession?.snapshot.sessionRevision;
-      let lastResponse: RuntimeGraphCommandResponse | null = null;
       for (const group of commandGroups) {
         const response = await graphCommandClient.sendGraphCommand(
           runtimeGraphCommandPayloadForPatchGroup(group, baseRevision, baseSessionRevision)
@@ -905,20 +901,15 @@ export default function App() {
           await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
           return;
         }
-        lastResponse = response;
         if (typeof response.payload.sessionRevision === "number") {
           baseSessionRevision = response.payload.sessionRevision;
         }
         if (response.payload.graphRevision) {
           baseRevision = response.payload.graphRevision;
-          acceptedProject = withProjectGraphRevision(acceptedProject, response.payload.graphRevision);
         }
       }
 
-      setActiveProject(acceptedProject);
-      setRuntimeSession((current) => runtimeSessionWithAcceptedProject(current, acceptedProject, lastResponse));
-      setLastLoadedGraphFingerprint(runtimeGraphFingerprint(acceptedProject.graph.id, acceptedProject.graph.revision));
-      clearPendingPatch();
+      await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
       setRuntimeStatus("connected");
     } catch (error) {
       setRuntimeStatus("error");
