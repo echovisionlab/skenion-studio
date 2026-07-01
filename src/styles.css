@@ -71,26 +71,15 @@ body {
 }
 
 .studio-toolbar {
-  height: 58px;
-  padding: 0 14px;
+  height: 42px;
+  padding: 0 10px;
   border-bottom: 1px solid var(--sk-border);
   background: var(--sk-surface);
 }
 
-.studio-mark {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border: 1px solid var(--sk-border-strong);
-  background: var(--sk-surface);
-  color: var(--sk-text);
-  font-weight: 900;
-}
-
 .studio-main {
   position: relative;
-  height: calc(100vh - 88px);
+  height: calc(100vh - 72px);
   min-height: 540px;
   background: var(--sk-surface-muted);
 }
@@ -112,7 +101,20 @@ body {
 
 .palette-scroll,
 .aside-scroll {
-  height: calc(100vh - 162px);
+  height: calc(100vh - 146px);
+}
+
+.floating-panel-body .panel-shell,
+.floating-panel-body .palette-scroll,
+.floating-panel-body .aside-scroll {
+  height: 100%;
+}
+
+.floating-panel-body .runtime-panel {
+  height: 100%;
+  min-height: 0;
+  border-bottom: 0;
+  padding-bottom: 0;
 }
 
 .runtime-panel {

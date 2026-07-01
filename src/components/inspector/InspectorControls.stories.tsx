@@ -26,9 +26,7 @@ import {
   edgeInspectorModel,
   feedbackEdgeInspectorModel,
   noop,
-  semanticIssues,
-  validationFailed,
-  validationOk
+  semanticIssues
 } from "../../stories/storyFixtures";
 
 const meta = {
@@ -51,7 +49,7 @@ const asyncNoop = async () => undefined;
 
 export const NodeControls: Story = {
   render: () => (
-    <InspectorShell edgeCount={1} nodeCount={2}>
+    <InspectorShell>
       <NodeInspector
         node={renderSampleGraph.nodes[0]!}
         onRemoveNode={noop}
@@ -106,7 +104,7 @@ export const MessageNodeInspector: Story = {
   render: () => {
     const definition = nodeRegistry.find((candidate) => candidate.id === "core.message");
     return (
-      <InspectorShell edgeCount={1} nodeCount={2}>
+      <InspectorShell>
         <NodeInspector
           node={createGraphNodeFromDefinition(definition!, [])}
           onRemoveNode={noop}
@@ -193,11 +191,7 @@ export const FullscreenShaderIssues: Story = {
 export const ValidationPanel: Story = {
   render: () => (
     <Stack gap="sm">
-      <GraphIssuesPanel semanticIssues={[]} validation={validationOk} />
-      <GraphIssuesPanel
-        semanticIssues={semanticIssues}
-        validation={validationFailed}
-      />
+      <GraphIssuesPanel semanticIssues={semanticIssues} />
       <ConnectionIssuesPanel
         connectionCheck={{
           ok: false,

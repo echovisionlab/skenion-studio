@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, AppShell, Badge, Group, ScrollArea, Stack, Text } from "@mantine/core";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, AppShell, Badge, Group, Stack, Text } from "@mantine/core";
 import { Box as BoxIcon, CircleAlert, PanelRightOpen, ScrollText, X } from "lucide-react";
 import {
   type GraphFragmentV01,
@@ -15,13 +15,12 @@ import { InspectorPanel } from "./components/InspectorPanel";
 import { PalettePanel } from "./components/PalettePanel";
 import { RuntimeLogsPanel, RuntimeSettingsPanel } from "./components/RuntimePanel";
 import { StudioToolbar } from "./components/StudioToolbar";
-import { Dialog } from "./components/core/Dialog/Dialog";
 import { IconButton } from "./components/core/IconButton/IconButton";
-import { WorkspaceSideDock, type PanelRailItem } from "./components/layout/PanelRail";
+import { FloatingPanel } from "./components/layout/FloatingPanel";
+import { PanelRail, type PanelRailItem } from "./components/layout/PanelRail";
 import { clientLogLine, runtimeLogLineFromEvent, type LogLevel, type LogLine } from "./components/log/LogConsole";
 import {
   applyPatch,
-  graphSummary,
   validateGraph,
   type ConnectionCheck,
   type GraphPatch
@@ -152,7 +151,7 @@ import {
   type StudioWindowMode,
   type StudioWindowRegistry
 } from "./desktop/windowRegistry";
-import { useStudioSidePanels } from "./hooks/useStudioSidePanels";
+import { useFloatingPanels } from "./hooks/useFloatingPanels";
 import { useStudioSelection } from "./hooks/useStudioSelection";
 import { useApplicationShortcuts, type GraphPointerPosition } from "./hooks/useApplicationShortcuts";
 
@@ -188,16 +187,19 @@ export default function App() {
   const [editingObjectSpecNodeId, setEditingObjectSpecNodeId] = useState<string | null>(null);
   const [graphFragmentClipboard, setGraphFragmentClipboard] = useState<GraphFragmentV01 | null>(null);
   const {
-    closeSidePanel,
-    logsOpen,
-    openInspectSidePanel,
-    openLogsSidePanel,
-    sidePanelOpen
-  } = useStudioSidePanels();
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+    bringPanelToFront,
+    closePanel,
+    movePanel,
+    openPanel,
+    panels,
+    resizePanel,
+    togglePanel
+  } = useFloatingPanels();
+  const openInspectSidePanel = useCallback(() => {
+    openPanel("inspector");
+  }, [openPanel]);
   const [clientLogLines, setClientLogLines] = useState<LogLine[]>([]);
   const [runtimeStreamLogLines, setRuntimeStreamLogLines] = useState<LogLine[]>([]);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [graphLocked, setGraphLocked] = useState(true);
   const [connectionCheck, setConnectionCheck] = useState<ConnectionCheck | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -256,6 +258,7 @@ export default function App() {
     studioWindowId
   });
   const validation = useMemo(() => validateGraph(graph), [graph]);
+  const validationErrorLogFingerprintRef = useRef<string | null>(null);
   const semanticIssues = useMemo(() => analyzeGraphPortSemantics(graph), [graph]);
   const currentRuntimeScope = useMemo(
     () =>
@@ -289,7 +292,7 @@ export default function App() {
     runtimeSessionSynced &&
     runtimeSessionLoaded(runtimeSession);
   useApplicationShortcuts({
-    enabled: runtimeGraphAvailable && !settingsOpen,
+    enabled: runtimeGraphAvailable,
     getGraphPointerPosition: () => graphPointerPositionRef.current,
     onCreateObjectAtPosition: createShortcutObjectAtPosition,
     onToggleGraphLock: toggleGraphLock
@@ -592,7 +595,7 @@ export default function App() {
     viewState
   ]);
 
-  function appendClientLog(level: LogLevel, message: string) {
+  const appendClientLog = useCallback((level: LogLevel, message: string) => {
     const timestamp = new Date().toISOString();
     setClientLogLines((current) =>
       [
@@ -600,7 +603,21 @@ export default function App() {
         clientLogLine(`studio-${timestamp}-${current.length}`, level, message, timestamp)
       ].slice(-200)
     );
-  }
+  }, []);
+
+  useEffect(() => {
+    if (validation.ok) {
+      validationErrorLogFingerprintRef.current = null;
+      return;
+    }
+
+    const fingerprint = validation.errors.join("\n");
+    if (validationErrorLogFingerprintRef.current === fingerprint) {
+      return;
+    }
+    validationErrorLogFingerprintRef.current = fingerprint;
+    appendClientLog("error", `Invalid Runtime graph shape: ${validation.errors.slice(0, 3).join("; ")}`);
+  }, [appendClientLog, validation]);
 
   function createActiveRuntimeClient(baseUrl = runtimeUrl): RuntimeClient {
     return createRuntimeClient({ baseUrl, sessionId: runtimeSessionId });
@@ -2000,199 +2017,226 @@ export default function App() {
       runtimeLines={runtimeStreamLogLines}
     />
   );
+  const nodesPanel = runtimeGraphAvailable ? (
+    <PalettePanel
+      addDisabled={graphLocked}
+      catalogEntries={nodeCatalog?.entries ?? []}
+      onAddObject={addObjectNode}
+      onAddObjectSpec={addObjectNodeFromSpec}
+    />
+  ) : (
+    <RuntimeRequiredPanel status={runtimeStatus} />
+  );
+  const inspectorPanel = runtimeGraphAvailable ? (
+    <InspectorPanel
+      connectionCheck={connectionCheck}
+      generatedShader={generatedShader}
+      generatedShaderBusy={runtimeBusyAction === "generatedShader"}
+      graphLocked={graphLocked}
+      edge={selectedEdge}
+      node={selectedNode}
+      onImportAsset={importRuntimeAsset}
+      onLoadGeneratedShader={runtimeSupportsGeneratedShader(runtimeInfo) ? loadGeneratedShader : undefined}
+      onRemoveNode={removeNode}
+      onSetNodeParam={setNodeParam}
+      onSyncShaderInputs={syncShaderInputs}
+      runtimeAssetImportBusy={runtimeBusyAction === "assetImport"}
+      runtimeAssetImportEnabled={runtimeStatus === "connected" && runtimeSupportsAssetImport(runtimeInfo)}
+      runtimeShaderIssues={selectedRuntimeShaderIssues}
+      semanticIssues={semanticIssues}
+    />
+  ) : (
+    <RuntimeRequiredPanel status={runtimeStatus} />
+  );
   const leftPanelItems: PanelRailItem[] = [
     {
-      icon: <BoxIcon size={18} />,
+      icon: <BoxIcon size={14} />,
       id: "nodes",
-      label: leftPanelOpen ? "Hide nodes" : "Show nodes",
-      onClick: () => setLeftPanelOpen((open) => !open),
-      selected: leftPanelOpen
+      label: panels.nodes.open ? "Hide nodes" : "Show nodes",
+      onClick: () => togglePanel("nodes"),
+      selected: panels.nodes.open
     }
   ];
   const rightPanelItems: PanelRailItem[] = [
     {
-      icon: <PanelRightOpen size={18} />,
+      icon: <PanelRightOpen size={14} />,
       id: "inspector",
-      label: sidePanelOpen && !logsOpen ? "Hide inspector" : "Inspector",
-      onClick: () => {
-        if (sidePanelOpen && !logsOpen) {
-          closeSidePanel();
-          return;
-        }
-        openInspectSidePanel();
-      },
-      selected: sidePanelOpen && !logsOpen
+      label: panels.inspector.open ? "Hide inspector" : "Inspector",
+      onClick: () => togglePanel("inspector"),
+      selected: panels.inspector.open
     },
     {
-      icon: <ScrollText size={18} />,
+      icon: <ScrollText size={14} />,
       id: "logs",
-      label: sidePanelOpen && logsOpen ? "Hide logs" : "Logs",
-      onClick: () => {
-        if (sidePanelOpen && logsOpen) {
-          closeSidePanel();
-          return;
-        }
-        openLogsSidePanel();
-      },
-      selected: sidePanelOpen && logsOpen
+      label: panels.logs.open ? "Hide logs" : "Logs",
+      onClick: () => togglePanel("logs"),
+      selected: panels.logs.open
     }
   ];
 
   return (
-    <AppShell
-      header={{ height: 58 }}
-      footer={{ height: 30 }}
-      navbar={{ width: leftPanelOpen ? 340 : 48, breakpoint: "sm" }}
-      aside={{ width: sidePanelOpen ? 404 : 48, breakpoint: "md" }}
-      padding={0}
-    >
-      <Dialog
-        centered
-        onClose={() => setSettingsOpen(false)}
-        opened={settingsOpen}
-        size="xl"
-        title="Settings"
+    <>
+      <AppShell
+        header={{ height: 42 }}
+        footer={{ height: 30 }}
+        navbar={{ width: 30, breakpoint: "sm" }}
+        aside={{ width: 30, breakpoint: "md" }}
+        padding={0}
       >
-        {runtimeSettingsPanel}
-      </Dialog>
+        <AppShell.Header>
+          <StudioToolbar
+            projectName={activeProject.id}
+            runtimeGraphAvailable={runtimeGraphAvailable}
+            onExport={exportGraph}
+            onImport={importGraph}
+            onOpenProject={openProject}
+            onSaveProject={saveProject}
+            onOpenSettings={() => openPanel("settings")}
+          />
+        </AppShell.Header>
 
-      <AppShell.Header>
-        <StudioToolbar
-          graph={graph}
-          runtimeGraphAvailable={runtimeGraphAvailable}
-          summary={graphSummary(graph)}
-          validation={validation}
-          onExport={exportGraph}
-          onImport={importGraph}
-          onOpenProject={openProject}
-          onSaveProject={saveProject}
-          onOpenSettings={() => setSettingsOpen(true)}
-        />
-      </AppShell.Header>
+        <AppShell.Footer>
+          <IssuesFooter
+            graphLockDisabled={!runtimeGraphAvailable}
+            graphLocked={graphLocked}
+            onToggleGraphLock={toggleGraphLock}
+            onOpenIssues={openInspectSidePanel}
+            semanticIssues={semanticIssues}
+          />
+        </AppShell.Footer>
 
-      <AppShell.Footer>
-        <IssuesFooter
-          graphLockDisabled={!runtimeGraphAvailable}
-          graphLocked={graphLocked}
-          onToggleGraphLock={toggleGraphLock}
-          semanticIssues={semanticIssues}
-          validation={validation}
-        />
-      </AppShell.Footer>
+        <AppShell.Navbar className="workspace-navbar" p={0}>
+          <PanelRail edge="left" items={leftPanelItems} />
+        </AppShell.Navbar>
 
-      <AppShell.Navbar className="workspace-navbar" p={0}>
-        <WorkspaceSideDock contentOpen={leftPanelOpen} edge="left" railItems={leftPanelItems}>
-          {runtimeGraphAvailable ? (
-            <PalettePanel
-              addDisabled={graphLocked}
-              catalogEntries={nodeCatalog?.entries ?? []}
-              onAddObject={addObjectNode}
-              onAddObjectSpec={addObjectNodeFromSpec}
-            />
-          ) : (
-            <RuntimeRequiredPanel status={runtimeStatus} />
-          )}
-        </WorkspaceSideDock>
-      </AppShell.Navbar>
-
-      <AppShell.Main>
-        <div className="studio-main">
-          {importError ? (
-            <Alert
-              className="studio-alert"
-              color="red"
-              icon={<CircleAlert size={18} />}
-            >
-              <Group gap="xs" justify="space-between" wrap="nowrap">
-                <Group gap="xs">
-                  <Text fw={700}>Import failed</Text>
-                  <Text>{importError}</Text>
+        <AppShell.Main>
+          <div className="studio-main">
+            {importError ? (
+              <Alert
+                className="studio-alert"
+                color="red"
+                icon={<CircleAlert size={18} />}
+              >
+                <Group gap="xs" justify="space-between" wrap="nowrap">
+                  <Group gap="xs">
+                    <Text fw={700}>Import failed</Text>
+                    <Text>{importError}</Text>
+                  </Group>
+                  <IconButton
+                    icon={<X size={14} />}
+                    label="Dismiss import error"
+                    onClick={() => setImportError(null)}
+                    size="sm"
+                  />
                 </Group>
-                <IconButton
-                  icon={<X size={14} />}
-                  label="Dismiss import error"
-                  onClick={() => setImportError(null)}
-                  size="sm"
-                />
-              </Group>
-            </Alert>
-          ) : null}
-          {runtimeGraphAvailable ? (
-            <GraphCanvas
-              graph={graph}
-              graphLocked={graphLocked}
-              editingObjectSpecNodeId={editingObjectSpecNodeId}
-              viewState={viewState}
-              viewport={canvasViewport}
-              onAddObjectAtPosition={addObjectAtPosition}
-              onConnectionCheck={setConnectionCheck}
-              onGraphChange={updateGraph}
-              onGraphPointerPositionChange={updateGraphPointerPosition}
-              onImportAsset={importRuntimeAsset}
-              onObjectControl={(nodeId, portId, message) => {
-                void sendRuntimeControlEvent({
-                  nodeId,
-                  portId: portId as RuntimeControlEventRequest["portId"],
-                  message
-                });
-              }}
-              onObjectLiveControl={(nodeId, portId, message) => {
-                sendRuntimeLiveControlEvent({
-                  nodeId,
-                  portId: portId as RuntimeControlEventRequest["portId"],
-                  message
-                });
-              }}
-              onObjectParamChange={setNodeParam}
-              onObjectSpecCommit={replaceObjectNodeSpec}
-              onObjectSpecEditComplete={(nodeId) => {
-                setEditingObjectSpecNodeId((current) => current === nodeId ? null : current);
-              }}
-              runtimeControlEnabled={runtimeControlInteractionEnabled}
-              runtimeControlPulses={runtimeControlPulses}
-              runtimeControlValues={runtimeSessionSynced ? runtimeControlState?.values ?? emptyRuntimeControlValues : emptyRuntimeControlValues}
-              onViewStateChange={updateViewStateFromCanvas}
-              onViewportChange={updateViewportFromCanvas}
-              onSelectionChange={handleCanvasSelectionChange}
-              selection={canvasSelection}
-            />
-          ) : (
-            <RuntimeRequiredCanvas status={runtimeStatus} />
-          )}
-        </div>
-      </AppShell.Main>
-
-      <AppShell.Aside className="workspace-aside" p={0}>
-        <WorkspaceSideDock contentOpen={sidePanelOpen} edge="right" railItems={rightPanelItems}>
-          <ScrollArea className="aside-scroll" offsetScrollbars>
-            {logsOpen ? (
-              runtimeLogsPanel
-            ) : runtimeGraphAvailable ? (
-              <InspectorPanel
-                connectionCheck={connectionCheck}
-                generatedShader={generatedShader}
-                generatedShaderBusy={runtimeBusyAction === "generatedShader"}
+              </Alert>
+            ) : null}
+            {runtimeGraphAvailable ? (
+              <GraphCanvas
                 graph={graph}
                 graphLocked={graphLocked}
-                edge={selectedEdge}
-                node={selectedNode}
+                editingObjectSpecNodeId={editingObjectSpecNodeId}
+                viewState={viewState}
+                viewport={canvasViewport}
+                onAddObjectAtPosition={addObjectAtPosition}
+                onConnectionCheck={setConnectionCheck}
+                onGraphChange={updateGraph}
+                onGraphPointerPositionChange={updateGraphPointerPosition}
                 onImportAsset={importRuntimeAsset}
-                onLoadGeneratedShader={runtimeSupportsGeneratedShader(runtimeInfo) ? loadGeneratedShader : undefined}
-                onRemoveNode={removeNode}
-                onSetNodeParam={setNodeParam}
-                onSyncShaderInputs={syncShaderInputs}
-                runtimeAssetImportBusy={runtimeBusyAction === "assetImport"}
-                runtimeAssetImportEnabled={runtimeStatus === "connected" && runtimeSupportsAssetImport(runtimeInfo)}
-                runtimeShaderIssues={selectedRuntimeShaderIssues}
-                semanticIssues={semanticIssues}
+                onObjectControl={(nodeId, portId, message) => {
+                  void sendRuntimeControlEvent({
+                    nodeId,
+                    portId: portId as RuntimeControlEventRequest["portId"],
+                    message
+                  });
+                }}
+                onObjectLiveControl={(nodeId, portId, message) => {
+                  sendRuntimeLiveControlEvent({
+                    nodeId,
+                    portId: portId as RuntimeControlEventRequest["portId"],
+                    message
+                  });
+                }}
+                onObjectParamChange={setNodeParam}
+                onObjectSpecCommit={replaceObjectNodeSpec}
+                onObjectSpecEditComplete={(nodeId) => {
+                  setEditingObjectSpecNodeId((current) => current === nodeId ? null : current);
+                }}
+                runtimeControlEnabled={runtimeControlInteractionEnabled}
+                runtimeControlPulses={runtimeControlPulses}
+                runtimeControlValues={runtimeSessionSynced ? runtimeControlState?.values ?? emptyRuntimeControlValues : emptyRuntimeControlValues}
+                onViewStateChange={updateViewStateFromCanvas}
+                onViewportChange={updateViewportFromCanvas}
+                onSelectionChange={handleCanvasSelectionChange}
+                selection={canvasSelection}
               />
             ) : (
-              <RuntimeRequiredPanel status={runtimeStatus} />
+              <RuntimeRequiredCanvas status={runtimeStatus} />
             )}
-          </ScrollArea>
-        </WorkspaceSideDock>
-      </AppShell.Aside>
-    </AppShell>
+          </div>
+        </AppShell.Main>
+
+        <AppShell.Aside className="workspace-aside" p={0}>
+          <PanelRail edge="right" items={rightPanelItems} />
+        </AppShell.Aside>
+      </AppShell>
+
+      {panels.nodes.open ? (
+        <FloatingPanel
+          onActivate={() => bringPanelToFront("nodes")}
+          onClose={() => closePanel("nodes")}
+          onMove={(position) => movePanel("nodes", position)}
+          onPointerEnter={() => updateGraphPointerPosition(null)}
+          onResize={(size) => resizePanel("nodes", size)}
+          position={panels.nodes}
+          title="Nodes"
+        >
+          {nodesPanel}
+        </FloatingPanel>
+      ) : null}
+
+      {panels.inspector.open ? (
+        <FloatingPanel
+          onActivate={() => bringPanelToFront("inspector")}
+          onClose={() => closePanel("inspector")}
+          onMove={(position) => movePanel("inspector", position)}
+          onPointerEnter={() => updateGraphPointerPosition(null)}
+          onResize={(size) => resizePanel("inspector", size)}
+          position={panels.inspector}
+          title="Inspector"
+        >
+          {inspectorPanel}
+        </FloatingPanel>
+      ) : null}
+
+      {panels.logs.open ? (
+        <FloatingPanel
+          onActivate={() => bringPanelToFront("logs")}
+          onClose={() => closePanel("logs")}
+          onMove={(position) => movePanel("logs", position)}
+          onPointerEnter={() => updateGraphPointerPosition(null)}
+          onResize={(size) => resizePanel("logs", size)}
+          position={panels.logs}
+          title="Logs"
+        >
+          {runtimeLogsPanel}
+        </FloatingPanel>
+      ) : null}
+
+      {panels.settings.open ? (
+        <FloatingPanel
+          onActivate={() => bringPanelToFront("settings")}
+          onClose={() => closePanel("settings")}
+          onMove={(position) => movePanel("settings", position)}
+          onPointerEnter={() => updateGraphPointerPosition(null)}
+          onResize={(size) => resizePanel("settings", size)}
+          position={panels.settings}
+          title="Settings"
+        >
+          {runtimeSettingsPanel}
+        </FloatingPanel>
+      ) : null}
+    </>
   );
 }
 

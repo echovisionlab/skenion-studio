@@ -1,5 +1,4 @@
 import {
-  Badge,
   FileButton,
   Group,
   Text,
@@ -16,15 +15,12 @@ import {
   Sun,
   Upload
 } from "lucide-react";
-import type { ValidationResult } from "@skenion/contracts";
-import type { DisplayGraphDocumentV01 } from "../graph/patchLibrary";
 import { IconButton } from "./core/IconButton/IconButton";
+import { SkenionMark } from "./brand/SkenionMark";
 
 interface StudioToolbarProps {
-  graph: DisplayGraphDocumentV01;
+  projectName: string;
   runtimeGraphAvailable: boolean;
-  summary: string;
-  validation: ValidationResult<DisplayGraphDocumentV01>;
   onExport: () => void;
   onImport: (file: File | null) => void;
   onOpenProject: (file: File | null) => void;
@@ -33,10 +29,8 @@ interface StudioToolbarProps {
 }
 
 export function StudioToolbar({
-  graph,
+  projectName,
   runtimeGraphAvailable,
-  summary,
-  validation,
   onExport,
   onImport,
   onOpenProject,
@@ -52,20 +46,13 @@ export function StudioToolbar({
   return (
     <Group className="studio-toolbar" justify="space-between" wrap="nowrap">
       <Group gap="sm" wrap="nowrap">
-        <div className="studio-mark">S</div>
-        <div>
-          <Group gap="xs" wrap="nowrap">
-            <Text fw={800} size="sm">
-              skenion studio
-            </Text>
-            <Badge color={validation.ok ? "green" : "red"} variant="light">
-              {validation.ok ? "valid" : "invalid"}
-            </Badge>
-          </Group>
-          <Text c="dimmed" size="xs">
-            {runtimeGraphAvailable ? `${graph.id} · ${summary} · graph 0.1` : "No Runtime session"}
-          </Text>
-        </div>
+        <SkenionMark />
+        <Text fw={800} size="sm" truncate>
+          skenion studio
+        </Text>
+        <Text c="dimmed" size="xs" truncate>
+          {projectName}
+        </Text>
       </Group>
 
       <Group gap="xs" wrap="nowrap">
@@ -74,8 +61,9 @@ export function StudioToolbar({
             {(props) => (
               <IconButton
                 disabled={graphActionDisabled}
-                icon={<FolderOpen size={18} />}
+                icon={<FolderOpen size={15} />}
                 label="Open project"
+                size={28}
                 {...props}
               />
             )}
@@ -84,9 +72,10 @@ export function StudioToolbar({
         <Tooltip label="Save project (.skenion.json)">
           <IconButton
             disabled={graphActionDisabled}
-            icon={<Save size={18} />}
+            icon={<Save size={15} />}
             label="Save project"
             onClick={onSaveProject}
+            size={28}
           />
         </Tooltip>
         <Tooltip label="Import graph JSON">
@@ -94,8 +83,9 @@ export function StudioToolbar({
             {(props) => (
               <IconButton
                 disabled={graphActionDisabled}
-                icon={<Upload size={18} />}
+                icon={<Upload size={15} />}
                 label="Import graph JSON"
+                size={28}
                 {...props}
               />
             )}
@@ -104,25 +94,28 @@ export function StudioToolbar({
         <Tooltip label="Export graph JSON">
           <IconButton
             disabled={graphActionDisabled}
-            icon={<Download size={18} />}
+            icon={<Download size={15} />}
             label="Export graph JSON"
             onClick={onExport}
+            size={28}
           />
         </Tooltip>
         <Tooltip label="Open Settings">
           <IconButton
             color="blue"
-            icon={<Settings size={18} />}
+            icon={<Settings size={15} />}
             label="Open Settings"
             onClick={onOpenSettings}
+            size={28}
           />
         </Tooltip>
         <Tooltip label={colorSchemeLabel}>
           <IconButton
             color="blue"
-            icon={nextColorScheme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
+            icon={nextColorScheme === "dark" ? <Moon size={15} /> : <Sun size={15} />}
             label={colorSchemeLabel}
             onClick={() => setColorScheme(nextColorScheme)}
+            size={28}
           />
         </Tooltip>
       </Group>

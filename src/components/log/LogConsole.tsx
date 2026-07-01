@@ -1,7 +1,5 @@
 import { useMemo, useState } from "react";
-import { Group, Text } from "@mantine/core";
 import type { RuntimeLogEvent } from "../../runtime/types";
-import { Button } from "../core/Button/Button";
 import styles from "./LogConsole.module.css";
 
 export type LogSource = "client" | "runtime";
@@ -31,47 +29,60 @@ export function LogConsole({ lines }: { lines: LogLine[] }) {
   const [filter, setFilter] = useState<LogSourceFilter>("all");
   const sortedLines = useMemo(() => mergeLogLines(lines), [lines]);
   const filteredLines = useMemo(() => filterLogLines(sortedLines, filter), [filter, sortedLines]);
+  const counts = useMemo(() => logLineCounts(sortedLines), [sortedLines]);
 
   return (
-    <>
-      <Group className={styles.toolbar} justify="space-between" wrap="nowrap">
-        <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-          Logs
-        </Text>
-        <Group gap={4} role="radiogroup" aria-label="Log source filter">
-          {([
-            ["all", "All"],
-            ["client", "Client"],
-            ["runtime", "Runtime"]
-          ] as const).map(([value, label]) => (
-            <Button
-              aria-checked={filter === value}
-              key={value}
-              onClick={() => setFilter(value)}
-              role="radio"
-              selected={filter === value}
-              size="xs"
-              variant={filter === value ? "light" : "subtle"}
-            >
-              {label}
-            </Button>
-          ))}
-        </Group>
-      </Group>
-      <div aria-label="Logs" className={styles.console} role="log">
-        {filteredLines.map((line) => (
-          <div className={[styles.line, styles[line.level]].join(" ")} key={line.id}>
-            <time className={styles.timestamp} dateTime={line.timestamp}>
-              {formatLogTime(line.timestamp)}
-            </time>
-            <span className={styles.source}>{line.source}</span>
-            <span className={styles.level}>{line.level}</span>
-            <span className={styles.message}>{line.message}</span>
-          </div>
+    <div className={styles.root}>
+      <div className={styles.toolbar} role="radiogroup" aria-label="Log source filter">
+        {([
+          ["all", "All", counts.all],
+          ["client", "Client", counts.client],
+          ["runtime", "Runtime", counts.runtime]
+        ] as const).map(([value, label, count]) => (
+          <button
+            aria-checked={filter === value}
+            className={styles.filterButton}
+            data-selected={filter === value || undefined}
+            key={value}
+            onClick={() => setFilter(value)}
+            role="radio"
+            type="button"
+          >
+            <span>{label}</span>
+            <span className={styles.filterCount}>{count}</span>
+          </button>
         ))}
       </div>
-    </>
+      <div aria-label="Log events" className={styles.console} role="log">
+        {filteredLines.length > 0 ? (
+          filteredLines.map((line) => (
+            <div className={[styles.line, styles[line.level]].join(" ")} key={line.id}>
+              <time className={styles.timestamp} dateTime={line.timestamp}>
+                {formatLogTime(line.timestamp)}
+              </time>
+              <span className={styles.source}>{line.source}</span>
+              <span className={styles.level}>{line.level}</span>
+              <span className={styles.message}>{line.message}</span>
+            </div>
+          ))
+        ) : (
+          <div className={styles.empty}>
+            No log events
+          </div>
+        )}
+      </div>
+    </div>
   );
+}
+
+function logLineCounts(lines: LogLine[]) {
+  const client = lines.filter((line) => line.source === "client").length;
+  const runtime = lines.filter((line) => line.source === "runtime").length;
+  return {
+    all: lines.length,
+    client,
+    runtime
+  };
 }
 
 export function clientLogLine(id: string, level: LogLevel, message: string, timestamp: string): LogLine {

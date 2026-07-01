@@ -4,6 +4,7 @@ import type { ShaderIssueV01 } from "@skenion/contracts";
 import { ConnectionIssuesPanel } from "./inspector/ConnectionIssuesPanel";
 import { EdgeInspector } from "./inspector/EdgeInspector";
 import { FeedbackPolicyDialog } from "./inspector/FeedbackPolicyDialog";
+import { GraphIssuesPanel } from "./inspector/GraphIssuesPanel";
 import { InspectorShell } from "./inspector/InspectorShell";
 import { NodeInspector } from "./inspector/NodeInspector";
 import type {
@@ -11,14 +12,13 @@ import type {
   GraphSemanticIssue
 } from "../graph/portSemantics";
 import type { ConnectionCheck } from "../graph/skenionGraph";
-import type { DisplayGraphDocumentV01, DisplayGraphNodeV01 } from "../graph/patchLibrary";
+import type { DisplayGraphNodeV01 } from "../graph/patchLibrary";
 import type { RuntimeGeneratedShaderResponse } from "../runtime/types";
 
 interface InspectorPanelProps {
   connectionCheck: ConnectionCheck | null;
   edge: EdgeInspectorModel | null;
   graphLocked: boolean;
-  graph: DisplayGraphDocumentV01;
   node: DisplayGraphNodeV01 | null;
   semanticIssues: GraphSemanticIssue[];
   generatedShader: RuntimeGeneratedShaderResponse | null;
@@ -36,7 +36,6 @@ interface InspectorPanelProps {
 export function InspectorPanel({
   connectionCheck,
   edge,
-  graph,
   graphLocked,
   generatedShader,
   generatedShaderBusy,
@@ -55,14 +54,16 @@ export function InspectorPanel({
   const selectedEdgeIssues = edge
     ? semanticIssues.filter((issue) => issue.edgeId === edge.id)
     : [];
+  const hasGraphIssues = semanticIssues.length > 0;
   return (
-    <InspectorShell edgeCount={graph.edges.length} nodeCount={graph.nodes.length}>
+    <InspectorShell>
       <FeedbackPolicyDialog
         edge={edge}
         onClose={() => setFeedbackDialogOpen(false)}
         opened={feedbackDialogOpen}
       />
       <Stack gap="md">
+        {hasGraphIssues ? <GraphIssuesPanel semanticIssues={semanticIssues} /> : null}
         <ConnectionIssuesPanel connectionCheck={connectionCheck} />
 
         {edge ? (

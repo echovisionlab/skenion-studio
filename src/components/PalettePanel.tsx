@@ -25,14 +25,9 @@ export function PalettePanel({
 
   return (
     <Stack className="panel-shell" gap="md">
-      <div>
-        <Text fw={800} size="sm">
-          Nodes
-        </Text>
-        <Text c="dimmed" size="xs">
-          {availableNodeCount} available node{availableNodeCount === 1 ? "" : "s"}
-        </Text>
-      </div>
+      <Text c="dimmed" size="xs">
+        {availableNodeCount} available node{availableNodeCount === 1 ? "" : "s"}
+      </Text>
 
       <ScrollArea className="palette-scroll" offsetScrollbars>
         <Stack gap="xs">

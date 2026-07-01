@@ -390,7 +390,7 @@ export function portSpecToGraphPort(port: PortSpecV01): PortV01 {
     type: dataTypeFromPortSpec(port),
     required: port.required ?? ((port.minConnections ?? 0) > 0),
     rate: port.rate,
-    accepts: port.accepts ? port.accepts.map(displayPortTypeFromPortSpecType) : undefined,
+    accepts: port.accepts ? mapUniquePortTypes(port.accepts, displayPortTypeFromPortSpecType) : undefined,
     minConnections: port.minConnections,
     maxConnections: port.maxConnections,
     mergePolicy: port.mergePolicy,
@@ -422,7 +422,7 @@ export function graphPortToPortSpec(port: PortV01): PortSpecV01 {
     type: portSpecTypeFromGraphPort(port),
     label: port.label,
     rate: extras.rate ?? portRateFromGraphPort(port),
-    accepts: extras.accepts ? extras.accepts.map(canonicalPortTypeFromDisplayType) : undefined,
+    accepts: extras.accepts ? mapUniquePortTypes(extras.accepts, canonicalPortTypeFromDisplayType) : undefined,
     minConnections: extras.minConnections,
     maxConnections: extras.maxConnections,
     mergePolicy: extras.mergePolicy,
@@ -438,6 +438,20 @@ export function graphPortToPortSpec(port: PortV01): PortSpecV01 {
   };
 
   return omitUndefined(portSpec);
+}
+
+function mapUniquePortTypes(values: string[], mapper: (value: string) => string): string[] {
+  const seen = new Set<string>();
+  const mappedValues: string[] = [];
+  for (const value of values) {
+    const mapped = mapper(value);
+    if (seen.has(mapped)) {
+      continue;
+    }
+    seen.add(mapped);
+    mappedValues.push(mapped);
+  }
+  return mappedValues;
 }
 
 function defaultMessageKeysForPortSpecType(

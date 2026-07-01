@@ -40,35 +40,12 @@ export function PanelRail({
               label={item.label}
               onClick={item.onClick}
               selected={item.selected}
-              size={34}
+              size={24}
             />
           </div>
         </Tooltip>
       ))}
     </nav>
-  );
-}
-
-export interface WorkspaceSideDockProps {
-  children?: ReactNode;
-  contentOpen?: boolean;
-  edge: "left" | "right";
-  railItems?: PanelRailItem[];
-}
-
-export function WorkspaceSideDock({
-  children,
-  contentOpen = true,
-  edge,
-  railItems = []
-}: WorkspaceSideDockProps) {
-  const rail = <PanelRail edge={edge} items={railItems} />;
-  const content = contentOpen ? <div className={styles.content}>{children}</div> : null;
-  return (
-    <div className={styles.dock} data-edge={edge}>
-      {edge === "left" ? rail : content}
-      {edge === "left" ? content : rail}
-    </div>
   );
 }
 

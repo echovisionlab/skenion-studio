@@ -553,6 +553,28 @@ describe("patchLibrary", () => {
       "resource.gpu.texture2d"
     ]);
     expect(
+      (portSpecToGraphPort({
+        id: "message-in",
+        direction: "input",
+        type: "value.core.message",
+        accepts: [
+          "value.core.int32",
+          "value.core.uint32",
+          "value.core.uint64",
+          "value.core.float32",
+          "value.core.float64"
+        ]
+      }) as ReturnType<typeof portSpecToGraphPort> & { accepts: string[] }).accepts
+    ).toEqual(["number.int", "number.float"]);
+    expect(
+      graphPortToPortSpec({
+        id: "message-in",
+        direction: "input",
+        type: { flow: "event", dataKind: "message.any" },
+        accepts: ["number.int", "number.int", "number.float", "number.float"]
+      } as Parameters<typeof graphPortToPortSpec>[0] & { accepts: string[] }).accepts
+    ).toEqual(["value.core.int32", "value.core.float32"]);
+    expect(
       graphPortToPortSpec({
         id: "message",
         direction: "input",

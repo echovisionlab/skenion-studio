@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
+import { createElement, type ReactNode } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MantineProvider } from "@mantine/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { theme } from "../../theme";
-import { PanelRail, WorkspaceSideDock } from "./PanelRail";
+import { PanelRail } from "./PanelRail";
 
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
@@ -26,9 +27,7 @@ afterEach(() => {
 
 describe("PanelRail", () => {
   it("renders an empty rail without placeholder actions", () => {
-    render(
-      <PanelRail edge="left" items={[]} />
-    );
+    render(createElement(PanelRail, { edge: "left", items: [] }));
 
     expect(container?.querySelector("nav")?.getAttribute("aria-label")).toBe("left panel actions");
     expect(container?.querySelectorAll("button")).toHaveLength(0);
@@ -37,10 +36,10 @@ describe("PanelRail", () => {
   it("renders tooltip-backed icon actions", () => {
     const onClick = vi.fn();
     render(
-      <PanelRail
-        edge="right"
-        items={[{ icon: "N", id: "nodes", label: "Nodes", onClick, selected: true }]}
-      />
+      createElement(PanelRail, {
+        edge: "right",
+        items: [{ icon: "N", id: "nodes", label: "Nodes", onClick, selected: true }]
+      })
     );
 
     const button = container?.querySelector("button");
@@ -52,24 +51,10 @@ describe("PanelRail", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps side dock rail visible when content is closed", () => {
-    render(
-      <WorkspaceSideDock
-        contentOpen={false}
-        edge="left"
-        railItems={[{ icon: "N", id: "nodes", label: "Nodes" }]}
-      >
-        Hidden content
-      </WorkspaceSideDock>
-    );
-
-    expect(container?.textContent).not.toContain("Hidden content");
-    expect(container?.querySelectorAll("button")).toHaveLength(1);
-  });
 });
 
-function render(node: React.ReactNode) {
+function render(node: ReactNode) {
   act(() => {
-    root?.render(<MantineProvider theme={theme}>{node}</MantineProvider>);
+    root?.render(createElement(MantineProvider, { theme }, node));
   });
 }
