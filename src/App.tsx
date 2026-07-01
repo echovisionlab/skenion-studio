@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppShell, Badge, Group, ScrollArea, Stack, Text } from "@mantine/core";
 import { CircleAlert, X } from "lucide-react";
 import {
@@ -132,6 +132,8 @@ import {
   type StudioWindowMode,
   type StudioWindowRegistry
 } from "./desktop/windowRegistry";
+import { useStudioSidePanels } from "./hooks/useStudioSidePanels";
+import { useStudioSelection } from "./hooks/useStudioSelection";
 
 const emptyRuntimeControlValues: Record<string, RuntimeControlValue> = {};
 
@@ -155,17 +157,18 @@ export default function App() {
   const [activeProject, setActiveProject] = useState<ProjectDocumentV01>(() => createUntitledProject());
   const graph = useMemo(() => activeProjectDisplayGraph(activeProject), [activeProject]);
   const viewState = activeProject.viewState;
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
-  const selectedNodeIdsRef = useRef(selectedNodeIds);
-  const selectedEdgeIdsRef = useRef(selectedEdgeIds);
   const [editingObjectSpecNodeId, setEditingObjectSpecNodeId] = useState<string | null>(null);
   const [graphFragmentClipboard, setGraphFragmentClipboard] = useState<GraphFragmentV01 | null>(null);
-  const [sidePanelOpen, setSidePanelOpen] = useState(true);
-  const [inspectorEdgeHovered, setInspectorEdgeHovered] = useState(false);
-  const [logsOpen, setLogsOpen] = useState(false);
+  const {
+    closeSidePanel,
+    inspectorEdgeHovered,
+    logsOpen,
+    openInspectSidePanel,
+    openLogsSidePanel,
+    setInspectorEdgeHovered,
+    sidePanelOpen,
+    toggleInspectSidePanel
+  } = useStudioSidePanels();
   const [clientLogLines, setClientLogLines] = useState<LogLine[]>([]);
   const [runtimeStreamLogLines, setRuntimeStreamLogLines] = useState<LogLine[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -202,6 +205,19 @@ export default function App() {
       windowId: studioWindowId
     })
   );
+  const {
+    handleCanvasSelectionChange,
+    pruneSelection,
+    selectSingleNode,
+    selectedEdgeId,
+    selectedEdgeIds,
+    selectedNodeId,
+    selectedNodeIds
+  } = useStudioSelection({
+    openInspector: openInspectSidePanel,
+    setWindowRegistry,
+    studioWindowId
+  });
   const validation = useMemo(() => validateGraph(graph), [graph]);
   const semanticIssues = useMemo(() => analyzeGraphPortSemantics(graph), [graph]);
   const currentRuntimeScope = useMemo(
@@ -243,6 +259,13 @@ export default function App() {
     () => findEdgeInspectorModel(graph, selectedEdgeId),
     [graph, selectedEdgeId]
   );
+  const canvasSelection = useMemo(
+    () => ({
+      edgeIds: selectedEdgeIds,
+      nodeIds: selectedNodeIds
+    }),
+    [selectedEdgeIds, selectedNodeIds]
+  );
   const selectedRuntimeShaderIssues = useMemo(() => {
     if (selectedNode?.kind !== "render.fullscreen-shader") {
       return [];
@@ -274,14 +297,6 @@ export default function App() {
       url: runtimeUrl
     };
   }, [runtimeInfo, runtimeSession?.snapshot.project, runtimeSessionId, runtimeSessionSynced, runtimeStatus, runtimeUrl]);
-
-  useEffect(() => {
-    selectedNodeIdsRef.current = selectedNodeIds;
-  }, [selectedNodeIds]);
-
-  useEffect(() => {
-    selectedEdgeIdsRef.current = selectedEdgeIds;
-  }, [selectedEdgeIds]);
 
   useEffect(() => {
     const scope = createRuntimeScope({
@@ -534,16 +549,6 @@ export default function App() {
     viewState
   ]);
 
-  const openInspectSidePanel = useCallback(() => {
-    setLogsOpen((current) => current ? false : current);
-    setSidePanelOpen((current) => current ? current : true);
-  }, []);
-
-  const openLogsSidePanel = useCallback(() => {
-    setLogsOpen((current) => current ? current : true);
-    setSidePanelOpen((current) => current ? current : true);
-  }, []);
-
   function appendClientLog(level: LogLevel, message: string) {
     const timestamp = new Date().toISOString();
     setClientLogLines((current) =>
@@ -705,26 +710,6 @@ export default function App() {
     } finally {
       setRuntimeBusyAction(null);
     }
-  }
-
-  function toggleInspectSidePanel() {
-    setSidePanelOpen((open) => {
-      setLogsOpen(false);
-      return !open;
-    });
-  }
-
-  function selectSingleNode(nodeId: string | null) {
-    setSelectedNodeId(nodeId);
-    setSelectedNodeIds(nodeId ? [nodeId] : []);
-    setSelectedEdgeId(null);
-    setSelectedEdgeIds([]);
-    setWindowRegistry((current) =>
-      updateWindowLocalState(current, studioWindowId, {
-        selectedEdgeIds: [],
-        selectedNodeIds: nodeId ? [nodeId] : []
-      })
-    );
   }
 
   function addObjectAtPosition(position: { x: number; y: number }) {
@@ -1040,14 +1025,7 @@ export default function App() {
     );
     const availableNodeIds = new Set(nextGraph.nodes.map((node) => node.id));
     const availableEdgeIds = new Set(nextGraph.edges.map((edge) => displayEdgeToEdgeSpec(edge).id));
-    const nextSelectedNodeIds = selectedNodeIds.filter((nodeId) => availableNodeIds.has(nodeId));
-    const nextSelectedEdgeIds = nextSelectedNodeIds.length > 0
-      ? []
-      : selectedEdgeIds.filter((edgeId) => availableEdgeIds.has(edgeId));
-    setSelectedNodeId(nextSelectedNodeIds[0] ?? null);
-    setSelectedNodeIds(nextSelectedNodeIds);
-    setSelectedEdgeId(nextSelectedEdgeIds[0] ?? null);
-    setSelectedEdgeIds(nextSelectedEdgeIds);
+    pruneSelection(availableNodeIds, availableEdgeIds);
     setConnectionCheck(null);
     setLastLoadedGraphFingerprint(runtimeGraphFingerprint(parsedProject.graph.id, parsedProject.graph.revision));
   }
@@ -1872,58 +1850,6 @@ export default function App() {
     };
   }, [runtimeInfo, runtimeStatus, runtimeUrl]);
 
-  const handleCanvasSelectedEdgeChange = useCallback(
-    (edgeId: string | null) => {
-      setSelectedEdgeId((current) => current === edgeId ? current : edgeId);
-      if (edgeId) {
-        openInspectSidePanel();
-      }
-    },
-    [openInspectSidePanel]
-  );
-
-  const handleCanvasSelectedEdgesChange = useCallback(
-    (edgeIds: string[]) => {
-      if (stringArraysEqual(selectedEdgeIdsRef.current, edgeIds)) {
-        return;
-      }
-      selectedEdgeIdsRef.current = edgeIds;
-      setSelectedEdgeIds(edgeIds);
-      setWindowRegistry((current) =>
-        updateWindowLocalState(current, studioWindowId, {
-          selectedEdgeIds: edgeIds
-        })
-      );
-    },
-    [studioWindowId]
-  );
-
-  const handleCanvasSelectedNodeChange = useCallback(
-    (nodeId: string | null) => {
-      setSelectedNodeId((current) => current === nodeId ? current : nodeId);
-      if (nodeId) {
-        openInspectSidePanel();
-      }
-    },
-    [openInspectSidePanel]
-  );
-
-  const handleCanvasSelectedNodesChange = useCallback(
-    (nodeIds: string[]) => {
-      if (stringArraysEqual(selectedNodeIdsRef.current, nodeIds)) {
-        return;
-      }
-      selectedNodeIdsRef.current = nodeIds;
-      setSelectedNodeIds(nodeIds);
-      setWindowRegistry((current) =>
-        updateWindowLocalState(current, studioWindowId, {
-          selectedNodeIds: nodeIds
-        })
-      );
-    },
-    [studioWindowId]
-  );
-
   const runtimeSettingsPanel = (
     <RuntimeSettingsPanel
       busyAction={runtimeBusyAction}
@@ -2084,14 +2010,8 @@ export default function App() {
               runtimeControlPulses={runtimeControlPulses}
               runtimeControlValues={runtimeSessionSynced ? runtimeControlState?.values ?? emptyRuntimeControlValues : emptyRuntimeControlValues}
               onViewStateChange={updateViewStateFromCanvas}
-              onSelectedEdgeChange={handleCanvasSelectedEdgeChange}
-              onSelectedEdgesChange={handleCanvasSelectedEdgesChange}
-              onSelectedNodeChange={handleCanvasSelectedNodeChange}
-              onSelectedNodesChange={handleCanvasSelectedNodesChange}
-              selectedEdgeId={selectedEdgeId}
-              selectedEdgeIds={selectedEdgeIds}
-              selectedNodeId={selectedNodeId}
-              selectedNodeIds={selectedNodeIds}
+              onSelectionChange={handleCanvasSelectionChange}
+              selection={canvasSelection}
             />
           ) : (
             <RuntimeRequiredCanvas status={runtimeStatus} />
@@ -2106,16 +2026,14 @@ export default function App() {
             if (event.clientX - leftEdge <= 6) {
               event.preventDefault();
               event.stopPropagation();
-              setInspectorEdgeHovered(false);
-              setLogsOpen(false);
-              setSidePanelOpen(false);
+              closeSidePanel();
             }
           }}
           onMouseLeave={() => setInspectorEdgeHovered(false)}
           onMouseMoveCapture={(event) => {
             const leftEdge = event.currentTarget.getBoundingClientRect().left;
             const edgeHovered = event.clientX - leftEdge <= 6;
-            setInspectorEdgeHovered((current) => current === edgeHovered ? current : edgeHovered);
+            setInspectorEdgeHovered(edgeHovered);
           }}
           p="md"
           style={{ cursor: inspectorEdgeHovered ? "pointer" : undefined }}
@@ -2316,10 +2234,6 @@ async function readLocalVideoAssetMetadata(file: File): Promise<Record<string, u
 
 function runtimeSessionLoaded(session: RuntimeSessionResponse | null): boolean {
   return Boolean(session?.snapshot.project);
-}
-
-function stringArraysEqual(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function runtimeSessionFromEvent(event: RuntimeSessionEvent): RuntimeSessionResponse {

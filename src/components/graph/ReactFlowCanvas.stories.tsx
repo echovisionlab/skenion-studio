@@ -140,8 +140,10 @@ function GraphCanvasStory({
   const [viewState, setViewState] = useState<ViewStateV01>(
     () => initialViewState ?? createViewStateFromPositions(initialGraph, {})
   );
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(initialSelectedEdgeId);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selection, setSelection] = useState({
+    edgeIds: initialSelectedEdgeId ? [initialSelectedEdgeId] : [],
+    nodeIds: [] as string[]
+  });
   const [connectionCheck, setConnectionCheck] = useState<ConnectionCheck | null>(
     initialConnectionCheck
   );
@@ -179,10 +181,8 @@ function GraphCanvasStory({
           setPatches(patches);
         }}
         onViewStateChange={setViewState}
-        onSelectedEdgeChange={setSelectedEdgeId}
-        onSelectedNodeChange={setSelectedNodeId}
-        selectedEdgeId={selectedEdgeId}
-        selectedNodeId={selectedNodeId}
+        onSelectionChange={setSelection}
+        selection={selection}
         viewState={viewState}
       />
     </div>
