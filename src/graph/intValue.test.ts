@@ -38,6 +38,7 @@ describe("integer value graph helpers", () => {
     expect(isUnsignedIntRepresentation("i32")).toBe(false);
     expect(normalizeIntValue(-12.8, "u16")).toBe(0);
     expect(normalizeIntValue(12.8, "i16")).toBe(12);
+    expect(normalizeIntValue(Number.POSITIVE_INFINITY, "i32")).toBe(DEFAULT_INT_VALUE);
   });
 
   it("creates integer setNodeParam patch operations", () => {

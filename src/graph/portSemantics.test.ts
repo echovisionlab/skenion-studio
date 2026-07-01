@@ -238,6 +238,33 @@ describe("port and edge semantics", () => {
     });
   });
 
+  it("reports incompatible edge previews when no conversion is available", () => {
+    const graph: GraphDocumentV01 = {
+      schema: "skenion.graph",
+      schemaVersion: "0.1.0",
+      id: "incompatible-preview",
+      revision: "1",
+      nodes: [
+        eventNode("bang_source", "output", "event.bang"),
+        controlNode("float_target", "input", "number.float", "f32")
+      ],
+      edges: [
+        {
+          from: { node: "bang_source", port: "out" },
+          to: { node: "float_target", port: "in" }
+        }
+      ]
+    };
+
+    expect(edgeInspectorModel(graph, graph.edges[0]!).conversion).toMatchObject({
+      source: "event.bang",
+      target: "value.number.float",
+      lossy: false,
+      policies: [],
+      issues: [expect.any(String)]
+    });
+  });
+
   it("canonicalizes UI value data kinds before conversion preview planning", () => {
     const graph: GraphDocumentV01 = {
       schema: "skenion.graph",

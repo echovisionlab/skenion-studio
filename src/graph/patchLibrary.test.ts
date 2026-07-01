@@ -376,6 +376,22 @@ describe("patchLibrary", () => {
     ).toEqual({ flow: "control", dataKind: "number.int", format: "u32" });
     expect(
       portSpecToGraphPort({
+        id: "gain",
+        direction: "input",
+        type: "value.core.ufloat16",
+        rate: "control"
+      }).type
+    ).toEqual({ flow: "control", dataKind: "number.float", format: "ufloat16" });
+    expect(
+      portSpecToGraphPort({
+        id: "small-float",
+        direction: "input",
+        type: "value.core.float8",
+        rate: "control"
+      }).type
+    ).toEqual({ flow: "control", dataKind: "number.float", format: "f8.e4m3" });
+    expect(
+      portSpecToGraphPort({
         id: "asset",
         direction: "output",
         type: "resource.asset.video",
@@ -595,6 +611,20 @@ describe("patchLibrary", () => {
         type: { flow: "control", dataKind: "number.int", format: "u16" }
       }).type
     ).toBe("value.core.uint16");
+    expect(
+      graphPortToPortSpec({
+        id: "invalid-integer-format",
+        direction: "input",
+        type: { flow: "control", dataKind: "number.int", format: "bad" }
+      }).type
+    ).toBe("value.core.int32");
+    expect(
+      graphPortToPortSpec({
+        id: "missing-integer-format",
+        direction: "input",
+        type: { flow: "control", dataKind: "number.int", format: undefined }
+      }).type
+    ).toBe("value.core.int32");
     expect(
       graphPortToPortSpec({
         id: "string",
