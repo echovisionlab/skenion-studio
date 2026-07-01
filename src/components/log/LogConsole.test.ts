@@ -101,16 +101,15 @@ describe("LogConsole", () => {
       );
     });
 
-    const runtimeFilter = Array.from(container.querySelectorAll("input")).find(
-      (input) => (input as HTMLInputElement).value === "runtime"
-    ) as HTMLInputElement | undefined;
+    const runtimeFilter = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Runtime")
+    );
     if (!runtimeFilter) {
       throw new Error("runtime filter not found");
     }
 
     await act(async () => {
       runtimeFilter.click();
-      runtimeFilter.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
     expect(container.textContent).toContain("Runtime boot");

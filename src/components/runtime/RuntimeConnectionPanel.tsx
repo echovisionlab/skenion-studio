@@ -1,4 +1,4 @@
-import { Badge, Group, SegmentedControl, Text, TextInput } from "@mantine/core";
+import { Badge, Group, Text, TextInput } from "@mantine/core";
 import { Cable, MonitorCog, MonitorUp, RefreshCw } from "lucide-react";
 import type {
   ManagedSidecarStatus,
@@ -74,16 +74,22 @@ export function RuntimeConnectionPanel({
       <Text c="dimmed" size="xs">
         Profile
       </Text>
-      <SegmentedControl
-        data={[
-          { label: "Local", value: "local" },
-          { label: "Remote", value: "remote" }
-        ]}
-        disabled={busyAction !== null}
-        onChange={(value) => onProfileChange(value as RuntimeProfileId)}
-        size="xs"
-        value={profileState.activeProfileId}
-      />
+      <Group gap={4} grow role="radiogroup" aria-label="Runtime profile">
+        {(["local", "remote"] as const).map((profileId) => (
+          <Button
+            aria-checked={profileState.activeProfileId === profileId}
+            disabled={busyAction !== null}
+            key={profileId}
+            onClick={() => onProfileChange(profileId)}
+            role="radio"
+            selected={profileState.activeProfileId === profileId}
+            size="xs"
+            variant={profileState.activeProfileId === profileId ? "light" : "subtle"}
+          >
+            {profileId === "local" ? "Local" : "Remote"}
+          </Button>
+        ))}
+      </Group>
       <Text c="dimmed" size="xs">
         Endpoint
       </Text>

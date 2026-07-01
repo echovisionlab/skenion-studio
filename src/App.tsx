@@ -1985,6 +1985,9 @@ export default function App() {
                 }
               }}
               onSelectedEdgesChange={(edgeIds) => {
+                if (stringArraysEqual(selectedEdgeIds, edgeIds)) {
+                  return;
+                }
                 setSelectedEdgeIds(edgeIds);
                 setWindowRegistry((current) =>
                   updateWindowLocalState(current, studioWindowId, {
@@ -1993,12 +1996,18 @@ export default function App() {
                 );
               }}
               onSelectedNodeChange={(nodeId) => {
+                if (selectedNodeId === nodeId) {
+                  return;
+                }
                 setSelectedNodeId(nodeId);
                 if (nodeId) {
                   openInspectSidePanel();
                 }
               }}
               onSelectedNodesChange={(nodeIds) => {
+                if (stringArraysEqual(selectedNodeIds, nodeIds)) {
+                  return;
+                }
                 setSelectedNodeIds(nodeIds);
                 setWindowRegistry((current) =>
                   updateWindowLocalState(current, studioWindowId, {
@@ -2231,6 +2240,10 @@ async function readLocalVideoAssetMetadata(file: File): Promise<Record<string, u
 
 function runtimeSessionLoaded(session: RuntimeSessionResponse | null): boolean {
   return Boolean(session?.snapshot.project);
+}
+
+function stringArraysEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function runtimeSessionFromEvent(event: RuntimeSessionEvent): RuntimeSessionResponse {

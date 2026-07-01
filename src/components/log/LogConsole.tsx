@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Group, SegmentedControl, Text } from "@mantine/core";
+import { Group, Text } from "@mantine/core";
 import type { ValidationResult } from "@skenion/contracts";
 import type { DisplayGraphDocumentV01 } from "../../graph/patchLibrary";
 import type { GraphSemanticDiagnostic } from "../../graph/portSemantics";
@@ -13,6 +13,7 @@ import type {
   RuntimeTelemetrySnapshot
 } from "../../runtime/types";
 import { diagnosticCounts } from "../DiagnosticsFooter";
+import { Button } from "../core/Button/Button";
 import styles from "./LogConsole.module.css";
 
 export type LogSource = "client" | "runtime";
@@ -181,17 +182,25 @@ export function LogConsole({ lines }: { lines: LogLine[] }) {
         <Text c="dimmed" fw={700} size="xs" tt="uppercase">
           Logs
         </Text>
-        <SegmentedControl
-          aria-label="Log source filter"
-          data={[
-            { label: "All", value: "all" },
-            { label: "Client", value: "client" },
-            { label: "Runtime", value: "runtime" }
-          ]}
-          onChange={(value) => setFilter(value as LogSourceFilter)}
-          size="xs"
-          value={filter}
-        />
+        <Group gap={4} role="radiogroup" aria-label="Log source filter">
+          {([
+            ["all", "All"],
+            ["client", "Client"],
+            ["runtime", "Runtime"]
+          ] as const).map(([value, label]) => (
+            <Button
+              aria-checked={filter === value}
+              key={value}
+              onClick={() => setFilter(value)}
+              role="radio"
+              selected={filter === value}
+              size="xs"
+              variant={filter === value ? "light" : "subtle"}
+            >
+              {label}
+            </Button>
+          ))}
+        </Group>
       </Group>
       <div aria-label="Logs" className={styles.console} role="log">
         {filteredLines.map((line) => (
