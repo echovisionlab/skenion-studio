@@ -19,6 +19,7 @@ import { IconButton } from "./components/core/IconButton/IconButton";
 import { FloatingPanel } from "./components/layout/FloatingPanel";
 import { PanelRail, type PanelRailItem } from "./components/layout/PanelRail";
 import { clientLogLine, runtimeLogLineFromEvent, type LogLevel, type LogLine } from "./components/log/LogConsole";
+import { STUDIO_PANEL_IDS, STUDIO_PANELS, panelActionLabel } from "./panels/studioPanels";
 import {
   applyPatch,
   validateGraph,
@@ -196,7 +197,7 @@ export default function App() {
     togglePanel
   } = useFloatingPanels();
   const openInspectSidePanel = useCallback(() => {
-    openPanel("inspector");
+    openPanel(STUDIO_PANEL_IDS.inspector);
   }, [openPanel]);
   const [clientLogLines, setClientLogLines] = useState<LogLine[]>([]);
   const [runtimeStreamLogLines, setRuntimeStreamLogLines] = useState<LogLine[]>([]);
@@ -2079,26 +2080,26 @@ export default function App() {
   const leftPanelItems: PanelRailItem[] = [
     {
       icon: <BoxIcon size={14} />,
-      id: "nodes",
-      label: panels.nodes.open ? "Hide nodes" : "Show nodes",
-      onClick: () => togglePanel("nodes"),
-      selected: panels.nodes.open
+      id: STUDIO_PANEL_IDS.nodes,
+      label: panelActionLabel(STUDIO_PANEL_IDS.nodes, panels[STUDIO_PANEL_IDS.nodes].open),
+      onClick: () => togglePanel(STUDIO_PANEL_IDS.nodes),
+      selected: panels[STUDIO_PANEL_IDS.nodes].open
     }
   ];
   const rightPanelItems: PanelRailItem[] = [
     {
       icon: <PanelRightOpen size={14} />,
-      id: "inspector",
-      label: panels.inspector.open ? "Hide inspector" : "Inspector",
-      onClick: () => togglePanel("inspector"),
-      selected: panels.inspector.open
+      id: STUDIO_PANEL_IDS.inspector,
+      label: panelActionLabel(STUDIO_PANEL_IDS.inspector, panels[STUDIO_PANEL_IDS.inspector].open),
+      onClick: () => togglePanel(STUDIO_PANEL_IDS.inspector),
+      selected: panels[STUDIO_PANEL_IDS.inspector].open
     },
     {
       icon: <ScrollText size={14} />,
-      id: "logs",
-      label: panels.logs.open ? "Hide logs" : "Logs",
-      onClick: () => togglePanel("logs"),
-      selected: panels.logs.open
+      id: STUDIO_PANEL_IDS.logs,
+      label: panelActionLabel(STUDIO_PANEL_IDS.logs, panels[STUDIO_PANEL_IDS.logs].open),
+      onClick: () => togglePanel(STUDIO_PANEL_IDS.logs),
+      selected: panels[STUDIO_PANEL_IDS.logs].open
     }
   ];
 
@@ -2119,7 +2120,7 @@ export default function App() {
             onImport={importGraph}
             onOpenProject={openProject}
             onSaveProject={saveProject}
-            onOpenSettings={() => openPanel("settings")}
+            onOpenSettings={() => openPanel(STUDIO_PANEL_IDS.settings)}
           />
         </AppShell.Header>
 
@@ -2128,7 +2129,7 @@ export default function App() {
             graphLockDisabled={!runtimeGraphAvailable}
             graphLocked={graphLocked}
             onToggleGraphLock={toggleGraphLock}
-            onOpenIssues={() => openPanel("logs")}
+            onOpenIssues={() => openPanel(STUDIO_PANEL_IDS.logs)}
             semanticIssues={semanticIssues}
           />
         </AppShell.Footer>
@@ -2209,57 +2210,57 @@ export default function App() {
         </AppShell.Aside>
       </AppShell>
 
-      {panels.nodes.open ? (
+      {panels[STUDIO_PANEL_IDS.nodes].open ? (
         <FloatingPanel
-          onActivate={() => bringPanelToFront("nodes")}
-          onClose={() => closePanel("nodes")}
-          onMove={(position) => movePanel("nodes", position)}
+          onActivate={() => bringPanelToFront(STUDIO_PANEL_IDS.nodes)}
+          onClose={() => closePanel(STUDIO_PANEL_IDS.nodes)}
+          onMove={(position) => movePanel(STUDIO_PANEL_IDS.nodes, position)}
           onPointerEnter={() => updateGraphPointerPosition(null)}
-          onResize={(size) => resizePanel("nodes", size)}
-          position={panels.nodes}
-          title="Nodes"
+          onResize={(size) => resizePanel(STUDIO_PANEL_IDS.nodes, size)}
+          position={panels[STUDIO_PANEL_IDS.nodes]}
+          title={STUDIO_PANELS[STUDIO_PANEL_IDS.nodes].title}
         >
           {nodesPanel}
         </FloatingPanel>
       ) : null}
 
-      {panels.inspector.open ? (
+      {panels[STUDIO_PANEL_IDS.inspector].open ? (
         <FloatingPanel
-          onActivate={() => bringPanelToFront("inspector")}
-          onClose={() => closePanel("inspector")}
-          onMove={(position) => movePanel("inspector", position)}
+          onActivate={() => bringPanelToFront(STUDIO_PANEL_IDS.inspector)}
+          onClose={() => closePanel(STUDIO_PANEL_IDS.inspector)}
+          onMove={(position) => movePanel(STUDIO_PANEL_IDS.inspector, position)}
           onPointerEnter={() => updateGraphPointerPosition(null)}
-          onResize={(size) => resizePanel("inspector", size)}
-          position={panels.inspector}
-          title="Inspector"
+          onResize={(size) => resizePanel(STUDIO_PANEL_IDS.inspector, size)}
+          position={panels[STUDIO_PANEL_IDS.inspector]}
+          title={STUDIO_PANELS[STUDIO_PANEL_IDS.inspector].title}
         >
           {inspectorPanel}
         </FloatingPanel>
       ) : null}
 
-      {panels.logs.open ? (
+      {panels[STUDIO_PANEL_IDS.logs].open ? (
         <FloatingPanel
-          onActivate={() => bringPanelToFront("logs")}
-          onClose={() => closePanel("logs")}
-          onMove={(position) => movePanel("logs", position)}
+          onActivate={() => bringPanelToFront(STUDIO_PANEL_IDS.logs)}
+          onClose={() => closePanel(STUDIO_PANEL_IDS.logs)}
+          onMove={(position) => movePanel(STUDIO_PANEL_IDS.logs, position)}
           onPointerEnter={() => updateGraphPointerPosition(null)}
-          onResize={(size) => resizePanel("logs", size)}
-          position={panels.logs}
-          title="Logs"
+          onResize={(size) => resizePanel(STUDIO_PANEL_IDS.logs, size)}
+          position={panels[STUDIO_PANEL_IDS.logs]}
+          title={STUDIO_PANELS[STUDIO_PANEL_IDS.logs].title}
         >
           {runtimeLogsPanel}
         </FloatingPanel>
       ) : null}
 
-      {panels.settings.open ? (
+      {panels[STUDIO_PANEL_IDS.settings].open ? (
         <FloatingPanel
-          onActivate={() => bringPanelToFront("settings")}
-          onClose={() => closePanel("settings")}
-          onMove={(position) => movePanel("settings", position)}
+          onActivate={() => bringPanelToFront(STUDIO_PANEL_IDS.settings)}
+          onClose={() => closePanel(STUDIO_PANEL_IDS.settings)}
+          onMove={(position) => movePanel(STUDIO_PANEL_IDS.settings, position)}
           onPointerEnter={() => updateGraphPointerPosition(null)}
-          onResize={(size) => resizePanel("settings", size)}
-          position={panels.settings}
-          title="Settings"
+          onResize={(size) => resizePanel(STUDIO_PANEL_IDS.settings, size)}
+          position={panels[STUDIO_PANEL_IDS.settings]}
+          title={STUDIO_PANELS[STUDIO_PANEL_IDS.settings].title}
         >
           {runtimeSettingsPanel}
         </FloatingPanel>

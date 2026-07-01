@@ -4,8 +4,9 @@ import {
   clampFloatingPanelSize,
   type FloatingPanelPosition
 } from "../components/layout/FloatingPanel";
+import { STUDIO_PANEL_IDS, type StudioPanelId } from "../panels/studioPanels";
 
-export type FloatingPanelId = "inspector" | "logs" | "nodes" | "settings";
+export type FloatingPanelId = StudioPanelId;
 
 const FLOATING_PANEL_BASE_Z_INDEX = 1_000;
 
@@ -148,7 +149,7 @@ function initialFloatingPanels(): Record<FloatingPanelId, FloatingPanelState> {
   const settingsHeight = Math.min(620, Math.max(360, viewport.height - 96));
 
   return {
-    inspector: {
+    [STUDIO_PANEL_IDS.inspector]: {
       height: Math.min(560, Math.max(360, viewport.height - 92)),
       open: false,
       width: inspectorWidth,
@@ -156,7 +157,7 @@ function initialFloatingPanels(): Record<FloatingPanelId, FloatingPanelState> {
       y: 50,
       zIndex: FLOATING_PANEL_BASE_Z_INDEX + 2
     },
-    logs: {
+    [STUDIO_PANEL_IDS.logs]: {
       height: Math.min(320, Math.max(220, viewport.height - 120)),
       open: false,
       width: Math.min(560, Math.max(360, viewport.width - 96)),
@@ -164,7 +165,7 @@ function initialFloatingPanels(): Record<FloatingPanelId, FloatingPanelState> {
       y: Math.max(50, viewport.height - 362),
       zIndex: FLOATING_PANEL_BASE_Z_INDEX + 3
     },
-    nodes: {
+    [STUDIO_PANEL_IDS.nodes]: {
       height: Math.min(560, Math.max(360, viewport.height - 92)),
       open: true,
       width: nodesWidth,
@@ -172,7 +173,7 @@ function initialFloatingPanels(): Record<FloatingPanelId, FloatingPanelState> {
       y: 50,
       zIndex: FLOATING_PANEL_BASE_Z_INDEX + 1
     },
-    settings: {
+    [STUDIO_PANEL_IDS.settings]: {
       height: settingsHeight,
       open: false,
       width: settingsWidth,
