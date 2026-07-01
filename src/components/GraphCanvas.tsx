@@ -28,6 +28,8 @@ const nodeTypes: NodeTypes = {
   skenion: ReactFlowNodeAdapter
 };
 
+const reactFlowProOptions = { hideAttribution: true } as const;
+
 const emptyRuntimeControlPulses: Record<string, number> = {};
 const emptyRuntimeControlValues: Record<string, RuntimeControlValue> = {};
 
@@ -208,6 +210,7 @@ export function GraphCanvas({
       onPaneContextMenu={reactFlowHandlers.handlePaneContextMenu}
       onPaneMouseLeave={reactFlowHandlers.handlePaneMouseLeave}
       onPaneMouseMove={reactFlowHandlers.handlePaneMouseMove}
+      proOptions={reactFlowProOptions}
       onSelectionChange={reactFlowHandlers.handleSelectionChange}
       onMoveEnd={reactFlowHandlers.onMoveEnd}
     >

@@ -28,6 +28,8 @@ const nodeTypes: NodeTypes = {
   skenion: ReactFlowNodeAdapter
 };
 
+const reactFlowProOptions = { hideAttribution: true } as const;
+
 export type HelpGraphViewerDocument = GraphDocumentV01 | PatchDefinitionV01;
 
 export function HelpGraphViewer({
@@ -118,6 +120,7 @@ export function HelpGraphViewer({
         }}
         panOnDrag
         preventScrolling={false}
+        proOptions={reactFlowProOptions}
         zoomOnDoubleClick={false}
       >
         <Background color="var(--sk-grid-dot)" gap={20} size={1} />
