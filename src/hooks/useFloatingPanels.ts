@@ -167,7 +167,7 @@ function initialFloatingPanels(): Record<FloatingPanelId, FloatingPanelState> {
     },
     [STUDIO_PANEL_IDS.nodes]: {
       height: Math.min(560, Math.max(360, viewport.height - 92)),
-      open: true,
+      open: false,
       width: nodesWidth,
       x: 34,
       y: 50,
