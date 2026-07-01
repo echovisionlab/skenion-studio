@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Badge, Divider, Group, ScrollArea, Stack, Text } from "@mantine/core";
+import { Group, ScrollArea, Stack, Text } from "@mantine/core";
 import { Plus } from "lucide-react";
 import { type NodeCatalogEntryV01 } from "@skenion/contracts";
 import { dataTypeFromPortSpec } from "../graph/patchLibrary";
@@ -21,6 +21,7 @@ export function PalettePanel({
 }: PalettePanelProps) {
   const catalogMode = catalogEntries.length > 0;
   const nodeTools = useMemo(() => resolveNodeTools(catalogEntries), [catalogEntries]);
+  const availableNodeCount = nodeTools.length + 1;
 
   return (
     <Stack className="panel-shell" gap="md">
@@ -29,36 +30,32 @@ export function PalettePanel({
           Nodes
         </Text>
         <Text c="dimmed" size="xs">
-          {catalogMode
-            ? `${nodeTools.length} available tools`
-            : "Runtime catalog unavailable"}
+          {availableNodeCount} available node{availableNodeCount === 1 ? "" : "s"}
         </Text>
       </div>
 
-      <Button
-        disabled={addDisabled}
-        fullWidth
-        leftSection={<Plus size={15} />}
-        onClick={() => onAddObject()}
-        size="compact-md"
-      >
-        Object
-      </Button>
-
-      <Divider />
-
       <ScrollArea className="palette-scroll" offsetScrollbars>
-        {catalogMode ? (
-          <Stack gap="xs">
-            <Group justify="space-between">
-              <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-                Node tools
+        <Stack gap="xs">
+          <Group gap={6} wrap="nowrap">
+            <Button
+              className="palette-node"
+              color="gray"
+              disabled={addDisabled}
+              fullWidth
+              justify="space-between"
+              leftSection={<span className="flow-swatch" style={{ background: "#868e96" }} />}
+              onClick={() => onAddObject()}
+              rightSection={<Plus size={15} />}
+              size="compact-md"
+            >
+              <Text component="span" fw={700} size="sm">
+                Object
               </Text>
-              <Badge size="xs" variant="light">
-                {nodeTools.length}
-              </Badge>
-            </Group>
-            {nodeTools.map(({ entry, tool }) => {
+            </Button>
+          </Group>
+
+          {catalogMode ? (
+            nodeTools.map(({ entry, tool }) => {
               const primaryPort = entry.definition.ports.find((port) => port.direction === "output") ?? entry.definition.ports[0];
               const primaryType = primaryPort ? dataTypeFromPortSpec(primaryPort) : null;
               const swatchColor = primaryType ? flowColor(primaryType.flow, primaryType.dataKind) : "#868e96";
@@ -77,24 +74,19 @@ export function PalettePanel({
                     rightSection={<Plus size={15} />}
                     size="compact-md"
                   >
-                    <span>
-                      <Text component="span" fw={700} size="sm">
-                        {tool.label}
-                      </Text>
-                      <Text c="dimmed" component="span" display="block" size="xs">
-                        {primaryObjectSpec}
-                      </Text>
-                    </span>
+                    <Text component="span" fw={700} size="sm">
+                      {tool.label}
+                    </Text>
                   </Button>
                 </Group>
               );
-            })}
-          </Stack>
-        ) : (
-          <Text c="dimmed" size="xs">
-            Runtime catalog unavailable.
-          </Text>
-        )}
+            })
+          ) : (
+            <Text c="dimmed" size="xs">
+              Runtime catalog unavailable.
+            </Text>
+          )}
+        </Stack>
       </ScrollArea>
     </Stack>
   );

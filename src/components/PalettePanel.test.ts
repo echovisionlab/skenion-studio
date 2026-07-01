@@ -27,24 +27,32 @@ afterEach(() => {
 });
 
 describe("PalettePanel", () => {
-  it("renders direct node tools from the Runtime catalog and submits their object spec", () => {
+  it("renders Object and direct node tools without exposing object specs", () => {
     const onAddObjectSpec = vi.fn();
-    renderPalette({ catalogEntries: [catalogEntry(), catalogEntry({ objectId: "operator.mul", primaryObjectSpec: "*~", title: "Audio Multiply" })], onAddObjectSpec });
+    renderPalette({
+      catalogEntries: [
+        catalogEntry(),
+        catalogEntry({ objectId: "operator.mul", primaryObjectSpec: "*~", title: "Audio Multiply" })
+      ],
+      onAddObjectSpec
+    });
 
-    expect(container?.textContent).toContain("1 available tools");
+    expect(container?.textContent).toContain("2 available nodes");
+    expect(container?.textContent).toContain("Object");
     expect(container?.textContent).toContain("Float");
-    expect(container?.textContent).toContain("f");
+    expect(container?.textContent).not.toContain("float");
     expect(container?.textContent).not.toContain("Audio Multiply");
     expect(container?.textContent).not.toContain("*~");
 
     clickButton("Float");
 
-    expect(onAddObjectSpec).toHaveBeenCalledWith("f");
+    expect(onAddObjectSpec).toHaveBeenCalledWith("float");
   });
 
-  it("does not invent catalog entries when Runtime has not provided a catalog", () => {
+  it("does not invent catalog node tools when Runtime has not provided a catalog", () => {
     renderPalette({ catalogEntries: [], onAddObjectSpec: vi.fn() });
 
+    expect(container?.textContent).toContain("1 available node");
     expect(container?.textContent).toContain("Runtime catalog unavailable");
     expect(container?.textContent).not.toContain("Float");
     expect(container?.textContent).toContain("Object");
@@ -101,7 +109,7 @@ function catalogEntry(options: Partial<{
 }> = {}): NodeCatalogEntryV01 {
   const objectId = options.objectId ?? "float";
   const title = options.title ?? "Float";
-  const primaryObjectSpec = options.primaryObjectSpec ?? "f";
+  const primaryObjectSpec = options.primaryObjectSpec ?? "float";
   return {
     catalogId: `core:${objectId}`,
     objectId,
