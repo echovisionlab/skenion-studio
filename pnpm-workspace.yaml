@@ -6,4 +6,4 @@ minimumReleaseAgeExclude:
   - "@skenion/sdk"
 
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
