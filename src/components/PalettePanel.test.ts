@@ -27,17 +27,19 @@ afterEach(() => {
 });
 
 describe("PalettePanel", () => {
-  it("renders Runtime catalog objects and submits their primary object spec", () => {
+  it("renders direct node tools from the Runtime catalog and submits their object spec", () => {
     const onAddObjectSpec = vi.fn();
-    renderPalette({ catalogEntries: [catalogEntry()], onAddObjectSpec });
+    renderPalette({ catalogEntries: [catalogEntry(), catalogEntry({ objectId: "operator.mul", primaryObjectSpec: "*~", title: "Audio Multiply" })], onAddObjectSpec });
 
-    expect(container?.textContent).toContain("1 Runtime catalog");
-    expect(container?.textContent).toContain("float");
+    expect(container?.textContent).toContain("1 available tools");
     expect(container?.textContent).toContain("Float");
+    expect(container?.textContent).toContain("f");
+    expect(container?.textContent).not.toContain("Audio Multiply");
+    expect(container?.textContent).not.toContain("*~");
 
-    clickButton("float");
+    clickButton("Float");
 
-    expect(onAddObjectSpec).toHaveBeenCalledWith("float");
+    expect(onAddObjectSpec).toHaveBeenCalledWith("f");
   });
 
   it("does not invent catalog entries when Runtime has not provided a catalog", () => {
@@ -108,18 +110,25 @@ function setNativeInputValue(input: HTMLInputElement, value: string) {
   setter.call(input, value);
 }
 
-function catalogEntry(): NodeCatalogEntryV01 {
+function catalogEntry(options: Partial<{
+  objectId: string;
+  primaryObjectSpec: string;
+  title: string;
+}> = {}): NodeCatalogEntryV01 {
+  const objectId = options.objectId ?? "float";
+  const title = options.title ?? "Float";
+  const primaryObjectSpec = options.primaryObjectSpec ?? "f";
   return {
-    catalogId: "core:float",
-    objectId: "float",
-    primaryObjectSpec: "float",
+    catalogId: `core:${objectId}`,
+    objectId,
+    primaryObjectSpec,
     provider: { kind: "core" },
     definition: {
       schema: "skenion.node.definition",
       schemaVersion: "0.1.0",
-      id: "core.float",
+      id: `core.${objectId}`,
       version: "0.1.0",
-      displayName: "Float",
+      displayName: title,
       category: "Values",
       ports: [
         {
@@ -137,7 +146,7 @@ function catalogEntry(): NodeCatalogEntryV01 {
     },
     creatable: true,
     display: {
-      title: "Float",
+      title,
       category: "Values",
       palette: "direct"
     }

@@ -2,7 +2,6 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Badge, Divider, Group, ScrollArea, Stack, Text, TextInput } from "@mantine/core";
 import { Plus } from "lucide-react";
 import { type NodeCatalogEntryV01 } from "@skenion/contracts";
-import { objectSpecForCatalogEntry } from "@skenion/sdk";
 import { dataTypeFromPortSpec } from "../graph/patchLibrary";
 import { flowColor } from "../graph/reactFlowAdapter";
 import { Button } from "./core/Button/Button";
@@ -21,10 +20,7 @@ export function PalettePanel({
   const [objectSpec, setObjectSpec] = useState("");
   const objectSpecInput = objectSpec.trim();
   const catalogMode = catalogEntries.length > 0;
-  const filteredCatalogEntries = useMemo(
-    () => filterCatalogEntries(catalogEntries, objectSpecInput),
-    [catalogEntries, objectSpecInput]
-  );
+  const nodeTools = useMemo(() => resolveNodeTools(catalogEntries), [catalogEntries]);
   const objectSpecCanCreate = objectSpecInput.length > 0 && !addDisabled;
   const exactCatalogMatches = objectSpecInput
     ? catalogEntries.filter((entry) => catalogEntrySpecs(entry).some((spec) => normalizedSpec(spec) === normalizedSpec(objectSpecInput)))
@@ -52,11 +48,11 @@ export function PalettePanel({
     <Stack className="panel-shell" gap="md">
       <div>
         <Text fw={800} size="sm">
-          Objects
+          Nodes
         </Text>
         <Text c="dimmed" size="xs">
           {catalogMode
-            ? `${catalogEntries.length} Runtime catalog`
+            ? `${nodeTools.length} available tools`
             : "Runtime catalog unavailable"}
         </Text>
       </div>
@@ -77,7 +73,7 @@ export function PalettePanel({
             aria-label="Object spec"
             disabled={addDisabled}
             onChange={(event) => setObjectSpec(event.currentTarget.value)}
-            placeholder="+ 1, +~, osc~ 440"
+            placeholder="*~, osc~ 440, + 1"
             size="xs"
             value={objectSpec}
           />
@@ -99,13 +95,13 @@ export function PalettePanel({
           <Stack gap="xs">
             <Group justify="space-between">
               <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-                Catalog
+                Node tools
               </Text>
               <Badge size="xs" variant="light">
-                {filteredCatalogEntries.length}
+                {nodeTools.length}
               </Badge>
             </Group>
-            {filteredCatalogEntries.map((entry) => {
+            {nodeTools.map(({ entry, tool }) => {
               const primaryPort = entry.definition.ports.find((port) => port.direction === "output") ?? entry.definition.ports[0];
               const primaryType = primaryPort ? dataTypeFromPortSpec(primaryPort) : null;
               const swatchColor = primaryType ? flowColor(primaryType.flow, primaryType.dataKind) : "#868e96";
@@ -126,10 +122,10 @@ export function PalettePanel({
                   >
                     <span>
                       <Text component="span" fw={700} size="sm">
-                        {primaryObjectSpec}
+                        {tool.label}
                       </Text>
                       <Text c="dimmed" component="span" display="block" size="xs">
-                        {entry.display.title}
+                        {primaryObjectSpec}
                       </Text>
                     </span>
                   </Button>
@@ -147,26 +143,58 @@ export function PalettePanel({
   );
 }
 
-function filterCatalogEntries(entries: NodeCatalogEntryV01[], query: string): NodeCatalogEntryV01[] {
-  const normalizedQuery = normalizedSpec(query);
-  if (!normalizedQuery) {
-    return entries;
-  }
-  return entries.filter((entry) => {
-    const haystack = [
-      entry.display.title,
-      entry.display.category,
-      entry.display.description,
-      ...catalogEntrySpecs(entry)
-    ]
-      .filter((value): value is string => typeof value === "string")
-      .map(normalizedSpec);
-    return haystack.some((value) => value.includes(normalizedQuery));
+interface NodeToolDefinition {
+  key: string;
+  label: string;
+  match: string[];
+}
+
+const NODE_TOOL_DEFINITIONS: NodeToolDefinition[] = [
+  { key: "bang", label: "Bang", match: ["bang", "b", "core.bang"] },
+  { key: "toggle", label: "Toggle", match: ["toggle", "tgl", "core.toggle"] },
+  { key: "message", label: "Message", match: ["message", "msg", "core.message"] },
+  { key: "float", label: "Float", match: ["float", "f", "core.float"] },
+  { key: "int", label: "Integer", match: ["int", "integer", "i", "core.int"] },
+  { key: "uint", label: "Unsigned Integer", match: ["uint", "unsigned integer", "u", "core.uint"] },
+  { key: "comment", label: "Comment", match: ["comment", "core.comment"] },
+  { key: "inlet", label: "Inlet", match: ["inlet", "core.inlet"] },
+  { key: "outlet", label: "Outlet", match: ["outlet", "core.outlet"] }
+];
+
+interface ResolvedNodeTool {
+  entry: NodeCatalogEntryV01;
+  tool: NodeToolDefinition;
+}
+
+function resolveNodeTools(entries: NodeCatalogEntryV01[]): ResolvedNodeTool[] {
+  return NODE_TOOL_DEFINITIONS.flatMap((tool) => {
+    const entry = entries.find((candidate) => catalogEntryMatchesTool(candidate, tool));
+    return entry ? [{ entry, tool }] : [];
   });
+}
+
+function catalogEntryMatchesTool(entry: NodeCatalogEntryV01, tool: NodeToolDefinition): boolean {
+  const accepted = new Set(tool.match.map(normalizedSpec));
+  return catalogEntryLookupValues(entry).some((value) => accepted.has(normalizedSpec(value)));
+}
+
+function catalogEntryLookupValues(entry: NodeCatalogEntryV01): string[] {
+  return [
+    entry.catalogId,
+    entry.objectId,
+    entry.definition.id,
+    entry.definition.displayName,
+    entry.display.title,
+    ...catalogEntrySpecs(entry)
+  ].filter((value): value is string => typeof value === "string" && value.length > 0);
 }
 
 function catalogEntrySpecs(entry: NodeCatalogEntryV01): string[] {
   return [entry.primaryObjectSpec, ...(entry.aliases ?? [])];
+}
+
+function objectSpecForCatalogEntry(entry: NodeCatalogEntryV01): string {
+  return entry.primaryObjectSpec;
 }
 
 function normalizedSpec(value: string): string {
