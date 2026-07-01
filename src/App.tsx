@@ -287,6 +287,8 @@ export default function App() {
     runtimeSessionLoaded(runtimeSession) &&
     runtimeSupportsControl(runtimeInfo) &&
     runtimeSupportsControlState(runtimeInfo);
+  const runtimeControlValuesForSession =
+    runtimeSessionSynced ? runtimeControlState?.values ?? emptyRuntimeControlValues : emptyRuntimeControlValues;
   const runtimeGraphAvailable =
     runtimeStatus === "connected" &&
     runtimeSessionSynced &&
@@ -318,6 +320,9 @@ export default function App() {
     }
     return runtimeTelemetry?.render.issues ?? [];
   }, [runtimeTelemetry, selectedNode?.id, selectedNode?.kind]);
+  const selectedRuntimeControlValue = selectedNode
+    ? runtimeControlValuesForSession[selectedNode.id]
+    : undefined;
   const liveControlQueueRef = useRef<{
     inFlight: boolean;
     latestSequence: number;
@@ -2042,6 +2047,7 @@ export default function App() {
       onSyncShaderInputs={syncShaderInputs}
       runtimeAssetImportBusy={runtimeBusyAction === "assetImport"}
       runtimeAssetImportEnabled={runtimeStatus === "connected" && runtimeSupportsAssetImport(runtimeInfo)}
+      runtimeControlValue={selectedRuntimeControlValue}
       runtimeShaderIssues={selectedRuntimeShaderIssues}
       semanticIssues={semanticIssues}
     />
@@ -2164,7 +2170,7 @@ export default function App() {
                 }}
                 runtimeControlEnabled={runtimeControlInteractionEnabled}
                 runtimeControlPulses={runtimeControlPulses}
-                runtimeControlValues={runtimeSessionSynced ? runtimeControlState?.values ?? emptyRuntimeControlValues : emptyRuntimeControlValues}
+                runtimeControlValues={runtimeControlValuesForSession}
                 onViewStateChange={updateViewStateFromCanvas}
                 onViewportChange={updateViewportFromCanvas}
                 onSelectionChange={handleCanvasSelectionChange}

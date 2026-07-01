@@ -14,6 +14,7 @@ import type {
 import type { ConnectionCheck } from "../graph/skenionGraph";
 import type { DisplayGraphNodeV01 } from "../graph/patchLibrary";
 import type { RuntimeGeneratedShaderResponse } from "../runtime/types";
+import type { RuntimeControlValue } from "../runtime/types";
 
 interface InspectorPanelProps {
   connectionCheck: ConnectionCheck | null;
@@ -25,6 +26,7 @@ interface InspectorPanelProps {
   generatedShaderBusy: boolean;
   runtimeAssetImportBusy: boolean;
   runtimeAssetImportEnabled: boolean;
+  runtimeControlValue?: RuntimeControlValue;
   runtimeShaderIssues: ShaderIssueV01[];
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void>;
   onLoadGeneratedShader?: () => void;
@@ -47,6 +49,7 @@ export function InspectorPanel({
   onSyncShaderInputs,
   runtimeAssetImportBusy,
   runtimeAssetImportEnabled,
+  runtimeControlValue,
   runtimeShaderIssues,
   semanticIssues
 }: InspectorPanelProps) {
@@ -78,6 +81,7 @@ export function InspectorPanel({
             generatedShaderBusy={generatedShaderBusy}
             node={node}
             graphLocked={graphLocked}
+            runtimeControlValue={runtimeControlValue}
             onLoadGeneratedShader={onLoadGeneratedShader}
             onImportAsset={onImportAsset}
             onRemoveNode={onRemoveNode}

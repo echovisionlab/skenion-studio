@@ -73,6 +73,7 @@ import {
 import { isVideoAssetNode } from "../../graph/videoAsset";
 import { isRoutingCapableObjectNode } from "../../graph/controlRouting";
 import { Button } from "../core/Button/Button";
+import type { RuntimeControlValue } from "../../runtime/types";
 
 export function NodeInspector({
   graphLocked = false,
@@ -86,12 +87,14 @@ export function NodeInspector({
   generatedShaderBusy,
   runtimeAssetImportBusy,
   runtimeAssetImportEnabled,
+  runtimeControlValue,
   runtimeShaderIssues
 }: {
   generatedShader?: RuntimeGeneratedShaderResponse | null;
   generatedShaderBusy?: boolean;
   graphLocked?: boolean;
   node: DisplayGraphNodeV01;
+  runtimeControlValue?: RuntimeControlValue;
   runtimeShaderIssues?: ShaderIssueV01[];
   onLoadGeneratedShader?: () => void;
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void>;
@@ -104,17 +107,29 @@ export function NodeInspector({
   const clearColor = isClearColorNode(node) ? readClearColorParam(node) : null;
   const commentText = isCommentNode(node) ? readCommentTextParam(node) : null;
   const isPanelControl = isBangControlNode(node) || isSliderFloatNode(node) || isToggleControlNode(node);
-  const colorRgba = isColorRgbaNode(node) ? readColorRgbaParam(node) : null;
+  const colorRgba = isColorRgbaNode(node)
+    ? runtimeColorValue(runtimeControlValue) ?? readColorRgbaParam(node)
+    : null;
   const colorRepresentation = isColorRgbaNode(node) ? readColorRepresentationParam(node) : null;
   const colorSpace = isColorRgbaNode(node) ? readColorSpaceParam(node) : null;
-  const floatValue = isFloatValueNode(node) && !isPanelControl ? readFloatValueParam(node) : null;
+  const floatValue = isFloatValueNode(node) && !isPanelControl
+    ? runtimeFloatValue(runtimeControlValue) ?? readFloatValueParam(node)
+    : null;
   const floatRepresentation = isFloatValueNode(node) && !isPanelControl ? readFloatRepresentationParam(node) : null;
-  const intValue = isIntValueNode(node) ? readIntValueParam(node) : null;
+  const intValue = isIntValueNode(node)
+    ? runtimeIntegerValue(runtimeControlValue) ?? readIntValueParam(node)
+    : null;
   const intRepresentation = isIntValueNode(node) ? readIntRepresentationParam(node) : null;
   const toggleValue = isToggleNode(node) ? readToggleParam(node) : null;
-  const boolValue = isBoolValueNode(node) && toggleValue === null ? readBoolValueParam(node) : null;
-  const stringValue = isStringValueNode(node) ? readStringValueParam(node) : null;
-  const messageValue = isMessageNode(node) ? readMessageValueParam(node) : null;
+  const boolValue = isBoolValueNode(node) && toggleValue === null
+    ? runtimeBoolValue(runtimeControlValue) ?? readBoolValueParam(node)
+    : null;
+  const stringValue = isStringValueNode(node)
+    ? runtimeStringValue(runtimeControlValue) ?? readStringValueParam(node)
+    : null;
+  const messageValue = isMessageNode(node)
+    ? runtimeStringValue(runtimeControlValue) ?? readMessageValueParam(node)
+    : null;
   const isAssetNode = isVideoAssetNode(node);
   const shaderSource = isFullscreenShaderNode(node) ? readShaderSourceParam(node) : null;
   const shaderLanguage = isFullscreenShaderNode(node) ? readShaderLanguageParam(node) : null;
@@ -321,4 +336,27 @@ export function NodeInspector({
 
 function inspectorObjectSubtitle(node: DisplayGraphNodeV01): string {
   return node.objectSpec?.trim() || genericObjectSpecForNode(node) || "Object";
+}
+
+function runtimeFloatValue(value?: RuntimeControlValue): number | null {
+  return value?.type === "float" ? value.value : null;
+}
+
+function runtimeIntegerValue(value?: RuntimeControlValue): number | null {
+  if (value?.type === "int" || value?.type === "uint") {
+    return value.value;
+  }
+  return null;
+}
+
+function runtimeBoolValue(value?: RuntimeControlValue): boolean | null {
+  return value?.type === "bool" ? value.value : null;
+}
+
+function runtimeColorValue(value?: RuntimeControlValue): [number, number, number, number] | null {
+  return value?.type === "color" ? value.value : null;
+}
+
+function runtimeStringValue(value?: RuntimeControlValue): string | null {
+  return value?.type === "string" ? value.value : null;
 }
