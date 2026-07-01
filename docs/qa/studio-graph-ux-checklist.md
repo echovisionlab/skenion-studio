@@ -21,7 +21,7 @@ Expected output:
 - `artifacts/studio-visual-gate/nodecard-float-value.png`
 - `artifacts/studio-visual-gate/nodecard-fullscreen-shader.png`
 - `artifacts/studio-visual-gate/nodecard-render-output.png`
-- `artifacts/studio-visual-gate/shader-diagnostics-panel.png`
+- `artifacts/studio-visual-gate/shader-issues-panel.png`
 - `artifacts/studio-visual-gate/help-panel-value-f32.png`
 - `artifacts/studio-visual-gate/help-graph-value-bang-set.png`
 - `artifacts/studio-visual-gate/invalid-connection.png`
@@ -47,7 +47,7 @@ Required checks:
 - Edges start at OUT dots and end at IN dots.
 - Compatible drags can connect from outlet to inlet.
 - Incompatible drags are rejected before commit.
-- Invalid connection diagnostics identify the source, target, and mismatch.
+- Invalid connection issues identify the source, target, and mismatch.
 - Selected edges are visually distinct from normal edges.
 - Delete and Backspace remove the selected edge.
 - Zoom and pan keep port labels, dots, and edge labels readable.

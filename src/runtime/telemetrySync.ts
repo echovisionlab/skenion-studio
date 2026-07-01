@@ -42,6 +42,6 @@ export function formatUptimeMs(value: number): string {
 export function hasTelemetryRenderError(telemetry: RuntimeTelemetrySnapshot | null): boolean {
   return Boolean(
     telemetry?.render.lastError ||
-    telemetry?.render.diagnostics.some((diagnostic) => diagnostic.severity === "error")
+    telemetry?.render.issues.some((issue) => issue.severity === "error")
   );
 }

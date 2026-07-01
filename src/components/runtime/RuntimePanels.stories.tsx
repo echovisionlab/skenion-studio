@@ -3,7 +3,6 @@ import { Stack } from "@mantine/core";
 import type { ClockStateV01 } from "../../runtime/types";
 import { createRuntimeProfileState } from "../../desktop/runtimeProfiles";
 import { RuntimeLogsPanel, RuntimeSettingsPanel } from "../RuntimePanel";
-import { sampleGraph } from "../../data/sampleGraph";
 import { ClockStateDisplay } from "./ClockStateDisplay";
 import { RuntimeConnectionPanel } from "./RuntimeConnectionPanel";
 import { RuntimePreviewPanel } from "./RuntimePreviewPanel";
@@ -137,16 +136,7 @@ export const RuntimeLogs: Story = {
   render: () => (
     <RuntimeLogsPanel
       clientLines={[]}
-      error={null}
-      info={runtimeInfo}
-      previewStatus={runtimePreviewStatus}
-      result={null}
       runtimeLines={[]}
-      semanticDiagnostics={[]}
-      session={runtimeSession}
-      status="connected"
-      telemetry={runtimeTelemetry}
-      validation={{ ok: true, value: sampleGraph }}
     />
   )
 };

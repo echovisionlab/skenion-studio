@@ -4,41 +4,30 @@ import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MantineProvider } from "@mantine/core";
 import { describe, expect, it } from "vitest";
-import type { DisplayGraphDocumentV01 as GraphDocumentV01 } from "../../graph/patchLibrary";
-import type { GraphSemanticDiagnostic } from "../../graph/portSemantics";
 import { theme } from "../../theme";
 import {
   LogConsole,
   clientLogLine,
   filterLogLines,
-  logLinesFromRuntimeState,
   mergeLogLines,
   runtimeLogLineFromEvent
 } from "./LogConsole";
 
 describe("LogConsole", () => {
   it("renders client and runtime messages as timestamped read-only log lines", () => {
-    const lines = logLinesFromRuntimeState({
-      error: null,
-      info: { apiVersion: "0.1.0", capabilities: [], name: "skenion-runtime", version: "0.34.0" },
-      observedAt: "2026-06-21T07:00:00.000Z",
-      previewStatus: null,
-      result: null,
-      semanticDiagnostics: [diagnostic("warning", "implicit-conversion", "Implicit conversion planned.")],
-      session: null,
-      status: "connected",
-      telemetry: null,
-      validation: { ok: true, value: graph() }
-    });
+    const lines = [
+      clientLogLine("client-1", "warning", "Explicit client warning", "2026-06-21T07:00:00.000Z"),
+      runtimeLineForTest("runtime-1", "info", "Runtime boot", "2026-06-21T07:00:01.000Z")
+    ];
     const html = renderToStaticMarkup(
       createElement(MantineProvider, { theme }, createElement(LogConsole, { lines }))
     );
 
     expect(lines.map((line) => `${line.source}:${line.message}`)).toContain(
-      "client:graph diagnostics: 0 errors, 1 warnings"
+      "client:Explicit client warning"
     );
     expect(lines.map((line) => `${line.source}:${line.message}`)).toContain(
-      "runtime:skenion-runtime 0.34.0 api 0.1.0"
+      "runtime:Runtime boot"
     );
     expect(html).toContain("role=\"log\"");
     expect(html).toContain("dateTime=\"2026-06-21T07:00:00.000Z\"");
@@ -122,39 +111,14 @@ describe("LogConsole", () => {
     container.remove();
   });
 
-  it("includes schema errors and runtime result diagnostics without controls", () => {
-    const lines = logLinesFromRuntimeState({
-      error: "Runtime request failed",
-      info: null,
-      observedAt: "2026-06-21T07:00:00.000Z",
-      previewStatus: null,
-      result: {
-        kind: "validateSession",
-        receivedAt: "2026-06-21T07:00:01.000Z",
-        response: {
-          diagnostics: [{ message: "Invalid graph", severity: "error" }],
-          snapshot: {
-            sessionRevision: 1,
-            viewRevision: 0,
-            controlRevision: 0,
-            project: null,
-            bindingFormats: [],
-            diagnostics: [],
-            plan: null
-          },
-          ok: false,
-          report: null
-        }
-      },
-      semanticDiagnostics: [],
-      session: null,
-      status: "error",
-      telemetry: null,
-      validation: { errors: ["missing node"], ok: false }
-    });
+  it("does not synthesize state issues into log lines", () => {
+    const lines = [
+      clientLogLine("client", "error", "Runtime request failed", "2026-06-21T07:00:00.000Z"),
+      runtimeLineForTest("runtime", "info", "Runtime boot", "2026-06-21T07:00:01.000Z")
+    ];
 
-    expect(lines.some((line) => line.source === "client" && line.message === "graph schema: missing node")).toBe(true);
-    expect(lines.some((line) => line.source === "runtime" && line.message === "Invalid graph")).toBe(true);
+    expect(lines.some((line) => line.message.includes("missing node"))).toBe(false);
+    expect(lines.some((line) => line.message.includes("Invalid graph"))).toBe(false);
   });
 });
 
@@ -170,28 +134,5 @@ function runtimeLineForTest(
     message,
     source: "runtime" as const,
     timestamp
-  };
-}
-
-function diagnostic(
-  severity: GraphSemanticDiagnostic["severity"],
-  code: string,
-  message: string
-): GraphSemanticDiagnostic {
-  return {
-    code,
-    message,
-    severity
-  };
-}
-
-function graph(): GraphDocumentV01 {
-  return {
-    edges: [],
-    id: "graph",
-    nodes: [],
-    revision: "0",
-    schema: "skenion.graph",
-    schemaVersion: "0.1.0"
   };
 }

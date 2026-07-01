@@ -295,11 +295,11 @@ export function checkConnection(graph: DisplayGraphDocumentV01, patch: GraphPatc
     };
   }
 
-  const semanticDiagnostic = connectionSemanticCheck(graph, patch);
-  if (semanticDiagnostic) {
+  const semanticIssue = connectionSemanticCheck(graph, patch);
+  if (semanticIssue) {
     return {
       ok: false,
-      message: `${semanticDiagnostic.code}: ${semanticDiagnostic.message}`
+      message: `${semanticIssue.code}: ${semanticIssue.message}`
     };
   }
 

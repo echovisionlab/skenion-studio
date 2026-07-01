@@ -99,12 +99,12 @@ export function TelemetryPanel({ telemetry }: TelemetryPanelProps) {
         </Alert>
       ) : null}
 
-      {telemetry?.render.diagnostics.length ? (
+      {telemetry?.render.issues.length ? (
         <Alert color={renderError ? "red" : "yellow"} icon={<Activity size={16} />} variant="light">
           <Stack gap={4}>
-            {telemetry.render.diagnostics.slice(0, 5).map((diagnostic, index) => (
-              <Text key={`${diagnostic.phase}:${diagnostic.code}:${index}`} size="xs">
-                <Code>{diagnostic.phase}</Code> {diagnostic.code}: {diagnostic.message}
+            {telemetry.render.issues.slice(0, 5).map((issue, index) => (
+              <Text key={`${issue.phase}:${issue.code}:${index}`} size="xs">
+                <Code>{issue.phase}</Code> {issue.code}: {issue.message}
               </Text>
             ))}
           </Stack>

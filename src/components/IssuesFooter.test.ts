@@ -4,22 +4,22 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MantineProvider } from "@mantine/core";
 import { describe, expect, it } from "vitest";
 import type { DisplayGraphDocumentV01 as GraphDocumentV01 } from "../graph/patchLibrary";
-import type { GraphSemanticDiagnostic } from "../graph/portSemantics";
+import type { GraphSemanticIssue } from "../graph/portSemantics";
 import { theme } from "../theme";
-import { DiagnosticsFooter, diagnosticCounts } from "./DiagnosticsFooter";
+import { IssuesFooter, issueCounts } from "./IssuesFooter";
 
-describe("DiagnosticsFooter", () => {
+describe("IssuesFooter", () => {
   it("shows zero counts and opens logs from the global footer", () => {
     const html = renderToStaticMarkup(
       createElement(
         MantineProvider,
         { theme },
-        createElement(DiagnosticsFooter, {
+        createElement(IssuesFooter, {
           graphLockDisabled: false,
           graphLocked: true,
           onOpenLogs: () => undefined,
           onToggleGraphLock: () => undefined,
-          semanticDiagnostics: [],
+          semanticIssues: [],
           validation: { ok: true, value: graph() }
         })
       )
@@ -31,13 +31,13 @@ describe("DiagnosticsFooter", () => {
     expect(html).toContain("aria-label=\"Logs\"");
   });
 
-  it("combines schema and semantic diagnostics into footer counts", () => {
+  it("combines schema and semantic issues into footer counts", () => {
     expect(
-      diagnosticCounts(
+      issueCounts(
         { errors: ["missing node"], ok: false },
         [
-          diagnostic("warning", "implicit conversion"),
-          diagnostic("error", "missing port")
+          issue("warning", "implicit conversion"),
+          issue("error", "missing port")
         ]
       )
     ).toEqual({
@@ -47,10 +47,10 @@ describe("DiagnosticsFooter", () => {
   });
 });
 
-function diagnostic(
-  severity: GraphSemanticDiagnostic["severity"],
+function issue(
+  severity: GraphSemanticIssue["severity"],
   message: string
-): GraphSemanticDiagnostic {
+): GraphSemanticIssue {
   return {
     code: message,
     message,

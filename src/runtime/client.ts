@@ -19,7 +19,7 @@ import type {
   RuntimeControlReadValue,
   RuntimeControlStateResponse,
   RuntimeControlValue,
-  RuntimeDiagnostic,
+  RuntimeIssue,
   RuntimeHealth,
   RuntimeInfo,
   RuntimeLogSnapshotResponse,
@@ -29,7 +29,7 @@ import type {
   RuntimeHistory,
   RuntimeHistoryEntry,
   RuntimeIoDeviceDescriptor,
-  RuntimeIoDiagnostic,
+  RuntimeIoIssue,
   RuntimeLogEvent,
   RuntimeMutationRequest,
   RuntimePreviewStartRequest,
@@ -325,8 +325,8 @@ export function runtimeSessionEventsStreamUrl(
   return `${normalizeRuntimeUrl(url)}${runtimeSessionPath(sessionId, "/events/stream")}`;
 }
 
-const SHADER_DIAGNOSTIC_SEVERITIES = new Set(["error", "warning", "info"]);
-const SHADER_DIAGNOSTIC_PHASES = new Set([
+const SHADER_ISSUE_SEVERITIES = new Set(["error", "warning", "info"]);
+const SHADER_ISSUE_PHASES = new Set([
   "interface-analysis",
   "source-sync",
   "wgsl-generation",
@@ -334,7 +334,7 @@ const SHADER_DIAGNOSTIC_PHASES = new Set([
   "render-pipeline",
   "render-frame"
 ]);
-const SHADER_DIAGNOSTIC_SOURCES = new Set(["user", "generated", "runtime"]);
+const SHADER_ISSUE_SOURCES = new Set(["user", "generated", "runtime"]);
 const RUNTIME_SESSION_LIFECYCLE_STATES = new Set(["initializing", "ready", "closing", "closed", "error"]);
 const RUNTIME_CONNECTION_PROFILE_MODES = new Set(["local-managed", "local-shared", "remote"]);
 const RUNTIME_OWNERSHIP_MODES = new Set(["owned-child", "external", "remote"]);
@@ -366,9 +366,8 @@ function isRuntimeLogSnapshotResponse(value: unknown): value is RuntimeLogSnapsh
     isRecord(value.retention) &&
     typeof value.retention.replayLimit === "number" &&
     Array.isArray(value.retention.replayLevels) &&
-    value.retention.replayLevels.every(isRuntimeDiagnosticSeverity) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    value.retention.replayLevels.every(isRuntimeIssueSeverity) &&
+    !("issues" in value)
   );
 }
 
@@ -378,7 +377,7 @@ export function isRuntimeLogEvent(value: unknown): value is RuntimeLogEvent {
     typeof value.id === "number" &&
     typeof value.timestamp === "string" &&
     value.source === "runtime" &&
-    isRuntimeDiagnosticSeverity(value.level) &&
+    isRuntimeIssueSeverity(value.level) &&
     (value.code === null || typeof value.code === "string") &&
     typeof value.message === "string"
   );
@@ -388,8 +387,8 @@ function isRuntimeApiResponse(value: unknown): value is RuntimeApiResponse {
   return (
     isRecord(value) &&
     typeof value.ok === "boolean" &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic) &&
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue) &&
     (value.plan === null || isRecord(value.plan)) &&
     (value.report === null || isRecord(value.report))
   );
@@ -398,15 +397,15 @@ function isRuntimeApiResponse(value: unknown): value is RuntimeApiResponse {
 function isRuntimeSessionResponse(value: unknown): value is RuntimeSessionResponse {
   return (
     isRecord(value) &&
-    hasOnlyKeys(value, ["ok", "snapshot", "diagnostics", "report"]) &&
+    hasOnlyKeys(value, ["ok", "snapshot", "issues", "report"]) &&
     typeof value.ok === "boolean" &&
     !("loaded" in value) &&
     !("graphId" in value) &&
     !("graphRevision" in value) &&
     !("viewState" in value) &&
     isRuntimeSessionSnapshot(value.snapshot) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic) &&
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue) &&
     (value.report === null || isRecord(value.report))
   );
 }
@@ -424,7 +423,7 @@ function isRuntimeSessionInfoResponse(value: unknown): value is RuntimeSessionIn
       "profile",
       "capabilities",
       "eventReplay",
-      "diagnostics"
+      "issues"
     ]) &&
     value.schema === "skenion.runtime.session.info" &&
     value.schemaVersion === "0.1.0" &&
@@ -435,8 +434,8 @@ function isRuntimeSessionInfoResponse(value: unknown): value is RuntimeSessionIn
     isRuntimeConnectionProfile(value.profile) &&
     isRuntimeSessionCapabilitySet(value.capabilities) &&
     isRuntimeEventReplayWindow(value.eventReplay) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue)
   );
 }
 
@@ -469,7 +468,7 @@ export function isRuntimeSessionEvent(value: unknown): value is RuntimeSessionEv
       "history",
       "mutation",
       "replay",
-      "diagnostics",
+      "issues",
       "createdAt"
     ]) &&
     value.schema === "skenion.runtime.session.event" &&
@@ -489,8 +488,8 @@ export function isRuntimeSessionEvent(value: unknown): value is RuntimeSessionEv
     isRuntimeHistory(value.history) &&
     (value.mutation === undefined || isRuntimeHistoryEntry(value.mutation)) &&
     isRuntimeEventReplayMetadata(value.replay) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic) &&
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue) &&
     isNonEmptyString(value.createdAt)
   );
 }
@@ -518,8 +517,8 @@ function isRuntimeControlEventResponse(value: unknown): value is RuntimeControlE
     (typeof value.controlRevision === "number" || value.controlRevision === null) &&
     Array.isArray(value.emitted) &&
     value.emitted.every(isRuntimeControlEmission) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue)
   );
 }
 
@@ -532,8 +531,8 @@ function isRuntimeControlStateResponse(value: unknown): value is RuntimeControlS
     Object.values(value.values).every(isRuntimeControlValue) &&
     isRecord(value.channels) &&
     Object.values(value.channels).every(isRuntimeControlMessage) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue)
   );
 }
 
@@ -543,8 +542,8 @@ function isRuntimeControlReadResponse(value: unknown): value is RuntimeControlRe
     typeof value.ok === "boolean" &&
     isRuntimeControlReadRequest(value.address) &&
     (value.value === null || isRuntimeControlReadValue(value.value)) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue)
   );
 }
 
@@ -567,8 +566,8 @@ function isRuntimePreviewStatus(value: unknown): value is RuntimePreviewStatus {
     (typeof value.exitedAt === "string" || value.exitedAt === null) &&
     (typeof value.exitCode === "number" || value.exitCode === null) &&
     (typeof value.message === "string" || value.message === null) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue)
   );
 }
 
@@ -577,8 +576,8 @@ function isRuntimeAssetImportResponse(value: unknown): value is RuntimeAssetImpo
     isRecord(value) &&
     typeof value.ok === "boolean" &&
     (value.asset === null || isRuntimeAsset(value.asset)) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue)
   );
 }
 
@@ -588,8 +587,8 @@ function isRuntimeAssetListResponse(value: unknown): value is RuntimeAssetListRe
     typeof value.ok === "boolean" &&
     Array.isArray(value.assets) &&
     value.assets.every(isRuntimeAsset) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue)
   );
 }
 
@@ -598,8 +597,8 @@ function isRuntimeAssetGetResponse(value: unknown): value is RuntimeAssetGetResp
     isRecord(value) &&
     typeof value.ok === "boolean" &&
     (value.asset === null || isRuntimeAsset(value.asset)) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue)
   );
 }
 
@@ -609,8 +608,8 @@ function isRuntimeIoDeviceListResponse(value: unknown): value is RuntimeIoDevice
     typeof value.ok === "boolean" &&
     Array.isArray(value.devices) &&
     value.devices.every(isRuntimeIoDeviceDescriptor) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeIoDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIoIssue)
   );
 }
 
@@ -625,8 +624,8 @@ function isRuntimeTelemetrySnapshot(value: unknown): value is RuntimeTelemetrySn
     isRuntimeTelemetryPreview(value.preview) &&
     isRuntimeTelemetryRender(value.render) &&
     isRuntimeTelemetryProcess(value.process) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue)
   );
 }
 
@@ -638,8 +637,8 @@ function isRuntimeGeneratedShaderResponse(value: unknown): value is RuntimeGener
     (value.language === "wgsl" || value.language === null) &&
     (typeof value.source === "string" || value.source === null) &&
     (value.sourceMap === null || isGeneratedShaderSourceMap(value.sourceMap)) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isShaderDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isShaderIssue)
   );
 }
 
@@ -649,8 +648,8 @@ function isRuntimeExtensionListResponse(value: unknown): value is RuntimeExtensi
     typeof value.ok === "boolean" &&
     Array.isArray(value.extensions) &&
     value.extensions.every(isRuntimeExtensionDescriptor) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue)
   );
 }
 
@@ -699,15 +698,15 @@ async function postRuntimeSessionResponse(
 function isRuntimeSessionSnapshot(value: unknown): value is RuntimeSessionSnapshot {
   return (
     isRecord(value) &&
-    hasOnlyKeys(value, ["sessionRevision", "viewRevision", "controlRevision", "project", "bindingFormats", "diagnostics", "plan"]) &&
+    hasOnlyKeys(value, ["sessionRevision", "viewRevision", "controlRevision", "project", "bindingFormats", "issues", "plan"]) &&
     isNonNegativeInteger(value.sessionRevision) &&
     isNonNegativeInteger(value.viewRevision) &&
     isNonNegativeInteger(value.controlRevision) &&
     (value.project === null || isRuntimeProjectSnapshot(value.project)) &&
     Array.isArray(value.bindingFormats) &&
     value.bindingFormats.every((bindingFormat) => validateEndpointBindingValueFormatV01(bindingFormat).ok) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic) &&
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue) &&
     (value.plan === null || isRecord(value.plan))
   );
 }
@@ -930,7 +929,7 @@ function isRuntimeIoDeviceDescriptor(value: unknown): value is RuntimeIoDeviceDe
   );
 }
 
-function isRuntimeIoDiagnostic(value: unknown): value is RuntimeIoDiagnostic {
+function isRuntimeIoIssue(value: unknown): value is RuntimeIoIssue {
   return (
     isRecord(value) &&
     (value.severity === "error" || value.severity === "warning") &&
@@ -978,8 +977,8 @@ function isRuntimeTelemetryRender(value: unknown): value is RuntimeTelemetryRend
     (typeof value.lastFrameMs === "number" || value.lastFrameMs === null) &&
     (typeof value.lastError === "string" || value.lastError === null) &&
     (typeof value.sourceNodeId === "string" || value.sourceNodeId === null) &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isShaderDiagnostic) &&
+    Array.isArray(value.issues) &&
+    value.issues.every(isShaderIssue) &&
     typeof value.generatedSourceAvailable === "boolean" &&
     (typeof value.controlRevision === "number" || value.controlRevision === null) &&
     (typeof value.previewControlRevision === "number" || value.previewControlRevision === null) &&
@@ -1013,8 +1012,8 @@ function isRuntimeExtensionDescriptor(value: unknown): boolean {
     value.providedHelp.every((entry) => typeof entry === "string") &&
     Array.isArray(value.testIds) &&
     value.testIds.every((entry) => typeof entry === "string") &&
-    Array.isArray(value.diagnostics) &&
-    value.diagnostics.every(isRuntimeDiagnostic)
+    Array.isArray(value.issues) &&
+    value.issues.every(isRuntimeIssue)
   );
 }
 
@@ -1095,32 +1094,32 @@ function isCanvasNodeView(value: unknown): boolean {
   );
 }
 
-function isRuntimeDiagnostic(value: unknown): value is RuntimeDiagnostic {
+function isRuntimeIssue(value: unknown): value is RuntimeIssue {
   return (
     isRecord(value) &&
     hasOnlyKeys(value, ["severity", "message", "code", "details"]) &&
     typeof value.message === "string" &&
-    isRuntimeDiagnosticSeverity(value.severity) &&
+    isRuntimeIssueSeverity(value.severity) &&
     (value.code === undefined || typeof value.code === "string") &&
     (!("details" in value) || isJsonValue(value.details))
   );
 }
 
-function isRuntimeDiagnosticSeverity(value: unknown): boolean {
+function isRuntimeIssueSeverity(value: unknown): boolean {
   return value === "error" || value === "warning" || value === "info";
 }
 
-function isShaderDiagnostic(value: unknown): boolean {
+function isShaderIssue(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.severity === "string" &&
-    SHADER_DIAGNOSTIC_SEVERITIES.has(value.severity) &&
+    SHADER_ISSUE_SEVERITIES.has(value.severity) &&
     typeof value.phase === "string" &&
-    SHADER_DIAGNOSTIC_PHASES.has(value.phase) &&
+    SHADER_ISSUE_PHASES.has(value.phase) &&
     typeof value.code === "string" &&
     typeof value.message === "string" &&
     typeof value.source === "string" &&
-    SHADER_DIAGNOSTIC_SOURCES.has(value.source) &&
+    SHADER_ISSUE_SOURCES.has(value.source) &&
     optionalPositiveInteger(value.line) &&
     optionalPositiveInteger(value.column) &&
     optionalPositiveInteger(value.endLine) &&

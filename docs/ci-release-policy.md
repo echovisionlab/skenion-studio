@@ -26,7 +26,7 @@ The visual gate is expected to generate exactly fifteen PNG artifacts:
 - `nodecard-float-value.png`
 - `nodecard-fullscreen-shader.png`
 - `nodecard-render-output.png`
-- `shader-diagnostics-panel.png`
+- `shader-issues-panel.png`
 - `help-panel-value-f32.png`
 - `help-graph-value-bang-set.png`
 - `invalid-connection.png`

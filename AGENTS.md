@@ -16,7 +16,7 @@ Skenion v0 does not support legacy, deprecated, or import-only compatibility
 paths. Studio authoring, Runtime HTTP clients, clipboard formats, collaboration
 operations, package UX, and extension UX must model the current product surface
 only. Unsupported schema, protocol, graph, project, package, manifest, or ABI
-versions must be rejected with structured diagnostics rather than migrated,
+versions must be rejected with structured issues rather than migrated,
 imported, shimmed, or kept behind deprecated aliases.
 
 The forward graph/project contract label is `0.1`. Studio should follow

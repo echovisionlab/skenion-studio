@@ -4,12 +4,12 @@ import { BooleanValueControls } from "./BooleanValueControls";
 import { ClearColorControls } from "./ClearColorControls";
 import { CommentControls } from "./CommentControls";
 import { ColorRgbaControls } from "./ColorRgbaControls";
-import { ConnectionDiagnosticsPanel } from "./ConnectionDiagnosticsPanel";
+import { ConnectionIssuesPanel } from "./ConnectionIssuesPanel";
 import { EdgeInspector } from "./EdgeInspector";
 import { FeedbackPolicyDialog } from "./FeedbackPolicyDialog";
 import { FloatValueControls } from "./FloatValueControls";
 import { FullscreenShaderControls } from "./FullscreenShaderControls";
-import { GraphDiagnosticsPanel } from "./GraphDiagnosticsPanel";
+import { GraphIssuesPanel } from "./GraphIssuesPanel";
 import { InspectorShell } from "./InspectorShell";
 import { IntegerValueControls } from "./IntegerValueControls";
 import { NodeInspector } from "./NodeInspector";
@@ -26,7 +26,7 @@ import {
   edgeInspectorModel,
   feedbackEdgeInspectorModel,
   noop,
-  semanticDiagnostics,
+  semanticIssues,
   validationFailed,
   validationOk
 } from "../../stories/storyFixtures";
@@ -139,7 +139,7 @@ export const FullscreenShaderControl: Story = {
   )
 };
 
-export const FullscreenShaderDiagnostics: Story = {
+export const FullscreenShaderIssues: Story = {
   render: () => (
     <FullscreenShaderControls
       analysis={analyzeFullscreenShaderInterface(
@@ -154,7 +154,7 @@ export const FullscreenShaderDiagnostics: Story = {
           userSourceStartLine: 5,
           generatedLineOffset: 4
         },
-        diagnostics: [
+        issues: [
           {
             severity: "error",
             phase: "wgsl-compile",
@@ -174,7 +174,7 @@ export const FullscreenShaderDiagnostics: Story = {
       onResetSource={noop}
       onSourceChange={noop}
       onSyncInputs={noop}
-      runtimeDiagnostics={[
+      runtimeIssues={[
         {
           severity: "error",
           phase: "render-pipeline",
@@ -193,12 +193,12 @@ export const FullscreenShaderDiagnostics: Story = {
 export const ValidationPanel: Story = {
   render: () => (
     <Stack gap="sm">
-      <GraphDiagnosticsPanel semanticDiagnostics={[]} validation={validationOk} />
-      <GraphDiagnosticsPanel
-        semanticDiagnostics={semanticDiagnostics}
+      <GraphIssuesPanel semanticIssues={[]} validation={validationOk} />
+      <GraphIssuesPanel
+        semanticIssues={semanticIssues}
         validation={validationFailed}
       />
-      <ConnectionDiagnosticsPanel
+      <ConnectionIssuesPanel
         connectionCheck={{
           ok: false,
           message: "fan-in-forbidden: render.output.in accepts one render.frame input"
@@ -210,14 +210,14 @@ export const ValidationPanel: Story = {
 
 export const EdgeInspectorDefault: Story = {
   render: () => (
-    <EdgeInspector diagnostics={[]} edge={edgeInspectorModel} onOpenFeedbackDialog={noop} />
+    <EdgeInspector issues={[]} edge={edgeInspectorModel} onOpenFeedbackDialog={noop} />
   )
 };
 
 export const EdgeInspectorFeedback: Story = {
   render: () => (
     <EdgeInspector
-      diagnostics={semanticDiagnostics}
+      issues={semanticIssues}
       edge={feedbackEdgeInspectorModel}
       onOpenFeedbackDialog={noop}
     />

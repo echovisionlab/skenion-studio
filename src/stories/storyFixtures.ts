@@ -4,7 +4,7 @@ import {
   type DisplayEdgeV01,
   type DisplayGraphDocumentV01
 } from "../graph/patchLibrary";
-import type { EdgeInspectorModel, GraphSemanticDiagnostic } from "../graph/portSemantics";
+import type { EdgeInspectorModel, GraphSemanticIssue } from "../graph/portSemantics";
 import type { NodeCardView, NodePortView } from "../components/node/nodeTypes";
 import type {
   RuntimeInfo,
@@ -322,7 +322,7 @@ export const validationFailed: ValidationResult<DisplayGraphDocumentV01> = {
   errors: ["ambiguous-algebraic-loop: value cycle requires explicit feedback policy"]
 };
 
-export const semanticDiagnostics: GraphSemanticDiagnostic[] = [
+export const semanticIssues: GraphSemanticIssue[] = [
   {
     code: "ambiguous-algebraic-loop",
     severity: "error",
@@ -396,10 +396,10 @@ export const runtimeSession: RuntimeSessionResponse = {
       patchLibrary: []
     },
     bindingFormats: [],
-    diagnostics: [],
+    issues: [],
     plan: null
   },
-  diagnostics: [],
+  issues: [],
   report: null
 };
 
@@ -420,7 +420,7 @@ export const runtimePreviewStatus: RuntimePreviewStatus = {
   exitedAt: null,
   exitCode: null,
   message: null,
-  diagnostics: []
+  issues: []
 };
 
 export const runtimeTelemetry: RuntimeTelemetrySnapshot = {
@@ -457,7 +457,7 @@ export const runtimeTelemetry: RuntimeTelemetrySnapshot = {
     lastFrameMs: 16.6,
     lastError: null,
     sourceNodeId: "shader_1",
-    diagnostics: [],
+    issues: [],
     generatedSourceAvailable: true,
     controlRevision: 4,
     previewControlRevision: 4,
@@ -468,7 +468,7 @@ export const runtimeTelemetry: RuntimeTelemetrySnapshot = {
     runtimeVersion: "0.14.0",
     uptimeMs: 54000
   },
-  diagnostics: []
+  issues: []
 };
 
 export const runtimeTelemetryWithRenderError: RuntimeTelemetrySnapshot = {
@@ -478,7 +478,7 @@ export const runtimeTelemetryWithRenderError: RuntimeTelemetrySnapshot = {
     ...runtimeTelemetry.render,
     active: false,
     lastError: "WGSL compile error: expected expression at line 24",
-    diagnostics: [
+    issues: [
       {
         severity: "error",
         phase: "wgsl-compile",
@@ -491,7 +491,7 @@ export const runtimeTelemetryWithRenderError: RuntimeTelemetrySnapshot = {
     ],
     generatedSourceAvailable: true
   },
-  diagnostics: [
+  issues: [
     {
       severity: "error",
       message: "WGSL compile error: expected expression at line 24"

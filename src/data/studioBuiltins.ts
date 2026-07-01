@@ -111,7 +111,7 @@ export const studioBuiltinNodeHelp: StudioBuiltinNodeHelpV01[] = [
     description: "Fullscreen Shader generates instance input ports from @skenion.uniform annotations. Studio analyzes source explicitly; ports do not mutate while the user is typing.",
     docsPath: "docs/nodes/render.fullscreen-shader.md",
     tags: ["render", "shader", "wgsl", "gpu"],
-    runtimeBehavior: "Runtime builds a dynamic uniform layout from the synced input ports, generates WGSL support code, and falls back to clear rendering with structured diagnostics on compile failure.",
+    runtimeBehavior: "Runtime builds a dynamic uniform layout from the synced input ports, generates WGSL support code, and falls back to clear rendering with structured issues on compile failure.",
     relatedNodes: ["core.float", "core.color", "render.output"],
     ports: [
       { id: "out", description: "Outputs the rendered GPU texture resource." }

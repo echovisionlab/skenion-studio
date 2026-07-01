@@ -286,7 +286,7 @@ describe("skenion graph helpers", () => {
         objectResolution: {
           status: "unresolved",
           selectedSpec: "nope",
-          diagnostics: [
+          issues: [
             {
               severity: "error",
               code: "resolution-unresolved",
@@ -295,7 +295,7 @@ describe("skenion graph helpers", () => {
           ]
         },
         params: {
-          diagnosticMessage: "nope is unavailable",
+          issueMessage: "nope is unavailable",
           requestedObject: "nope"
         },
         ports: []

@@ -11,7 +11,7 @@ import type {
 import { graphPortToPortSpec } from "./patchLibrary";
 import type { DisplayEdgeV01, DisplayGraphDocumentV01, DisplayGraphNodeV01 } from "./patchLibrary";
 
-export type DiagnosticSeverity = "error" | "warning" | "info";
+export type IssueSeverity = "error" | "warning" | "info";
 
 export interface PortSemantics {
   id: string;
@@ -50,11 +50,11 @@ export interface EdgeConversionPreview {
   target: string;
   lossy: boolean;
   policies: string[];
-  diagnostics: string[];
+  issues: string[];
 }
 
-export interface GraphSemanticDiagnostic {
-  severity: DiagnosticSeverity;
+export interface GraphSemanticIssue {
+  severity: IssueSeverity;
   code: string;
   message: string;
   edgeId?: string;
@@ -166,8 +166,8 @@ export function findEdgeInspectorModel(
   return edge ? edgeInspectorModel(graph, edge) : null;
 }
 
-export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): GraphSemanticDiagnostic[] {
-  const diagnostics: GraphSemanticDiagnostic[] = [];
+export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): GraphSemanticIssue[] {
+  const issues: GraphSemanticIssue[] = [];
   const incomingByPort = new Map<string, DisplayEdgeV01[]>();
 
   for (const edge of graph.edges) {
@@ -176,7 +176,7 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
     const id = edgeId(edge);
 
     if (!source || !target) {
-      diagnostics.push({
+      issues.push({
         severity: "error",
         code: "missing-edge-endpoint",
         message: `${id} references a missing port.`,
@@ -186,7 +186,7 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
     }
 
     if (source.port.direction !== "output" || target.port.direction !== "input") {
-      diagnostics.push({
+      issues.push({
         severity: "error",
         code: "invalid-edge-direction",
         message: `${id} must run from an outlet to an inlet.`,
@@ -201,7 +201,7 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
       graphPortToPortSpec(target.port)
     );
     if (!connectionPolicy.accepted && connectionPolicy.reason !== "direction-mismatch") {
-      diagnostics.push({
+      issues.push({
         severity: "error",
         code: "incompatible-edge-type",
         message: `${id} connects ${sourceSemantics.type} to ${targetSemantics.type}: ${connectionPolicy.reason}.`,
@@ -219,7 +219,7 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
     const semantics = portSemanticsForPort(target.node, target.port);
     const maxConnections = semantics.maxConnections as number;
     if (incomingEdges.length > maxConnections || (incomingEdges.length > 1 && semantics.mergePolicy === "forbid")) {
-      diagnostics.push({
+      issues.push({
         severity: "error",
         code: "fan-in-forbidden",
         message: `${target.node.id}.${target.port.id} has ${incomingEdges.length} inputs, maxConnections ${semantics.maxConnections}, mergePolicy ${semantics.mergePolicy}.`,
@@ -232,7 +232,7 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
   const cycles = findDirectedCycles(graph);
   for (const cycleEdges of cycles) {
     if (cycleEdges.some((edge) => Boolean(edge.feedback))) {
-      diagnostics.push({
+      issues.push({
         severity: "warning",
         code: "feedback-cycle",
         message: `Cycle ${cycleEdges.map(edgeId).join(" -> ")} is marked as explicit feedback.`
@@ -244,20 +244,20 @@ export function analyzeGraphPortSemantics(graph: DisplayGraphDocumentV01): Graph
       const source = findNodePort(graph, edge.from.node, edge.from.port)!;
       return ["control", "event"].includes(source.port.type.flow);
     });
-    diagnostics.push({
+    issues.push({
       severity: "error",
       code: controlOrValue ? "ambiguous-algebraic-loop" : "invalid-cycle",
       message: `${cycleEdges.map(edgeId).join(" -> ")} needs an explicit feedback policy.`
     });
   }
 
-  return diagnostics;
+  return issues;
 }
 
 export function connectionSemanticCheck(
   graph: DisplayGraphDocumentV01,
   patch: AddEdgePatch | null
-): GraphSemanticDiagnostic | null {
+): GraphSemanticIssue | null {
   if (!patch || patch.type !== "addEdge") {
     return null;
   }
@@ -266,7 +266,7 @@ export function connectionSemanticCheck(
     ...graph,
     edges: [...graph.edges, patch.edge]
   };
-  return analyzeGraphPortSemantics(draft).find((diagnostic) => diagnostic.severity === "error") ?? null;
+  return analyzeGraphPortSemantics(draft).find((issue) => issue.severity === "error") ?? null;
 }
 
 function findNodePort(
@@ -373,7 +373,7 @@ function edgeConnectionPreview(
       target: portSemanticsForPort(targetNode, targetPort).type,
       lossy: false,
       policies: [],
-      diagnostics: [connectionPolicy.reason]
+      issues: [connectionPolicy.reason]
     };
   }
 
@@ -383,7 +383,7 @@ function edgeConnectionPreview(
       target: portSemanticsForPort(targetNode, targetPort).type,
       lossy: false,
       policies: [connectionPolicy.reason],
-      diagnostics: []
+      issues: []
     };
   }
 
@@ -408,7 +408,7 @@ function conversionPreview(plan: ConversionPlanV01): EdgeConversionPreview | nul
       step.quantize ? "quantize" : null,
       step.sanitize ? `sanitize=${step.sanitize}` : null
     ].filter(Boolean).join(" ")),
-    diagnostics: plan.diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+    issues: plan.issues.map((issue) => `${issue.code}: ${issue.message}`)
   };
 }
 

@@ -132,7 +132,7 @@ function startup(url: string): RuntimeSidecarStartupResponse {
   return {
     defaultSessionId: "default",
     defaultSessionUrl: `${url}/v0/sessions/default`,
-    diagnostics: [],
+    issues: [],
     endpoint: {
       canonicalUrl: url,
       host: "127.0.0.1",

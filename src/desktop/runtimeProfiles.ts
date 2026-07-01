@@ -23,7 +23,7 @@ export interface StudioRuntimeProfile {
 }
 
 export interface ManagedSidecarState {
-  diagnostics: string[];
+  issues: string[];
   ownerWindowId: string | null;
   profileId: RuntimeProfileId | null;
   runtimeUrl: string | null;
@@ -69,7 +69,7 @@ export function createRuntimeProfileState(
   return {
     activeProfileId,
     managedSidecar: {
-      diagnostics: [],
+      issues: [],
       ownerWindowId: null,
       profileId: null,
       runtimeUrl: null,
@@ -201,7 +201,7 @@ export function planRuntimeConnect(
       ...state,
       managedSidecar: {
         ...state.managedSidecar,
-        diagnostics: [],
+        issues: [],
         ownerWindowId: options.ownerWindowId,
         profileId: profile.id,
         runtimeUrl: null,
@@ -220,7 +220,7 @@ export function applyRuntimeSidecarStarted(
   if (!startup.ok) {
     return applyRuntimeSidecarError(
       state,
-      startup.diagnostics.map((diagnostic) => diagnostic.message)
+      startup.issues.map((issue) => issue.message)
     );
   }
 
@@ -235,7 +235,7 @@ export function applyRuntimeSidecarStarted(
       }
     },
     managedSidecar: {
-      diagnostics: startup.diagnostics.map((diagnostic) => diagnostic.message),
+      issues: startup.issues.map((issue) => issue.message),
       ownerWindowId: effect.ownerWindowId,
       profileId: effect.profileId,
       runtimeUrl,
@@ -249,7 +249,7 @@ export function applyRuntimeSidecarStopped(state: RuntimeProfileState): RuntimeP
   return {
     ...state,
     managedSidecar: {
-      diagnostics: [],
+      issues: [],
       ownerWindowId: null,
       profileId: null,
       runtimeUrl: null,
@@ -261,13 +261,13 @@ export function applyRuntimeSidecarStopped(state: RuntimeProfileState): RuntimeP
 
 export function applyRuntimeSidecarError(
   state: RuntimeProfileState,
-  diagnostics: string[]
+  issues: string[]
 ): RuntimeProfileState {
   return {
     ...state,
     managedSidecar: {
       ...state.managedSidecar,
-      diagnostics,
+      issues,
       runtimeUrl: null,
       startup: null,
       status: "error"

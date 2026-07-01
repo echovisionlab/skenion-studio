@@ -26,7 +26,7 @@ describe("runtime payload", () => {
     const payload = createRuntimeProjectPayload(activeProject);
     const response = {
       ok: true,
-      diagnostics: [],
+      issues: [],
       plan: null,
       report: null
     } satisfies RuntimeApiResponse;

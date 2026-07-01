@@ -71,7 +71,7 @@ export function HelpGraphViewer({
       source: "help-source"
     });
     if (!result.fragment) {
-      onCopyFragmentError?.(result.diagnostics[0]?.message ?? "No help graph fragment could be copied.");
+      onCopyFragmentError?.(result.issues[0]?.message ?? "No help graph fragment could be copied.");
       return;
     }
     onCopyFragment?.(result.fragment, result);

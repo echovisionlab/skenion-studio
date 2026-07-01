@@ -96,7 +96,7 @@ describe("ObjectNodeRenderer interaction guards", () => {
     container.remove();
   });
 
-  it("marks Runtime resolution diagnostics without requiring a separate unresolved kind", async () => {
+  it("marks Runtime resolution issues without requiring a separate unresolved kind", async () => {
     const container = document.createElement("div");
     document.body.append(container);
     let root: Root | null = createRoot(container);
@@ -111,7 +111,7 @@ describe("ObjectNodeRenderer interaction guards", () => {
               status: "unresolved",
               selectedSpec: "gain",
               candidates: [],
-              diagnostics: [
+              issues: [
                 {
                   code: "resolution-unresolved",
                   message: "gain matched multiple objects",
@@ -218,7 +218,7 @@ describe("generic object spec", () => {
             objectResolution: {
               status: "unresolved",
               candidates: [],
-              diagnostics: []
+              issues: []
             }
           }),
           onObjectSpecCommit,
@@ -300,13 +300,13 @@ describe("generic object spec", () => {
           layoutEditable: true,
           node: genericNode(
             "object",
-            { diagnosticMessage: "user.manipulator is unavailable" },
+            { issueMessage: "user.manipulator is unavailable" },
             {
               objectSpec: "user.manipulator",
               objectResolution: {
                 status: "unresolved",
                 selectedSpec: "user.manipulator",
-                diagnostics: [
+                issues: [
                   {
                     code: "resolution-unresolved",
                     message: "user.manipulator is unavailable",

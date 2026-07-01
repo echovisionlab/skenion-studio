@@ -21,7 +21,7 @@ export type ViewPositions = Record<string, { x: number; y: number }>;
 export type ContractDocumentKind = "graph" | "project";
 export type ContractDocumentErrorCode = "invalid-current-document" | "unsupported-schema-version";
 
-export interface ContractDocumentDiagnostic {
+export interface ContractDocumentIssue {
   code: ContractDocumentErrorCode;
   errors: string[];
   expectedSchemaVersion: typeof CURRENT_CONTRACT_SCHEMA_VERSION;
@@ -32,12 +32,12 @@ export interface ContractDocumentDiagnostic {
 }
 
 export class ContractDocumentError extends Error {
-  readonly diagnostic: ContractDocumentDiagnostic;
+  readonly issue: ContractDocumentIssue;
 
-  constructor(diagnostic: ContractDocumentDiagnostic) {
-    super(diagnostic.message);
+  constructor(issue: ContractDocumentIssue) {
+    super(issue.message);
     this.name = "ContractDocumentError";
-    this.diagnostic = diagnostic;
+    this.issue = issue;
   }
 }
 
@@ -227,7 +227,7 @@ export function parseGraphDocumentAsActiveProject(document: unknown): ProjectDoc
     return createProjectDocumentFromContractGraph(result.value);
   }
 
-  throw new ContractDocumentError(contractDocumentDiagnostic("graph", document, result.errors));
+  throw new ContractDocumentError(contractDocumentIssue("graph", document, result.errors));
 }
 
 export function parseProjectDocument(document: unknown): ProjectDocumentV01 {
@@ -236,7 +236,7 @@ export function parseProjectDocument(document: unknown): ProjectDocumentV01 {
     return reconcileActiveProject(result.value);
   }
 
-  throw new ContractDocumentError(contractDocumentDiagnostic("project", document, result.errors));
+  throw new ContractDocumentError(contractDocumentIssue("project", document, result.errors));
 }
 
 export function parseViewState(document: unknown): ViewStateV01 {
@@ -281,11 +281,11 @@ function createDefaultViewStateForDisplayGraph(graph: DisplayGraphDocumentV01): 
   };
 }
 
-function contractDocumentDiagnostic(
+function contractDocumentIssue(
   kind: ContractDocumentKind,
   document: unknown,
   errors: string[]
-): ContractDocumentDiagnostic {
+): ContractDocumentIssue {
   const version = isRecord(document) && typeof document.schemaVersion === "string"
     ? document.schemaVersion
     : "unknown";

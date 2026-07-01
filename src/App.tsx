@@ -11,7 +11,7 @@ import {
 } from "@skenion/contracts";
 import { validatePasteGraphFragmentRequest } from "@skenion/contracts";
 import { GraphCanvas } from "./components/GraphCanvas";
-import { DiagnosticsFooter } from "./components/DiagnosticsFooter";
+import { IssuesFooter } from "./components/IssuesFooter";
 import { InspectorPanel } from "./components/InspectorPanel";
 import { PalettePanel } from "./components/PalettePanel";
 import { RuntimeLogsPanel, RuntimeSettingsPanel } from "./components/RuntimePanel";
@@ -78,7 +78,6 @@ import {
 } from "./runtime/sessionSync";
 import { runtimeControlValueEquals } from "./runtime/controlMessage";
 import type {
-  RuntimeActionResult,
   RuntimeConnectionStatus,
   RuntimeControlEventRequest,
   RuntimeControlStateResponse,
@@ -86,7 +85,6 @@ import type {
   RuntimeGeneratedShaderResponse,
   RuntimeHistory,
   RuntimeInfo,
-  RuntimeResultKind,
   RuntimePreviewStatus,
   RuntimeSessionEvent,
   RuntimeSessionResponse,
@@ -169,7 +167,6 @@ export default function App() {
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo | null>(null);
   const [nodeCatalog, setNodeCatalog] = useState<NodeCatalogSnapshotV01 | null>(null);
-  const [runtimeResult, setRuntimeResult] = useState<RuntimeActionResult | null>(null);
   const [runtimeSession, setRuntimeSession] = useState<RuntimeSessionResponse | null>(null);
   const [runtimeControlState, setRuntimeControlState] = useState<RuntimeControlStateResponse | null>(null);
   const [runtimeControlPulses, setRuntimeControlPulses] = useState<Record<string, number>>({});
@@ -195,7 +192,7 @@ export default function App() {
     })
   );
   const validation = useMemo(() => validateGraph(graph), [graph]);
-  const semanticDiagnostics = useMemo(() => analyzeGraphPortSemantics(graph), [graph]);
+  const semanticIssues = useMemo(() => analyzeGraphPortSemantics(graph), [graph]);
   const currentRuntimeScope = useMemo(
     () =>
       createRuntimeScope({
@@ -235,11 +232,11 @@ export default function App() {
     () => findEdgeInspectorModel(graph, selectedEdgeId),
     [graph, selectedEdgeId]
   );
-  const selectedRuntimeShaderDiagnostics = useMemo(() => {
+  const selectedRuntimeShaderIssues = useMemo(() => {
     if (selectedNode?.kind !== "render.fullscreen-shader") {
       return [];
     }
-    return runtimeTelemetry?.render.diagnostics ?? [];
+    return runtimeTelemetry?.render.issues ?? [];
   }, [runtimeTelemetry, selectedNode?.id, selectedNode?.kind]);
   const liveControlQueueRef = useRef<{
     inFlight: boolean;
@@ -550,14 +547,6 @@ export default function App() {
     });
   }
 
-  function recordRuntimeGraphCommandResult(response: RuntimeGraphCommandResponse) {
-    setRuntimeResult({
-      kind: "graphCommand",
-      response,
-      receivedAt: new Date().toISOString()
-    });
-  }
-
   function currentRuntimeGraphRevision(): string | null {
     return runtimeSession?.snapshot.project?.graph.revision ?? null;
   }
@@ -566,7 +555,6 @@ export default function App() {
     setRuntimeStatus("disconnected");
     setRuntimeInfo(null);
     setNodeCatalog(null);
-    setRuntimeResult(null);
     setRuntimeSession(null);
     setRuntimeControlState(null);
     setRuntimeHistory(null);
@@ -594,7 +582,7 @@ export default function App() {
       source: "root"
     });
     if (!result.fragment) {
-      const message = result.diagnostics[0]?.message ?? "No graph fragment could be copied.";
+      const message = result.issues[0]?.message ?? "No graph fragment could be copied.";
       setRuntimeError(message);
       appendClientLog("warning", message);
       return;
@@ -680,9 +668,8 @@ export default function App() {
         kind: "graph.pasteFragment",
         request
       });
-      recordRuntimeGraphCommandResult(response);
       if (!response.ok || !response.applied) {
-        const message = response.diagnostics[0]?.message ?? "Runtime rejected graph fragment paste.";
+        const message = response.issues[0]?.message ?? "Runtime rejected graph fragment paste.";
         setRuntimeError(message);
         appendClientLog(response.conflict ? "warning" : "error", message);
       }
@@ -773,13 +760,12 @@ export default function App() {
         ...(trimmedObjectSpec ? { objectSpec: trimmedObjectSpec } : {}),
         view: options.position,
         ...(options.params && Object.keys(options.params).length > 0 ? { params: options.params } : {}),
-        ...(trimmedObjectSpec ? { unresolvedPolicy: "materialize-diagnostic" as const } : {})
+        ...(trimmedObjectSpec ? { unresolvedPolicy: "materialize-issue" as const } : {})
       });
-      recordRuntimeGraphCommandResult(response);
       const nodeId = graphCommandNodeId(response);
       await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
       if (!response.ok || !response.applied) {
-        const message = response.diagnostics[0]?.message ?? "Runtime rejected object create.";
+        const message = response.issues[0]?.message ?? "Runtime rejected object create.";
         setRuntimeError(message);
         appendClientLog(response.conflict ? "warning" : "error", message);
         return null;
@@ -837,13 +823,12 @@ export default function App() {
         baseGraphRevision: baseRevision,
         nodeId,
         objectSpec: trimmedObjectSpec,
-        unresolvedPolicy: "materialize-diagnostic",
+        unresolvedPolicy: "materialize-issue",
         interfaceIncidentEdgePolicy: "drop"
       });
-      recordRuntimeGraphCommandResult(response);
       await refreshRuntimeProjectFromRuntime(createActiveRuntimeClient());
       if (!response.ok || !response.applied) {
-        const message = response.diagnostics[0]?.message ?? "Runtime rejected object edit.";
+        const message = response.issues[0]?.message ?? "Runtime rejected object edit.";
         setRuntimeError(message);
         appendClientLog(response.conflict ? "warning" : "error", message);
         return;
@@ -872,7 +857,6 @@ export default function App() {
     setViewState((currentViewState) => reconcileViewStateWithGraph(nextGraph, currentViewState));
     recordGraphPatches(patches);
     setConnectionCheck(null);
-    setRuntimeResult(null);
   }
 
   function recordGraphPatches(patches: GraphPatch[]) {
@@ -929,7 +913,6 @@ export default function App() {
         },
         description: "move object"
       });
-      recordRuntimeGraphCommandResult(response);
       setRuntimeStatus("connected");
       await refreshRuntimeProjectFromRuntime(client);
 
@@ -940,7 +923,7 @@ export default function App() {
 
       if (response.conflict) {
         const message =
-          response.diagnostics[0]?.message ?? "Runtime rejected view patch; Studio was restored from Runtime session.";
+          response.issues[0]?.message ?? "Runtime rejected view patch; Studio was restored from Runtime session.";
         setPatchConflict(message);
         setRuntimeError(message);
         await refreshRuntimeProjectFromRuntime(client);
@@ -981,29 +964,24 @@ export default function App() {
 
   async function loadProjectIntoRuntime(
     project: ProjectDocumentV01,
-    kind: RuntimeResultKind = "loadSession"
+    busyAction = "loadSession"
   ) {
     if (runtimeStatus !== "connected") {
       setRuntimeError("Connect Runtime before opening or changing a graph.");
       return;
     }
 
-    setRuntimeBusyAction(kind);
+    setRuntimeBusyAction(busyAction);
     setRuntimeError(null);
     try {
       const client = createActiveRuntimeClient();
       const response = await client.loadSession(createRuntimeSessionLoadRequest(project, { mode: "forceReplace" }));
       const loadedProject = response.snapshot.project;
       if (!response.ok || !loadedProject) {
-        throw new RuntimeClientError(response.diagnostics[0]?.message ?? "Runtime rejected project load.");
+        throw new RuntimeClientError(response.issues[0]?.message ?? "Runtime rejected project load.");
       }
 
       setRuntimeSession(response);
-      setRuntimeResult({
-        kind,
-        response,
-        receivedAt: new Date().toISOString()
-      });
       setRuntimeStatus("connected");
       acceptRuntimeProject(loadedProject);
       clearPendingPatch();
@@ -1030,7 +1008,7 @@ export default function App() {
       const loaded = await client.loadSession(createRuntimeSessionLoadRequest(seedProject));
       const loadedProject = loaded.snapshot.project;
       if (!loaded.ok || !loadedProject) {
-        throw new RuntimeClientError(loaded.diagnostics[0]?.message ?? "Runtime rejected initial project load.");
+        throw new RuntimeClientError(loaded.issues[0]?.message ?? "Runtime rejected initial project load.");
       }
       acceptRuntimeProject(loadedProject);
       return loaded;
@@ -1088,14 +1066,12 @@ export default function App() {
     setViewState((currentViewState) => reconcileViewStateWithGraph(nextGraph, currentViewState));
     recordGraphPatches([patch]);
     selectSingleNode(null);
-    setRuntimeResult(null);
   }
 
   function setNodeParam(nodeId: string, key: string, value: unknown) {
     const patch = { type: "setNodeParam", nodeId, key, value } satisfies GraphPatch;
     updateGraph(applyPatch(graph, patch), [patch]);
     setConnectionCheck(null);
-    setRuntimeResult(null);
     if (key === "source") {
       setGeneratedShader(null);
     }
@@ -1117,14 +1093,13 @@ export default function App() {
     if (!patch) {
       setConnectionCheck({
         ok: false,
-        message: "Shader interface analysis failed. Fix annotation diagnostics before syncing inputs."
+        message: "Shader interface analysis failed. Fix annotation issues before syncing inputs."
       });
       return;
     }
 
     updateGraph(applyPatch(graph, patch), [patch]);
     setConnectionCheck(null);
-    setRuntimeResult(null);
     setGeneratedShader(null);
   }
 
@@ -1429,7 +1404,7 @@ export default function App() {
     try {
       const response = await createActiveRuntimeClient().importAsset(file, "video");
       if (!response.ok || !response.asset) {
-        throw new RuntimeClientError(response.diagnostics[0]?.message ?? "Runtime asset import failed.");
+        throw new RuntimeClientError(response.issues[0]?.message ?? "Runtime asset import failed.");
       }
       const localMetadata = await readLocalVideoAssetMetadata(file).catch(() => ({}));
       setNodeParams(node.id, {
@@ -1467,12 +1442,7 @@ export default function App() {
     setRuntimeError(null);
     try {
       const client = createActiveRuntimeClient();
-      const response = await refreshRuntimeProjectFromRuntime(client);
-      setRuntimeResult({
-        kind: "session",
-        response,
-        receivedAt: new Date().toISOString()
-      });
+      await refreshRuntimeProjectFromRuntime(client);
       setRuntimeStatus("connected");
     } catch (error) {
       setRuntimeStatus("error");
@@ -1529,10 +1499,9 @@ export default function App() {
         kind: action === "undo" ? "history.undo" : "history.redo",
         scope: "client"
       });
-      recordRuntimeGraphCommandResult(response);
       await refreshRuntimeProjectFromRuntime(client);
       if (!response.ok || !response.applied) {
-        const message = response.diagnostics[0]?.message ?? "Runtime rejected history command.";
+        const message = response.issues[0]?.message ?? "Runtime rejected history command.";
         setRuntimeError(message);
         appendClientLog(response.conflict ? "warning" : "error", message);
       }
@@ -1559,17 +1528,12 @@ export default function App() {
         portId: request.portId,
         message: request.message
       });
-      setRuntimeResult({
-        kind: "graphCommand",
-        response,
-        receivedAt: new Date().toISOString()
-      });
       setRuntimeStatus("connected");
       if (response.ok && response.applied) {
         recordRuntimeControlPulseForRequest(request);
       }
       if (!response.ok || !response.applied) {
-        const message = response.diagnostics[0]?.message ?? "Runtime rejected node input.";
+        const message = response.issues[0]?.message ?? "Runtime rejected node input.";
         setRuntimeError(message);
         appendClientLog(response.conflict ? "warning" : "error", message);
       }
@@ -1694,7 +1658,7 @@ export default function App() {
         recordRuntimeControlPulseForRequest(request);
       }
       if (!response.ok && isCurrentLiveResponse) {
-        const message = response.diagnostics[0]?.message ?? "Runtime rejected node input.";
+        const message = response.issues[0]?.message ?? "Runtime rejected node input.";
         setRuntimeError(message);
         appendClientLog(response.conflict ? "warning" : "error", message);
       }
@@ -1863,16 +1827,7 @@ export default function App() {
   const runtimeLogsPanel = (
     <RuntimeLogsPanel
       clientLines={clientLogLines}
-      error={runtimeError}
-      info={runtimeInfo}
-      previewStatus={runtimePreviewStatus}
-      result={runtimeResult}
       runtimeLines={runtimeStreamLogLines}
-      semanticDiagnostics={semanticDiagnostics}
-      session={runtimeSession}
-      status={runtimeStatus}
-      telemetry={runtimeTelemetry}
-      validation={validation}
     />
   );
 
@@ -1911,12 +1866,12 @@ export default function App() {
       </AppShell.Header>
 
       <AppShell.Footer>
-        <DiagnosticsFooter
+        <IssuesFooter
           graphLockDisabled={!runtimeGraphAvailable}
           graphLocked={graphLocked}
           onOpenLogs={openLogsSidePanel}
           onToggleGraphLock={() => setGraphLocked((locked) => !locked)}
-          semanticDiagnostics={semanticDiagnostics}
+          semanticIssues={semanticIssues}
           validation={validation}
         />
       </AppShell.Footer>
@@ -2077,8 +2032,8 @@ export default function App() {
                 onSyncShaderInputs={syncShaderInputs}
                 runtimeAssetImportBusy={runtimeBusyAction === "assetImport"}
                 runtimeAssetImportEnabled={runtimeStatus === "connected" && runtimeSupportsAssetImport(runtimeInfo)}
-                runtimeShaderDiagnostics={selectedRuntimeShaderDiagnostics}
-                semanticDiagnostics={semanticDiagnostics}
+                runtimeShaderIssues={selectedRuntimeShaderIssues}
+                semanticIssues={semanticIssues}
               />
             ) : (
               <RuntimeRequiredPanel status={runtimeStatus} />
@@ -2261,7 +2216,7 @@ function runtimeSessionFromEvent(event: RuntimeSessionEvent): RuntimeSessionResp
   return {
     ok: true,
     snapshot: event.snapshot,
-    diagnostics: event.diagnostics,
+    issues: event.issues,
     report: null
   };
 }

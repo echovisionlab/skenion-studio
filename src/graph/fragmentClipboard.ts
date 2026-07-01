@@ -3,7 +3,7 @@ import {
   validateGraphFragmentV01,
   type CanvasNodeViewV01,
   type EdgeSpecV01,
-  type GraphFragmentDiagnosticV01,
+  type GraphFragmentIssueV01,
   type GraphFragmentOmittedEdgeV01,
   type GraphFragmentV01,
   type ViewStateV01
@@ -27,7 +27,7 @@ export interface GraphSelection {
 }
 
 export interface GraphFragmentBuildResult {
-  diagnostics: GraphFragmentDiagnosticV01[];
+  issues: GraphFragmentIssueV01[];
   fragment: GraphFragmentV01 | null;
   omittedEdges: GraphFragmentOmittedEdgeV01[];
 }
@@ -134,7 +134,7 @@ export function createGraphFragmentFromSelection(
 
   if (nodes.length === 0) {
     return {
-      diagnostics: [
+      issues: [
         {
           severity: "warning",
           code: "empty-selection",
@@ -165,7 +165,7 @@ export function createGraphFragmentFromSelection(
   const analysis = analyzeGraphFragmentV01(fragment, { outsideEndpointPolicy: "omit" });
 
   return {
-    diagnostics: validation.ok ? analysis.diagnostics : analysis.diagnostics,
+    issues: validation.ok ? analysis.issues : analysis.issues,
     fragment: validation.ok ? fragment : null,
     omittedEdges
   };

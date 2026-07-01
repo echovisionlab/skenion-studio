@@ -111,7 +111,7 @@ export const SelectedEdgeState: Story = {
   )
 };
 
-export const InvalidConnectionDiagnostic: Story = {
+export const InvalidConnectionIssue: Story = {
   render: () => (
     <GraphCanvasStory
       initialConnectionCheck={{
@@ -151,7 +151,7 @@ function GraphCanvasStory({
     <div style={{ height: "680px", position: "relative", width: "100vw" }}>
       {connectionCheck ? (
         <div
-          className={`storybook-diagnostic-card ${connectionCheck.ok ? "is-ok" : "is-error"}`}
+          className={`storybook-issue-card ${connectionCheck.ok ? "is-ok" : "is-error"}`}
           style={{
             background: "#ffffff",
             border: `1px solid ${connectionCheck.ok ? "#0ca678" : "#fa5252"}`,

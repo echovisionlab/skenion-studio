@@ -85,7 +85,7 @@ describe("fullscreen shader graph helpers", () => {
     const analysis = analyzeFullscreenShaderInterface(source);
 
     expect(analysis.ok).toBe(false);
-    expect(analyzeFullscreenShaderInterface(source, "glsl").diagnostics[0]?.code).toBe("unsupported-language");
+    expect(analyzeFullscreenShaderInterface(source, "glsl").issues[0]?.code).toBe("unsupported-language");
     expect(portsForFullscreenShaderSource(source).map((port) => port.id)).toEqual(["out"]);
     expect(createReplaceShaderInterfacePatch("shader_1", source)).toBeNull();
     expect(fullscreenShaderPortsAreSynced(portsForFullscreenShaderSource(source), source)).toBe(false);

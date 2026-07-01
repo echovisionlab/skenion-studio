@@ -80,7 +80,7 @@ describe("fragmentClipboard", () => {
       }
     );
 
-    expect(result.fragment, result.diagnostics.map((diagnostic) => diagnostic.message).join("; ")).not.toBeNull();
+    expect(result.fragment, result.issues.map((issue) => issue.message).join("; ")).not.toBeNull();
     expect(result.fragment?.metadata).not.toHaveProperty("source");
     expect(result.fragment?.nodes.flatMap((node) => node.ports.map((port) => [port.id, port.rate]))).toEqual([
       ["event_out", "event"],
@@ -233,10 +233,10 @@ describe("fragmentClipboard", () => {
     );
 
     expect(result.fragment).toBeNull();
-    expect(result.diagnostics[0]?.code).toBe("empty-selection");
+    expect(result.issues[0]?.code).toBe("empty-selection");
   });
 
-  it("returns diagnostics when selected fragment validation fails", () => {
+  it("returns issues when selected fragment validation fails", () => {
     const invalidGraph: GraphDocumentV01 = {
       ...testGraph,
       edges: [
@@ -254,7 +254,7 @@ describe("fragmentClipboard", () => {
     );
 
     expect(result.fragment).toBeNull();
-    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing-target-port")).toBe(true);
+    expect(result.issues.some((issue) => issue.code === "missing-target-port")).toBe(true);
   });
 
   it("keeps help source immutable while a volatile working copy can move and edit", () => {

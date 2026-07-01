@@ -43,10 +43,10 @@ const loadedSession = {
     controlRevision: 0,
     project,
     bindingFormats: [],
-    diagnostics: [],
+    issues: [],
     plan: null
   },
-  diagnostics: [],
+  issues: [],
   report: null
 } satisfies RuntimeSessionResponse;
 

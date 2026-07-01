@@ -1,14 +1,14 @@
 import { Stack, Text } from "@mantine/core";
 import { useState } from "react";
-import type { ShaderDiagnosticV01 } from "@skenion/contracts";
-import { ConnectionDiagnosticsPanel } from "./inspector/ConnectionDiagnosticsPanel";
+import type { ShaderIssueV01 } from "@skenion/contracts";
+import { ConnectionIssuesPanel } from "./inspector/ConnectionIssuesPanel";
 import { EdgeInspector } from "./inspector/EdgeInspector";
 import { FeedbackPolicyDialog } from "./inspector/FeedbackPolicyDialog";
 import { InspectorShell } from "./inspector/InspectorShell";
 import { NodeInspector } from "./inspector/NodeInspector";
 import type {
   EdgeInspectorModel,
-  GraphSemanticDiagnostic
+  GraphSemanticIssue
 } from "../graph/portSemantics";
 import type { ConnectionCheck } from "../graph/skenionGraph";
 import type { DisplayGraphDocumentV01, DisplayGraphNodeV01 } from "../graph/patchLibrary";
@@ -20,12 +20,12 @@ interface InspectorPanelProps {
   graphLocked: boolean;
   graph: DisplayGraphDocumentV01;
   node: DisplayGraphNodeV01 | null;
-  semanticDiagnostics: GraphSemanticDiagnostic[];
+  semanticIssues: GraphSemanticIssue[];
   generatedShader: RuntimeGeneratedShaderResponse | null;
   generatedShaderBusy: boolean;
   runtimeAssetImportBusy: boolean;
   runtimeAssetImportEnabled: boolean;
-  runtimeShaderDiagnostics: ShaderDiagnosticV01[];
+  runtimeShaderIssues: ShaderIssueV01[];
   onImportAsset?: (node: DisplayGraphNodeV01, file: File) => Promise<void>;
   onLoadGeneratedShader?: () => void;
   onRemoveNode: (node: DisplayGraphNodeV01) => void;
@@ -48,12 +48,12 @@ export function InspectorPanel({
   onSyncShaderInputs,
   runtimeAssetImportBusy,
   runtimeAssetImportEnabled,
-  runtimeShaderDiagnostics,
-  semanticDiagnostics
+  runtimeShaderIssues,
+  semanticIssues
 }: InspectorPanelProps) {
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
-  const selectedEdgeDiagnostics = edge
-    ? semanticDiagnostics.filter((diagnostic) => diagnostic.edgeId === edge.id)
+  const selectedEdgeIssues = edge
+    ? semanticIssues.filter((issue) => issue.edgeId === edge.id)
     : [];
   return (
     <InspectorShell edgeCount={graph.edges.length} nodeCount={graph.nodes.length}>
@@ -63,11 +63,11 @@ export function InspectorPanel({
         opened={feedbackDialogOpen}
       />
       <Stack gap="md">
-        <ConnectionDiagnosticsPanel connectionCheck={connectionCheck} />
+        <ConnectionIssuesPanel connectionCheck={connectionCheck} />
 
         {edge ? (
           <EdgeInspector
-            diagnostics={selectedEdgeDiagnostics}
+            issues={selectedEdgeIssues}
             edge={edge}
             onOpenFeedbackDialog={() => setFeedbackDialogOpen(true)}
           />
@@ -84,7 +84,7 @@ export function InspectorPanel({
             onSyncShaderInputs={onSyncShaderInputs}
             runtimeAssetImportBusy={runtimeAssetImportBusy}
             runtimeAssetImportEnabled={runtimeAssetImportEnabled}
-            runtimeShaderDiagnostics={runtimeShaderDiagnostics}
+            runtimeShaderIssues={runtimeShaderIssues}
           />
         ) : (
           <Text c="dimmed" size="sm">

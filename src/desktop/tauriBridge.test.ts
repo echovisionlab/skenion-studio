@@ -27,7 +27,7 @@ describe("tauriBridge", () => {
       if (command === "start_runtime_sidecar") {
         return {
           defaultSessionId: "default",
-          diagnostics: [],
+          issues: [],
           endpoint: { url: "http://127.0.0.1:49152" },
           ok: true,
           schema: "skenion.runtime.sidecar.startup",
@@ -35,7 +35,7 @@ describe("tauriBridge", () => {
         };
       }
       if (command === "stop_runtime_sidecar") {
-        return { diagnostics: [], ok: true, stopped: true };
+        return { issues: [], ok: true, stopped: true };
       }
       return { ok: true, windowId: "window-2" };
     });

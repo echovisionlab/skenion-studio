@@ -1,7 +1,7 @@
 import { Alert } from "@mantine/core";
 import type { ConnectionCheck } from "../../graph/skenionGraph";
 
-export function ConnectionDiagnosticsPanel({
+export function ConnectionIssuesPanel({
   connectionCheck
 }: {
   connectionCheck: ConnectionCheck | null;

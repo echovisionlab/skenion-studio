@@ -1,24 +1,19 @@
 import { Alert, Divider, Stack, Text } from "@mantine/core";
 import { Activity } from "lucide-react";
-import type { ValidationResult } from "@skenion/contracts";
 import type {
   ManagedSidecarStatus,
   RuntimeProfileId,
   RuntimeProfileState
 } from "../desktop/runtimeProfiles";
 import type { StudioWindowMode } from "../desktop/windowRegistry";
-import type { GraphSemanticDiagnostic } from "../graph/portSemantics";
-import type { DisplayGraphDocumentV01 } from "../graph/patchLibrary";
 import type {
-  RuntimeActionResult,
   RuntimeConnectionStatus,
   RuntimeInfo,
   RuntimePreviewStatus,
-  RuntimeSessionResponse,
-  RuntimeTelemetrySnapshot
+  RuntimeSessionResponse
 } from "../runtime/types";
 import { RuntimeConnectionPanel } from "./runtime/RuntimeConnectionPanel";
-import { LogConsole, logLinesFromRuntimeState, mergeLogLines, type LogLine } from "./log/LogConsole";
+import { LogConsole, mergeLogLines, type LogLine } from "./log/LogConsole";
 import { RuntimePreviewPanel } from "./runtime/RuntimePreviewPanel";
 
 interface RuntimeSettingsPanelProps {
@@ -49,16 +44,7 @@ interface RuntimeSettingsPanelProps {
 
 interface RuntimeLogsPanelProps {
   clientLines: LogLine[];
-  error: string | null;
-  info: RuntimeInfo | null;
-  previewStatus: RuntimePreviewStatus | null;
-  result: RuntimeActionResult | null;
   runtimeLines: LogLine[];
-  semanticDiagnostics: GraphSemanticDiagnostic[];
-  session: RuntimeSessionResponse | null;
-  status: RuntimeConnectionStatus;
-  telemetry: RuntimeTelemetrySnapshot | null;
-  validation: ValidationResult<DisplayGraphDocumentV01>;
 }
 
 export function RuntimeSettingsPanel({
@@ -145,33 +131,9 @@ export function RuntimeSettingsPanel({
 
 export function RuntimeLogsPanel({
   clientLines,
-  error,
-  info,
-  previewStatus,
-  result,
-  runtimeLines,
-  semanticDiagnostics,
-  session,
-  status,
-  telemetry,
-  validation
+  runtimeLines
 }: RuntimeLogsPanelProps) {
-  const lines = mergeLogLines([
-    ...clientLines,
-    ...runtimeLines,
-    ...logLinesFromRuntimeState({
-      error,
-      info,
-      observedAt: new Date().toISOString(),
-      previewStatus,
-      result,
-      semanticDiagnostics,
-      session,
-      status,
-      telemetry,
-      validation
-    })
-  ]);
+  const lines = mergeLogLines([...clientLines, ...runtimeLines]);
 
   return (
     <Stack className="runtime-panel" gap="sm">

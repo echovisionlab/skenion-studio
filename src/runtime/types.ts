@@ -13,7 +13,7 @@ import type {
   PortSpecV01,
   ProjectDocumentV01,
   RuntimeSessionLoadRequestV01,
-  ShaderDiagnosticV01,
+  ShaderIssueV01,
   UintRepresentationV01
 } from "@skenion/contracts";
 import type { RuntimeGraphCommandResponse } from "./graphCommand";
@@ -26,10 +26,10 @@ export type {
   NodeCatalogSnapshotV01
 } from "@skenion/contracts";
 
-export type RuntimeIoDiagnosticSeverity = "warning" | "error";
+export type RuntimeIoIssueSeverity = "warning" | "error";
 
-export interface RuntimeIoDiagnostic {
-  severity: RuntimeIoDiagnosticSeverity;
+export interface RuntimeIoIssue {
+  severity: RuntimeIoIssueSeverity;
   code: string;
   message: string;
 }
@@ -51,7 +51,7 @@ export interface RuntimeIoDeviceDescriptor {
 export interface RuntimeIoDeviceListResponse {
   ok: boolean;
   devices: RuntimeIoDeviceDescriptor[];
-  diagnostics: RuntimeIoDiagnostic[];
+  issues: RuntimeIoIssue[];
 }
 
 export interface RuntimeIoInlineFrame {
@@ -78,21 +78,21 @@ export type RuntimeIoBindingConfig =
       frames: RuntimeIoInlineFrame[];
     };
 
-export type RuntimeDiagnosticSeverity = "error" | "warning" | "info";
+export type RuntimeIssueSeverity = "error" | "warning" | "info";
 
-type RuntimeDiagnosticDetails =
+type RuntimeIssueDetails =
   | string
   | number
   | boolean
   | null
-  | RuntimeDiagnosticDetails[]
-  | { [key: string]: RuntimeDiagnosticDetails };
+  | RuntimeIssueDetails[]
+  | { [key: string]: RuntimeIssueDetails };
 
-export interface RuntimeDiagnostic {
-  severity: RuntimeDiagnosticSeverity;
+export interface RuntimeIssue {
+  severity: RuntimeIssueSeverity;
   message: string;
   code?: string;
-  details?: RuntimeDiagnosticDetails;
+  details?: RuntimeIssueDetails;
 }
 
 export interface RuntimeHealth {
@@ -174,14 +174,14 @@ export interface RuntimeLogEvent {
   id: number;
   timestamp: string;
   source: "runtime";
-  level: RuntimeDiagnosticSeverity;
+  level: RuntimeIssueSeverity;
   code: string | null;
   message: string;
 }
 
 export interface RuntimeLogRetention {
   replayLimit: number;
-  replayLevels: RuntimeDiagnosticSeverity[];
+  replayLevels: RuntimeIssueSeverity[];
 }
 
 export interface RuntimeLogSnapshotResponse {
@@ -190,7 +190,6 @@ export interface RuntimeLogSnapshotResponse {
   ok: boolean;
   events: RuntimeLogEvent[];
   retention: RuntimeLogRetention;
-  diagnostics: RuntimeDiagnostic[];
 }
 
 export type RuntimeGraphPort = PortSpecV01;
@@ -289,7 +288,7 @@ export interface RuntimeDummyNodeExecution {
 
 export interface RuntimeApiResponse {
   ok: boolean;
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
   plan: RuntimePlan | null;
   report: RuntimeDummyExecutionReport | null;
 }
@@ -300,14 +299,14 @@ export interface RuntimeSessionSnapshot {
   controlRevision: number;
   project: RuntimeProjectSnapshot | null;
   bindingFormats: EndpointBindingValueFormatV01[];
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
   plan: Record<string, unknown> | null;
 }
 
 export interface RuntimeSessionResponse {
   ok: boolean;
   snapshot: RuntimeSessionSnapshot;
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
   report: RuntimeDummyExecutionReport | null;
 }
 
@@ -321,7 +320,7 @@ export interface RuntimeSessionInfoResponse {
   profile: RuntimeConnectionProfile;
   capabilities: RuntimeSessionCapabilitySet;
   eventReplay: RuntimeEventReplayWindow;
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
 }
 
 export interface RuntimeOperationAttribution {
@@ -420,7 +419,7 @@ export interface RuntimeSessionEvent {
   history: RuntimeHistory;
   mutation?: RuntimeHistoryEntry;
   replay: RuntimeEventReplayMetadata;
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
   createdAt: string;
 }
 
@@ -443,7 +442,7 @@ export interface RuntimePreviewStatus {
   exitedAt: string | null;
   exitCode: number | null;
   message: string | null;
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
 }
 
 export interface RuntimePreviewStartRequest {
@@ -462,19 +461,19 @@ export interface RuntimeAsset {
 export interface RuntimeAssetImportResponse {
   ok: boolean;
   asset: RuntimeAsset | null;
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
 }
 
 export interface RuntimeAssetListResponse {
   ok: boolean;
   assets: RuntimeAsset[];
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
 }
 
 export interface RuntimeAssetGetResponse {
   ok: boolean;
   asset: RuntimeAsset | null;
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
 }
 
 export type RuntimeControlValue =
@@ -532,7 +531,7 @@ export interface RuntimeControlEventResponse {
   changed: boolean;
   controlRevision: number | null;
   emitted: RuntimeControlEmission[];
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
 }
 
 export interface RuntimeControlStateResponse {
@@ -540,7 +539,7 @@ export interface RuntimeControlStateResponse {
   controlRevision: number;
   values: Record<string, RuntimeControlValue>;
   channels: Record<string, RuntimeControlMessage>;
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
 }
 
 export type RuntimeControlReadTarget = "param" | "port" | "state";
@@ -562,7 +561,7 @@ export interface RuntimeControlReadResponse {
   ok: boolean;
   address: RuntimeControlReadRequest;
   value: RuntimeControlReadValue | null;
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
 }
 
 export interface RuntimeTelemetrySnapshot {
@@ -574,7 +573,7 @@ export interface RuntimeTelemetrySnapshot {
   preview: RuntimeTelemetryPreview;
   render: RuntimeTelemetryRender;
   process: RuntimeTelemetryProcess;
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
 }
 
 export interface RuntimeTelemetrySession {
@@ -608,7 +607,7 @@ export interface RuntimeTelemetryRender {
   lastFrameMs: number | null;
   lastError: string | null;
   sourceNodeId: string | null;
-  diagnostics: ShaderDiagnosticV01[];
+  issues: ShaderIssueV01[];
   generatedSourceAvailable: boolean;
   controlRevision: number | null;
   previewControlRevision: number | null;
@@ -627,7 +626,7 @@ export interface RuntimeGeneratedShaderResponse {
   language: "wgsl" | null;
   source: string | null;
   sourceMap: GeneratedShaderSourceMapV01 | null;
-  diagnostics: ShaderDiagnosticV01[];
+  issues: ShaderIssueV01[];
 }
 
 export interface RuntimeSessionRunRequest {
@@ -649,13 +648,13 @@ export interface RuntimeExtensionDescriptor {
   providedTransports: string[];
   providedHelp: string[];
   testIds: string[];
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
 }
 
 export interface RuntimeExtensionListResponse {
   ok: boolean;
   extensions: RuntimeExtensionDescriptor[];
-  diagnostics: RuntimeDiagnostic[];
+  issues: RuntimeIssue[];
 }
 
 export type RuntimeConnectionStatus = "disconnected" | "connecting" | "connected" | "error";

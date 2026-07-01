@@ -70,7 +70,7 @@ export function analyzeFullscreenShaderInterface(
         language: FULLSCREEN_SHADER_LANGUAGE,
         uniforms: []
       },
-      diagnostics: [
+      issues: [
         {
           severity: "error",
           phase: "interface-analysis",

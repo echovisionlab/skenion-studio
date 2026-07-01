@@ -283,7 +283,7 @@ describe("project document helpers", () => {
     ).toThrow("Unsupported project schemaVersion 0.2.0; expected 0.1.0.");
   });
 
-  it("throws structured diagnostics for unsupported contract versions", () => {
+  it("throws structured issues for unsupported contract versions", () => {
     try {
       parseGraphDocumentAsActiveProject({
         ...displayGraphToContractGraph(sampleGraph),
@@ -291,7 +291,7 @@ describe("project document helpers", () => {
       });
     } catch (error) {
       expect(error).toBeInstanceOf(ContractDocumentError);
-      expect((error as ContractDocumentError).diagnostic).toMatchObject({
+      expect((error as ContractDocumentError).issue).toMatchObject({
         code: "unsupported-schema-version",
         expectedSchemaVersion: "0.1.0",
         kind: "graph",

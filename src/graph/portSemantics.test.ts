@@ -221,18 +221,18 @@ describe("port and edge semantics", () => {
   it("allows scalar value outputs to message selector inlets", () => {
     const target = sampleGraph.nodes.find((node) => node.id === "target_1")!;
     const targetIn = target.ports.find((port) => port.id === "in")!;
-    const diagnostics = analyzeGraphPortSemantics(sampleGraph);
+    const issues = analyzeGraphPortSemantics(sampleGraph);
     const inspector = edgeInspectorModel(sampleGraph, sampleGraph.edges[0]!);
 
     expect(graphPortToPortSpec(targetIn).type).toBe("value.core.message");
-    expect(diagnostics).not.toContainEqual(expect.objectContaining({ code: "incompatible-edge-type" }));
+    expect(issues).not.toContainEqual(expect.objectContaining({ code: "incompatible-edge-type" }));
     expect(inspector.targetPort).toMatchObject({
       storedType: "event<message.any>",
       type: "message.any"
     });
     expect(inspector.conversion).toMatchObject({
       policies: ["message-selector"],
-      diagnostics: []
+      issues: []
     });
   });
 
@@ -320,7 +320,7 @@ describe("port and edge semantics", () => {
       target: "value.number.uint",
       lossy: false,
       policies: [],
-      diagnostics: ["incompatible-type"]
+      issues: ["incompatible-type"]
     });
     expect(analyzeGraphPortSemantics(graph)).toMatchObject([
       {
@@ -398,7 +398,7 @@ describe("port and edge semantics", () => {
       ]
     };
 
-    expect(edgeInspectorModel(graph, graph.edges[0]!).conversion?.diagnostics).toEqual([
+    expect(edgeInspectorModel(graph, graph.edges[0]!).conversion?.issues).toEqual([
       "incompatible-type"
     ]);
     expect(edgeInspectorModel(graph, graph.edges[1]!).conversion?.policies).toEqual([
@@ -412,7 +412,7 @@ describe("port and edge semantics", () => {
     ]);
   });
 
-  it("reports fan-in and type diagnostics without mutating graph documents", () => {
+  it("reports fan-in and type issues without mutating graph documents", () => {
     const duplicateTarget: GraphDocumentV01 = {
       ...sampleGraph,
       edges: [
@@ -421,9 +421,9 @@ describe("port and edge semantics", () => {
       ]
     };
 
-    const diagnostics = analyzeGraphPortSemantics(duplicateTarget);
+    const issues = analyzeGraphPortSemantics(duplicateTarget);
 
-    expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+    expect(issues.map((issue) => issue.code)).toEqual([
       "fan-in-forbidden"
     ]);
     expect(
@@ -452,7 +452,7 @@ describe("port and edge semantics", () => {
       ),
       edges: [sampleGraph.edges[0], sampleGraph.edges[0]]
     };
-    expect(analyzeGraphPortSemantics(mergeForbiddenTarget).map((diagnostic) => diagnostic.code)).toEqual([
+    expect(analyzeGraphPortSemantics(mergeForbiddenTarget).map((issue) => issue.code)).toEqual([
       "fan-in-forbidden"
     ]);
   });
@@ -481,16 +481,16 @@ describe("port and edge semantics", () => {
       ]
     };
 
-    expect(analyzeGraphPortSemantics(graph).map((diagnostic) => diagnostic.code)).toContain(
+    expect(analyzeGraphPortSemantics(graph).map((issue) => issue.code)).toContain(
       "ambiguous-algebraic-loop"
     );
-    expect(analyzeGraphPortSemantics(twoNodeStreamCycle()).map((diagnostic) => diagnostic.code)).toContain(
+    expect(analyzeGraphPortSemantics(twoNodeStreamCycle()).map((issue) => issue.code)).toContain(
       "invalid-cycle"
     );
-    expect(analyzeGraphPortSemantics(feedbackGraph).map((diagnostic) => diagnostic.code)).toContain(
+    expect(analyzeGraphPortSemantics(feedbackGraph).map((issue) => issue.code)).toContain(
       "feedback-cycle"
     );
-    expect(analyzeGraphPortSemantics(invalidDirection).map((diagnostic) => diagnostic.code)).toEqual([
+    expect(analyzeGraphPortSemantics(invalidDirection).map((issue) => issue.code)).toEqual([
       "invalid-edge-direction",
       "missing-edge-endpoint"
     ]);

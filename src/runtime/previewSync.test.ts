@@ -71,6 +71,6 @@ function previewStatus(state: RuntimePreviewState, stale = false): RuntimePrevie
     exitedAt: state === "exited" ? "unix-ms:2" : null,
     exitCode: state === "exited" ? 0 : null,
     message: null,
-    diagnostics: []
+    issues: []
   };
 }

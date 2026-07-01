@@ -2,43 +2,43 @@ import { Group, Text, Tooltip } from "@mantine/core";
 import { CircleAlert, Lock, ScrollText, TriangleAlert, Unlock } from "lucide-react";
 import type { ValidationResult } from "@skenion/contracts";
 import type { DisplayGraphDocumentV01 } from "../graph/patchLibrary";
-import type { GraphSemanticDiagnostic } from "../graph/portSemantics";
+import type { GraphSemanticIssue } from "../graph/portSemantics";
 import { IconButton } from "./core/IconButton/IconButton";
-import styles from "./DiagnosticsFooter.module.css";
+import styles from "./IssuesFooter.module.css";
 
-export interface DiagnosticCounts {
+export interface IssueCounts {
   errors: number;
   warnings: number;
 }
 
-export function diagnosticCounts(
+export function issueCounts(
   validation: ValidationResult<DisplayGraphDocumentV01>,
-  semanticDiagnostics: GraphSemanticDiagnostic[]
-): DiagnosticCounts {
-  const semanticErrors = semanticDiagnostics.filter((diagnostic) => diagnostic.severity === "error").length;
-  const warnings = semanticDiagnostics.filter((diagnostic) => diagnostic.severity === "warning").length;
+  semanticIssues: GraphSemanticIssue[]
+): IssueCounts {
+  const semanticErrors = semanticIssues.filter((issue) => issue.severity === "error").length;
+  const warnings = semanticIssues.filter((issue) => issue.severity === "warning").length;
   return {
     errors: validation.ok ? semanticErrors : semanticErrors + validation.errors.length,
     warnings
   };
 }
 
-export function DiagnosticsFooter({
+export function IssuesFooter({
   graphLockDisabled,
   graphLocked,
-  semanticDiagnostics,
+  semanticIssues,
   validation,
   onToggleGraphLock,
   onOpenLogs
 }: {
   graphLockDisabled: boolean;
   graphLocked: boolean;
-  semanticDiagnostics: GraphSemanticDiagnostic[];
+  semanticIssues: GraphSemanticIssue[];
   validation: ValidationResult<DisplayGraphDocumentV01>;
   onToggleGraphLock: () => void;
   onOpenLogs: () => void;
 }) {
-  const counts = diagnosticCounts(validation, semanticDiagnostics);
+  const counts = issueCounts(validation, semanticIssues);
 
   return (
     <Group className={styles.footer} justify="space-between" wrap="nowrap">

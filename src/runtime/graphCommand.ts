@@ -44,7 +44,7 @@ export interface RuntimeGraphCommandPayload {
   message?: unknown;
   request?: PasteGraphFragmentRequest;
   scope?: "client" | "global";
-  unresolvedPolicy?: "reject" | "materialize-diagnostic";
+  unresolvedPolicy?: "reject" | "materialize-issue";
   interfaceIncidentEdgePolicy?: InterfaceIncidentEdgePolicyV01;
   description?: string;
 }
@@ -54,7 +54,7 @@ export interface RuntimeGraphCommandViewPatch {
   ops: unknown[];
 }
 
-export interface RuntimeGraphCommandDiagnostic {
+export interface RuntimeGraphCommandIssue {
   severity: "error" | "warning" | "info" | string;
   code: string;
   message: string;
@@ -82,7 +82,7 @@ export interface RuntimeGraphCommandAckPayload {
   viewRevision?: number;
   sessionRevision?: number;
   historySummary?: RuntimeGraphCommandHistorySummary;
-  diagnostics: RuntimeGraphCommandDiagnostic[];
+  issues: RuntimeGraphCommandIssue[];
   node?: unknown;
   operation?: unknown;
 }
@@ -117,7 +117,7 @@ export interface RuntimeGraphCommandResponse {
   ok: boolean;
   applied: boolean;
   conflict: boolean;
-  diagnostics: RuntimeGraphCommandDiagnostic[];
+  issues: RuntimeGraphCommandIssue[];
   payload: RuntimeGraphCommandAckPayload;
   ack: RuntimeRealtimeEnvelope;
 }
@@ -367,8 +367,8 @@ function graphCommandResponseFromAck(ack: RuntimeRealtimeEnvelope): RuntimeGraph
   }
 
   const payload = ack.payload;
-  const diagnostics = Array.isArray(payload.diagnostics)
-    ? payload.diagnostics.filter(isRuntimeDiagnosticLike)
+  const issues = Array.isArray(payload.issues)
+    ? payload.issues.filter(isRuntimeIssueLike)
     : [];
   const responsePayload: RuntimeGraphCommandAckPayload = {
     accepted: payload.accepted === true,
@@ -391,7 +391,7 @@ function graphCommandResponseFromAck(ack: RuntimeRealtimeEnvelope): RuntimeGraph
     viewRevision: numberField(payload.viewRevision),
     sessionRevision: numberField(payload.sessionRevision),
     historySummary: graphCommandHistorySummary(payload.historySummary),
-    diagnostics,
+    issues,
     node: payload.node,
     operation: payload.operation
   };
@@ -400,7 +400,7 @@ function graphCommandResponseFromAck(ack: RuntimeRealtimeEnvelope): RuntimeGraph
     ok: responsePayload.accepted,
     applied: responsePayload.applied,
     conflict: responsePayload.conflict,
-    diagnostics,
+    issues,
     payload: responsePayload,
     ack
   };
@@ -418,11 +418,11 @@ function parseRealtimeFrame(data: unknown): RuntimeRealtimeEnvelope {
 }
 
 function realtimeError(frame: RuntimeRealtimeEnvelope): RuntimeGraphCommandError {
-  const diagnostic = isRecord(frame.payload) && isRecord(frame.payload.diagnostic)
-    ? frame.payload.diagnostic
+  const issue = isRecord(frame.payload) && isRecord(frame.payload.issue)
+    ? frame.payload.issue
     : null;
-  const message = typeof diagnostic?.message === "string"
-    ? diagnostic.message
+  const message = typeof issue?.message === "string"
+    ? issue.message
     : "Runtime realtime returned an error.";
   return new RuntimeGraphCommandError(message);
 }
@@ -440,7 +440,7 @@ function graphCommandHistorySummary(value: unknown): RuntimeGraphCommandHistoryS
   };
 }
 
-function isRuntimeDiagnosticLike(value: unknown): value is RuntimeGraphCommandDiagnostic {
+function isRuntimeIssueLike(value: unknown): value is RuntimeGraphCommandIssue {
   return (
     isRecord(value) &&
     typeof value.severity === "string" &&

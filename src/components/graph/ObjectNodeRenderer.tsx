@@ -288,10 +288,10 @@ function GenericObjectFrame({
   const unresolved = resolutionStatus !== undefined && resolutionStatus !== "resolved";
   const displayText = hasObjectSpec ? fallbackDisplayText : unresolved ? "Object" : fallbackDisplayText;
   const editableText = hasObjectSpec ? fallbackDisplayText : "";
-  const resolutionDiagnostic = node.objectResolution?.diagnostics?.[0];
-  const diagnosticMessage = typeof node.params.diagnosticMessage === "string"
-    ? node.params.diagnosticMessage
-    : resolutionDiagnostic?.message;
+  const resolutionIssue = node.objectResolution?.issues?.[0];
+  const issueMessage = typeof node.params.issueMessage === "string"
+    ? node.params.issueMessage
+    : resolutionIssue?.message;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(editableText);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -364,7 +364,7 @@ function GenericObjectFrame({
       renderInputHandle={renderInputHandle}
       renderOutputHandle={renderOutputHandle}
       selected={selected}
-      title={diagnosticMessage}
+      title={issueMessage}
     >
       {editing ? (
         <input

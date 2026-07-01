@@ -35,10 +35,10 @@ export const DynamicShaderInputs: Story = {
   render: (args) => <HelpGraphViewer {...args} />
 };
 
-const shaderDiagnosticsHelpGraph: GraphDocumentV01 = {
+const shaderIssuesHelpGraph: GraphDocumentV01 = {
   schema: "skenion.graph",
   schemaVersion: "0.1.0",
-  id: "help-shader-diagnostics",
+  id: "help-shader-issues",
   revision: "1",
   nodes: [
     {
@@ -50,7 +50,7 @@ const shaderDiagnosticsHelpGraph: GraphDocumentV01 = {
       },
       objectSpec: "comment",
       params: {
-        text: "This shader contains an intentionally unsupported annotation type so diagnostics can point back to the source line."
+        text: "This shader contains an intentionally unsupported annotation type so issues can point back to the source line."
       },
       ports: []
     },
@@ -115,9 +115,9 @@ const shaderDiagnosticsHelpGraph: GraphDocumentV01 = {
   ]
 };
 
-export const ShaderDiagnostics: Story = {
+export const ShaderIssues: Story = {
   args: {
-    graph: shaderDiagnosticsHelpGraph
+    graph: shaderIssuesHelpGraph
   },
   render: (args) => <HelpGraphViewer {...args} />
 };

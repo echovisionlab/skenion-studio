@@ -44,7 +44,7 @@ class FakeWebSocket implements RuntimeWebSocket {
         applied: true,
         cached: false,
         conflict: false,
-        diagnostics: [],
+        issues: [],
         eventCursor: "cursor_1",
         graphRevision: "rev_2",
         kind: frame.payload && typeof frame.payload === "object" && "kind" in frame.payload
@@ -190,7 +190,7 @@ class RuntimeErrorAfterHelloWebSocket extends FakeWebSocket {
     const frame = JSON.parse(data) as RuntimeRealtimeEnvelope;
     this.sent.push(frame);
     if (frame.type === "session.hello") {
-      this.emitRuntimeError(frame, { diagnostic: { message: "Runtime refused session." } });
+      this.emitRuntimeError(frame, { issue: { message: "Runtime refused session." } });
     }
   }
 
@@ -208,7 +208,7 @@ class RuntimeErrorAfterHelloWebSocket extends FakeWebSocket {
   }
 }
 
-class RuntimeErrorWithoutDiagnosticWebSocket extends RuntimeErrorAfterHelloWebSocket {
+class RuntimeErrorWithoutIssueWebSocket extends RuntimeErrorAfterHelloWebSocket {
   override send(data: string) {
     const frame = JSON.parse(data) as RuntimeRealtimeEnvelope;
     this.sent.push(frame);
@@ -249,7 +249,7 @@ class FallbackAckPayloadWebSocket extends FakeWebSocket {
     }
     if (frame.type === "graph.command") {
       this.emit("graph.ack", `${frame.messageId}-ack`, frame.sessionId, {
-        diagnostics: [
+        issues: [
           { severity: "debug", code: "ignored" },
           { severity: "warning", code: "runtime.graph.warning", message: "Warned." }
         ],
@@ -511,7 +511,7 @@ describe("runtime graph command client", () => {
     ).rejects.toThrow("Runtime refused session.");
 
     await expect(
-      createRuntimeGraphCommandClient({ WebSocketImpl: RuntimeErrorWithoutDiagnosticWebSocket }).sendGraphCommand({
+      createRuntimeGraphCommandClient({ WebSocketImpl: RuntimeErrorWithoutIssueWebSocket }).sendGraphCommand({
         kind: "node.create",
         objectSpec: "osc~ 440"
       })
@@ -525,7 +525,7 @@ describe("runtime graph command client", () => {
     ).rejects.toThrow("Runtime graph ACK returned an unsupported payload.");
   });
 
-  it("normalizes sparse graph ACK payloads without accepting malformed diagnostics", async () => {
+  it("normalizes sparse graph ACK payloads without accepting malformed issues", async () => {
     const response = await createRuntimeGraphCommandClient({
       sessionId: null,
       WebSocketImpl: FallbackAckPayloadWebSocket
@@ -539,7 +539,7 @@ describe("runtime graph command client", () => {
     expect(response).toMatchObject({
       applied: false,
       conflict: false,
-      diagnostics: [{ code: "runtime.graph.warning" }],
+      issues: [{ code: "runtime.graph.warning" }],
       ok: false,
       payload: {
         accepted: false,

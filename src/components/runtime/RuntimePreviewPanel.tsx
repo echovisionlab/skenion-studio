@@ -74,11 +74,11 @@ export function RuntimePreviewPanel({
         </Button>
       </Group>
 
-      {previewStatus?.diagnostics.length ? (
+      {previewStatus?.issues.length ? (
         <Stack gap={4}>
-          {previewStatus.diagnostics.slice(0, 3).map((diagnostic) => (
-            <Alert color={diagnostic.severity === "error" ? "red" : "yellow"} key={diagnostic.message} variant="light">
-              {diagnostic.message}
+          {previewStatus.issues.slice(0, 3).map((issue) => (
+            <Alert color={issue.severity === "error" ? "red" : "yellow"} key={issue.message} variant="light">
+              {issue.message}
             </Alert>
           ))}
         </Stack>

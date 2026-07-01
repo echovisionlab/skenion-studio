@@ -60,8 +60,8 @@ const captures = [
     waitForText: "Render Output"
   },
   {
-    name: "shader-diagnostics-panel",
-    id: "inspector-panels--fullscreen-shader-diagnostics",
+    name: "shader-issues-panel",
+    id: "inspector-panels--fullscreen-shader-issues",
     waitFor: ".mantine-Alert-root"
   },
   {
@@ -91,8 +91,8 @@ const captures = [
   },
   {
     name: "invalid-connection",
-    id: "graph-reactflowcanvas--invalid-connection-diagnostic",
-    waitFor: ".storybook-diagnostic-card.is-error"
+    id: "graph-reactflowcanvas--invalid-connection-issue",
+    waitFor: ".storybook-issue-card.is-error"
   },
   {
     name: "selected-edge",
